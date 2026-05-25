@@ -1,0 +1,178 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-poppins);
+  --font-mono: var(--font-space-mono);
+  --font-heading: var(--font-tenor-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* === Cores institucionais ITC (acesso direto via classes) === */
+  --color-itc-ciano: #008f95;
+  --color-itc-ciano-50: #e0f4f5;
+  --color-itc-ciano-200: #a8dce0;
+  --color-itc-ciano-400: #4bbac0;
+  --color-itc-ciano-600: #008f95;
+  --color-itc-ciano-800: #006262;
+  --color-itc-ciano-900: #003c3f;
+  --color-itc-bordo: #491027;
+  --color-itc-bordo-50: #f7e6ec;
+  --color-itc-bordo-200: #d4849f;
+  --color-itc-bordo-500: #8a2244;
+  --color-itc-bordo-700: #491027;
+  --color-itc-bordo-900: #2d0918;
+  --color-itc-neutro-50: #f4f6f6;
+  --color-itc-neutro-100: #d8dede;
+  --color-itc-neutro-300: #a5b0b0;
+  --color-itc-neutro-500: #697272;
+  --color-itc-neutro-700: #3a4040;
+  --color-itc-neutro-900: #1a2020;
+  --color-itc-sucesso: #1a7f3c;
+  --color-itc-atencao: #cc7a00;
+  --color-itc-erro: #c0392b;
+  --color-itc-info: #1565c0;
+}
+
+/* === TEMA CLARO — Identidade ITC === */
+:root {
+  --background: #ffffff;
+  --foreground: #1a2020;
+  --card: #ffffff;
+  --card-foreground: #1a2020;
+  --popover: #ffffff;
+  --popover-foreground: #1a2020;
+
+  /* Ciano ITC como cor primária */
+  --primary: #008f95;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f4f6f6;
+  --secondary-foreground: #1a2020;
+
+  --muted: #f4f6f6;
+  --muted-foreground: #697272;
+
+  --accent: #e0f4f5;
+  --accent-foreground: #003c3f;
+
+  --destructive: #c0392b;
+
+  --border: #d8dede;
+  --input: #d8dede;
+  --ring: #008f95;
+
+  --chart-1: #008f95;
+  --chart-2: #491027;
+  --chart-3: #4bbac0;
+  --chart-4: #8a2244;
+  --chart-5: #003c3f;
+
+  --radius: 0.625rem;
+
+  /* Sidebar — modo claro */
+  --sidebar: #f4f6f6;
+  --sidebar-foreground: #1a2020;
+  --sidebar-primary: #008f95;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e0f4f5;
+  --sidebar-accent-foreground: #003c3f;
+  --sidebar-border: #d8dede;
+  --sidebar-ring: #008f95;
+}
+
+/* === TEMA ESCURO — Identidade ITC === */
+.dark {
+  --background: #1a2020;
+  --foreground: #f4f6f6;
+  --card: #3a4040;
+  --card-foreground: #f4f6f6;
+  --popover: #3a4040;
+  --popover-foreground: #f4f6f6;
+
+  /* Ciano ITC mais luminoso para contraste no escuro */
+  --primary: #4bbac0;
+  --primary-foreground: #003c3f;
+
+  --secondary: #3a4040;
+  --secondary-foreground: #f4f6f6;
+
+  --muted: #3a4040;
+  --muted-foreground: #a5b0b0;
+
+  --accent: #006262;
+  --accent-foreground: #e0f4f5;
+
+  --destructive: #c0392b;
+
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.15);
+  --ring: #4bbac0;
+
+  --chart-1: #4bbac0;
+  --chart-2: #d4849f;
+  --chart-3: #a8dce0;
+  --chart-4: #8a2244;
+  --chart-5: #f4f6f6;
+
+  /* Sidebar — modo escuro */
+  --sidebar: #1a2020;
+  --sidebar-foreground: #f4f6f6;
+  --sidebar-primary: #4bbac0;
+  --sidebar-primary-foreground: #003c3f;
+  --sidebar-accent: #006262;
+  --sidebar-accent-foreground: #e0f4f5;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #4bbac0;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
