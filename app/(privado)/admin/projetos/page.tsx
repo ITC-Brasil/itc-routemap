@@ -1,5 +1,6 @@
 "use client"
 
+import { corTextoIdeal } from "@/lib/firestore/ras"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Pencil, Plus, Trash2 } from "lucide-react"
@@ -119,8 +120,11 @@ export default function ProjetosPage() {
                 <TableRow key={projeto.id}>
                   <TableCell>
                     <span
-                      className="inline-flex items-center rounded-md px-3 py-1 text-xs font-mono font-semibold text-white"
-                      style={{ backgroundColor: projeto.cor }}
+                      className="inline-flex items-center rounded-md px-3 py-1 text-xs font-mono font-semibold"
+                        style={{
+                            backgroundColor: projeto.cor,
+                            color: corTextoIdeal(projeto.cor),
+                    }}                
                     >
                       {projeto.sigla}
                     </span>

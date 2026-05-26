@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { MapPin } from "lucide-react"
 import {
-  criarProjeto,
-  atualizarProjeto,
-  type Projeto,
-} from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+  criarRA,
+  atualizarRA,
+  corTextoIdeal,
+  type RA,
+} from "@/lib/firestore/ras"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -23,64 +24,58 @@ import { ColorPicker } from "@/components/color-picker"
 
 const COR_INICIAL = "#008F95"
 
-type ProjetoFormDialogProps = {
+type RAFormDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  projeto?: Projeto | null
+  ra?: RA | null
   onSaved?: () => void
 }
 
-export function ProjetoFormDialog({
+export function RAFormDialog({
   open,
   onOpenChange,
-  projeto,
+  ra,
   onSaved,
-}: ProjetoFormDialogProps) {
-  const modoEdicao = !!projeto
+}: RAFormDialogProps) {
+  const modoEdicao = !!ra
 
-  const [nome, setNome] = useState("")
-  const [sigla, setSigla] = useState("")
+  const [nomeCidade, setNomeCidade] = useState("")
   const [cor, setCor] = useState(COR_INICIAL)
   const [salvando, setSalvando] = useState(false)
 
   useEffect(() => {
     if (open) {
-      setNome(projeto?.nome ?? "")
-      setSigla(projeto?.sigla ?? "")
-      setCor(projeto?.cor ?? COR_INICIAL)
+      setNomeCidade(ra?.nomeCidade ?? "")
+      setCor(ra?.cor ?? COR_INICIAL)
     }
-  }, [open, projeto])
+  }, [open, ra])
 
   const handleSalvar = async () => {
-    if (!nome.trim()) {
-      toast.error("Informe o nome do projeto.")
+    if (!nomeCidade.trim()) {
+      toast.error("Informe o nome da cidade.")
       return
     }
-    if (!sigla.trim()) {
-      toast.error("Informe a sigla do projeto.")
-      return
-    }
-    if (sigla.trim().length > 6) {
-      toast.error("Sigla deve ter no máximo 6 caracteres.")
+    if (nomeCidade.trim().length < 2) {
+      toast.error("Nome muito curto. Informe ao menos 2 caracteres.")
       return
     }
 
     setSalvando(true)
 
     try {
-      if (modoEdicao && projeto) {
-        await atualizarProjeto(projeto.id, { nome, sigla, cor })
-        toast.success("Projeto atualizado com sucesso!")
+      if (modoEdicao && ra) {
+        await atualizarRA(ra.id, { nomeCidade, cor })
+        toast.success("RA atualizada com sucesso!")
       } else {
-        await criarProjeto({ nome, sigla, cor })
-        toast.success("Projeto criado com sucesso!")
+        await criarRA({ nomeCidade, cor })
+        toast.success("RA cadastrada com sucesso!")
       }
 
       onSaved?.()
       onOpenChange(false)
     } catch (err) {
-      console.error("Erro ao salvar projeto:", err)
-      toast.error("Erro ao salvar o projeto. Tente novamente.")
+      console.error("Erro ao salvar RA:", err)
+      toast.error("Erro ao salvar a RA. Tente novamente.")
     } finally {
       setSalvando(false)
     }
@@ -91,43 +86,29 @@ export function ProjetoFormDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-heading text-2xl">
-            {modoEdicao ? "Editar Projeto" : "Cadastrar Projeto"}
+            {modoEdicao ? "Editar RA" : "Cadastrar RA"}
           </DialogTitle>
           <DialogDescription>
             {modoEdicao
-              ? "Atualize as informações do projeto abaixo."
-              : "Preencha os dados para cadastrar um novo projeto."}
+              ? "Atualize as informações da Região Administrativa."
+              : "Cadastre uma nova Região Administrativa."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Nome */}
+          {/* Nome da cidade */}
           <div className="space-y-2">
-            <Label htmlFor="nome">Nome do projeto</Label>
+            <Label htmlFor="nomeCidade">Nome da cidade / RA</Label>
             <Input
-              id="nome"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Ex: QDFM"
-              maxLength={80}
+              id="nomeCidade"
+              value={nomeCidade}
+              onChange={(e) => setNomeCidade(e.target.value)}
+              placeholder="Ex: Brasília, Ceilândia, Taguatinga"
+              maxLength={60}
               disabled={salvando}
-            />
-          </div>
-
-          {/* Sigla */}
-          <div className="space-y-2">
-            <Label htmlFor="sigla">Sigla</Label>
-            <Input
-              id="sigla"
-              value={sigla}
-              onChange={(e) => setSigla(e.target.value.toUpperCase())}
-              placeholder="Ex: ITC"
-              maxLength={6}
-              disabled={salvando}
-              className="font-mono uppercase"
             />
             <p className="text-xs text-muted-foreground">
-              Até 6 caracteres. Será exibida em badge colorida.
+              Nome usado para identificar a Região Administrativa.
             </p>
           </div>
 
@@ -150,11 +131,9 @@ export function ProjetoFormDialog({
                   color: corTextoIdeal(cor),
                 }}
               >
-                <span className="font-mono">{sigla || "SIGLA"}</span>
+                <MapPin className="h-3.5 w-3.5" />
+                <span>{nomeCidade || "Nome da Cidade"}</span>
               </div>
-              <p className="mt-2 text-sm text-foreground">
-                {nome || "Nome do projeto"}
-              </p>
             </div>
           </div>
         </div>
