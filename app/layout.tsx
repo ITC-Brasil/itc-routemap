@@ -3,6 +3,7 @@ import { Tenor_Sans, Poppins, Space_Mono } from "next/font/google";
 import { AuthProvider } from "@/contexts/auth-context";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 
 const tenorSans = Tenor_Sans({
@@ -45,6 +46,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>{children}</AuthProvider>
+          <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
     </html>
