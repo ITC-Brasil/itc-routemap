@@ -127,7 +127,7 @@ export function ProjetoFormDialog({
               id="nome"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder="Ex: Tecnologia Itinerante Cidadã"
+              placeholder="Ex: Grupo ITC Brasil"
               maxLength={80}
               disabled={salvando}
             />
@@ -140,7 +140,7 @@ export function ProjetoFormDialog({
               id="sigla"
               value={sigla}
               onChange={(e) => setSigla(e.target.value.toUpperCase())}
-              placeholder="Ex: TIC"
+              placeholder="Ex: ITC"
               maxLength={6}
               disabled={salvando}
               className="font-mono uppercase"
