@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { signInWithPopup } from "firebase/auth"
 import { auth, googleProvider } from "@/lib/firebase"
 import { logout, verificarConvite } from "@/lib/auth"
@@ -18,54 +18,51 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+
+  // Mensagem de erro vinda da URL — sobrevive a remontagens
+  // TODO: este Alert ainda não exibe visualmente — ver BACKLOG.md
+  const error = searchParams.get("erro")
 
   useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && user && !error) {
       router.replace("/")
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, error])
 
   const handleGoogleLogin = async () => {
     setLoading(true)
-    setError(null)
+    router.replace("/login")
 
     try {
       const result = await signInWithPopup(auth, googleProvider)
       const usuario = result.user
 
-      console.log("📥 Autenticação Google bem-sucedida:", {
-        nome: usuario.displayName,
-        email: usuario.email,
-        uid: usuario.uid,
-      })
-
       const resultadoConvite = await verificarConvite(usuario)
 
       if (!resultadoConvite.autorizado) {
-        console.warn("🚫 Acesso negado:", resultadoConvite.mensagem)
+        const mensagem = resultadoConvite.mensagem ?? "Acesso não autorizado."
         await logout()
-        setError(resultadoConvite.mensagem ?? "Acesso não autorizado.")
+        router.replace(`/login?erro=${encodeURIComponent(mensagem)}`)
         return
       }
 
-      console.log("✅ Convite válido — redirecionando para a home")
       router.push("/")
     } catch (err: unknown) {
-      console.error("❌ Erro no login:", err)
       const errorMessage = err instanceof Error ? err.message : String(err)
 
+      let mensagem = "Erro ao fazer login. Tente novamente."
       if (errorMessage.includes("popup-closed-by-user")) {
-        setError("Login cancelado. Tente novamente.")
+        mensagem = "Login cancelado. Tente novamente."
       } else if (errorMessage.includes("unauthorized-domain")) {
-        setError("Este domínio não está autorizado. Contate o administrador.")
+        mensagem = "Este domínio não está autorizado. Contate o administrador."
       } else if (errorMessage.includes("network-request-failed")) {
-        setError("Erro de conexão. Verifique sua internet.")
-      } else {
-        setError("Erro ao fazer login. Tente novamente.")
+        mensagem = "Erro de conexão. Verifique sua internet."
       }
+
+      router.replace(`/login?erro=${encodeURIComponent(mensagem)}`)
     } finally {
       setLoading(false)
     }
@@ -84,7 +81,7 @@ export default function LoginPage() {
     )
   }
 
-  if (user) {
+  if (user && !error) {
     return null
   }
 
@@ -128,11 +125,7 @@ export default function LoginPage() {
               <span>Entrando...</span>
             ) : (
               <>
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-5 w-5"
-                  aria-hidden="true"
-                >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
                   <path
                     fill="currentColor"
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
