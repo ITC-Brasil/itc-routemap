@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { signInWithPopup } from "firebase/auth"
 import { auth, googleProvider } from "@/lib/firebase"
 import { logout, verificarConvite } from "@/lib/auth"
@@ -16,16 +16,25 @@ import {
 } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
+const ERRO_STORAGE_KEY = "itc_login_erro"
+
 export default function LoginPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mensagem de erro vinda da URL — sobrevive a remontagens
-  // TODO: este Alert ainda não exibe visualmente — ver BACKLOG.md
-  const error = searchParams.get("erro")
+  // Ao montar, verifica se há um erro pendente no sessionStorage
+  // Isso garante que o Alert apareça mesmo após remontagens
+  useEffect(() => {
+    const erroSalvo = sessionStorage.getItem(ERRO_STORAGE_KEY)
+    if (erroSalvo) {
+      setError(erroSalvo)
+      sessionStorage.removeItem(ERRO_STORAGE_KEY)
+    }
+  }, [])
 
+  // Redireciona pra home APENAS se logado E sem erro ativo
   useEffect(() => {
     if (!authLoading && user && !error) {
       router.replace("/")
@@ -34,7 +43,7 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setLoading(true)
-    router.replace("/login")
+    setError(null)
 
     try {
       const result = await signInWithPopup(auth, googleProvider)
@@ -44,8 +53,15 @@ export default function LoginPage() {
 
       if (!resultadoConvite.autorizado) {
         const mensagem = resultadoConvite.mensagem ?? "Acesso não autorizado."
+
+        // Salva o erro no sessionStorage ANTES do logout
+        // Assim sobrevive à remontagem do componente
+        sessionStorage.setItem(ERRO_STORAGE_KEY, mensagem)
+
         await logout()
-        router.replace(`/login?erro=${encodeURIComponent(mensagem)}`)
+
+        // Força reload da própria página pra ler o erro do sessionStorage
+        window.location.href = "/login"
         return
       }
 
@@ -62,7 +78,7 @@ export default function LoginPage() {
         mensagem = "Erro de conexão. Verifique sua internet."
       }
 
-      router.replace(`/login?erro=${encodeURIComponent(mensagem)}`)
+      setError(mensagem)
     } finally {
       setLoading(false)
     }
