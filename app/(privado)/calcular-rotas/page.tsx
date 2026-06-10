@@ -1,11 +1,583 @@
-import { PlaceholderPage } from "@/components/layout/placeholder-page"
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { toast } from "sonner"
+import { AlertCircle, MapPin, Sparkles, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { listarProjetos, type Projeto } from "@/lib/firestore/projetos"
+import { listarTodosPontos, type Ponto } from "@/lib/firestore/pontos"
+import { listarTecnicos, type Tecnico } from "@/lib/firestore/tecnicos"
+import { obterDestinosPorUM } from "@/lib/firestore/rotas"
+import { corTextoIdeal } from "@/lib/firestore/ras"
 
 export default function CalcularRotasPage() {
+  // ====== ESTADO ======
+  const [projetos, setProjetos] = useState<Projeto[]>([])
+  const [pontos, setPontos] = useState<Ponto[]>([])
+  const [tecnicos, setTecnicos] = useState<Tecnico[]>([])
+  const [carregando, setCarregando] = useState(true)
+
+  // ====== CARREGAMENTO INICIAL ======
+  useEffect(() => {
+    let cancelado = false
+
+    async function carregar() {
+      try {
+        const [listaProjetos, listaPontos, listaTecnicos] = await Promise.all([
+          listarProjetos(),
+          listarTodosPontos(),
+          listarTecnicos(),
+        ])
+        if (cancelado) return
+        setProjetos(listaProjetos)
+        setPontos(listaPontos)
+        setTecnicos(listaTecnicos)
+      } catch (err) {
+        if (cancelado) return
+        console.error("Erro ao carregar dados:", err)
+        toast.error("Erro ao carregar dados para alocação.")
+      } finally {
+        if (!cancelado) setCarregando(false)
+      }
+    }
+
+    carregar()
+    return () => {
+      cancelado = true
+    }
+  }, [])
+
+  // ====== RENDER ======
   return (
-    <PlaceholderPage
-      titulo="Calcular Rotas"
-      descricao="Motor de otimização com Google Routes API e Gemini 2.5 Flash para sugerir a melhor alocação de técnicos a partir de distância e tempo de deslocamento."
-      fase="Fase 4 — Rotas"
+    <div className="space-y-8">
+      {/* HEADER */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            Operação
+          </p>
+          <h1 className="mt-1 font-heading text-4xl">Calcular Rotas</h1>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            Alocação inteligente: o sistema sugere qual técnico vai para qual
+            UM com base na distância da casa de cada um, usando Google Routes
+            API e IA Gemini.
+          </p>
+        </div>
+      </div>
+
+      {/* CONTEÚDO */}
+      {carregando ? (
+        <SkeletonLoading />
+      ) : (
+        <ConteudoCondicional
+          projetos={projetos}
+          pontos={pontos}
+          tecnicos={tecnicos}
+        />
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// CONTEÚDO CONDICIONAL — empty states ou seleção
+// ============================================================
+
+function ConteudoCondicional({
+  projetos,
+  pontos,
+  tecnicos,
+}: {
+  projetos: Projeto[]
+  pontos: Ponto[]
+  tecnicos: Tecnico[]
+}) {
+  const umsAptasPorProjeto = projetos
+    .map((p) => ({
+      projeto: p,
+      destinos: obterDestinosPorUM(pontos, p.id),
+    }))
+    .filter((p) => p.destinos.size > 0)
+
+  const totalUmsAptas = umsAptasPorProjeto.reduce(
+    (acc, p) => acc + p.destinos.size,
+    0
+  )
+
+  const tecnicosComLocalizacao = tecnicos.filter(
+    (t) => t.latitude !== null && t.longitude !== null
+  )
+
+  if (tecnicos.length === 0) {
+    return (
+      <EstadoVazio
+        titulo="Nenhum técnico cadastrado"
+        descricao="Antes de calcular rotas, cadastre pelo menos um técnico com endereço completo."
+        linkLabel="Cadastrar técnicos"
+        linkHref="/admin/tecnicos"
+      />
+    )
+  }
+
+  if (tecnicosComLocalizacao.length === 0) {
+    return (
+      <EstadoVazio
+        titulo="Técnicos sem geocodificação"
+        descricao="Os técnicos cadastrados não têm coordenadas (lat/lng) salvas. Edite cada um e use o botão de geocodificar o endereço."
+        linkLabel="Ir para Técnicos"
+        linkHref="/admin/tecnicos"
+      />
+    )
+  }
+
+  if (totalUmsAptas === 0) {
+    return (
+      <EstadoVazio
+        titulo="Nenhuma UM aguardando alocação"
+        descricao="Para calcular rotas, é preciso ter pelo menos uma UM com ponto Pendente. Sincronize as planilhas para trazer novos destinos."
+        linkLabel="Ir para Localidades"
+        linkHref="/admin/localidades"
+      />
+    )
+  }
+
+  return (
+    <SelecaoAlocacao
+      tecnicos={tecnicosComLocalizacao}
+      umsAptasPorProjeto={umsAptasPorProjeto}
     />
+  )
+}
+
+// ============================================================
+// SELEÇÃO DE ALOCAÇÃO — coração da página
+// ============================================================
+
+type ItemUM = {
+  key: string
+  projeto: Projeto
+  umNome: string
+  destino: Ponto
+}
+
+function SelecaoAlocacao({
+  tecnicos,
+  umsAptasPorProjeto,
+}: {
+  tecnicos: Tecnico[]
+  umsAptasPorProjeto: Array<{
+    projeto: Projeto
+    destinos: Map<string, Ponto>
+  }>
+}) {
+  // Achata as UMs em uma lista plana com contexto
+  const itensUM = useMemo<ItemUM[]>(() => {
+    const lista: ItemUM[] = []
+    for (const { projeto, destinos } of umsAptasPorProjeto) {
+      for (const [umNome, destino] of destinos) {
+        lista.push({
+          key: `${projeto.id}|${umNome}`,
+          projeto,
+          umNome,
+          destino,
+        })
+      }
+    }
+    return lista
+  }, [umsAptasPorProjeto])
+
+  // Pré-seleção: tudo marcado (otimiza pro caso comum de "alocar todos")
+  const [selectedTecnicoIds, setSelectedTecnicoIds] = useState<Set<string>>(
+    () => new Set(tecnicos.map((t) => t.id))
+  )
+  const [selectedUmKeys, setSelectedUmKeys] = useState<Set<string>>(
+    () => new Set(itensUM.map((i) => i.key))
+  )
+
+  const totalSelTecnicos = selectedTecnicoIds.size
+  const totalSelUms = selectedUmKeys.size
+
+  const toggleTecnico = (id: string) => {
+    setSelectedTecnicoIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleUm = (key: string) => {
+    setSelectedUmKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const selecionarTodosTecnicos = () =>
+    setSelectedTecnicoIds(new Set(tecnicos.map((t) => t.id)))
+  const limparTecnicos = () => setSelectedTecnicoIds(new Set())
+  const selecionarTodasUms = () =>
+    setSelectedUmKeys(new Set(itensUM.map((i) => i.key)))
+  const limparUms = () => setSelectedUmKeys(new Set())
+
+  const podeCalcular = totalSelTecnicos > 0 && totalSelUms > 0
+  const contagensDiferem = totalSelTecnicos !== totalSelUms
+
+  const handleCalcular = () => {
+    // 13.4-13.6: amarrar com a API real (Google Routes + Húngaro + Gemini)
+    toast.info("API de cálculo será implementada em 13.4-13.6.", {
+      description: `Hoje seria calculado com ${totalSelTecnicos} técnicos e ${totalSelUms} UMs.`,
+    })
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* PRONTIDÃO */}
+      <section className="space-y-3">
+        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+          Prontidão para alocação
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CardPrincipal
+            valor={tecnicos.length}
+            icone={<Users className="h-6 w-6 text-primary" />}
+            legenda={
+              tecnicos.length === 1
+                ? "técnico disponível"
+                : "técnicos disponíveis"
+            }
+          />
+          <CardPrincipal
+            valor={itensUM.length}
+            icone={<MapPin className="h-6 w-6 text-primary" />}
+            legenda={
+              itensUM.length === 1
+                ? "UM aguardando alocação"
+                : "UMs aguardando alocação"
+            }
+          />
+        </div>
+      </section>
+
+      {/* SELEÇÃO — 2 COLUNAS */}
+      <section className="space-y-3">
+        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+          Selecione técnicos e UMs
+        </h2>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* COLUNA TÉCNICOS */}
+          <Card>
+            <CardContent className="space-y-4 p-6">
+              <CabecalhoColuna
+                titulo="Técnicos"
+                selecionados={totalSelTecnicos}
+                total={tecnicos.length}
+                onSelecionarTodos={selecionarTodosTecnicos}
+                onLimpar={limparTecnicos}
+              />
+              <ul className="space-y-2">
+                {tecnicos.map((t) => {
+                  const id = `tec-${t.id}`
+                  const checked = selectedTecnicoIds.has(t.id)
+                  return (
+                    <li
+                      key={t.id}
+                      className="flex items-center gap-3 rounded-md border p-3 transition-colors hover:bg-accent/30"
+                    >
+                      <Checkbox
+                        id={id}
+                        checked={checked}
+                        onCheckedChange={() => toggleTecnico(t.id)}
+                      />
+                      <Label
+                        htmlFor={id}
+                        className="flex flex-1 cursor-pointer items-center gap-3"
+                      >
+                        <div
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-sm font-semibold"
+                          style={{
+                            backgroundColor: t.cor,
+                            color: corTextoIdeal(t.cor),
+                          }}
+                        >
+                          {obterIniciais(t.nome)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium">{t.nome}</p>
+                          <p
+                            className="truncate text-xs text-muted-foreground"
+                            title={t.endereco}
+                          >
+                            {t.endereco}
+                          </p>
+                        </div>
+                      </Label>
+                    </li>
+                  )
+                })}
+              </ul>
+            </CardContent>
+          </Card>
+
+          {/* COLUNA UMs */}
+          <Card>
+            <CardContent className="space-y-4 p-6">
+              <CabecalhoColuna
+                titulo="UMs"
+                selecionados={totalSelUms}
+                total={itensUM.length}
+                onSelecionarTodos={selecionarTodasUms}
+                onLimpar={limparUms}
+              />
+              <ul className="space-y-2">
+                {itensUM.map((item) => {
+                  const id = `um-${item.key}`
+                  const checked = selectedUmKeys.has(item.key)
+                  return (
+                    <li
+                      key={item.key}
+                      className="flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-accent/30"
+                    >
+                      <Checkbox
+                        id={id}
+                        checked={checked}
+                        onCheckedChange={() => toggleUm(item.key)}
+                        className="mt-1"
+                      />
+                      <Label
+                        htmlFor={id}
+                        className="flex flex-1 cursor-pointer flex-col gap-1"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            className="font-mono"
+                            style={{
+                              backgroundColor: item.projeto.cor,
+                              color: corTextoIdeal(item.projeto.cor),
+                            }}
+                          >
+                            {item.projeto.sigla}
+                          </Badge>
+                          <span className="font-medium">{item.umNome}</span>
+                        </div>
+                        <p className="text-sm">{item.destino.raNome}</p>
+                        <p
+                          className="truncate text-xs text-muted-foreground"
+                          title={item.destino.endereco}
+                        >
+                          {item.destino.endereco} · Ciclo {item.destino.ciclo}{" "}
+                          / Etapa {item.destino.etapa}
+                        </p>
+                      </Label>
+                    </li>
+                  )
+                })}
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* RESUMO + AÇÃO */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="font-heading text-lg">
+              {totalSelTecnicos}{" "}
+              {totalSelTecnicos === 1 ? "técnico" : "técnicos"} → {totalSelUms}{" "}
+              {totalSelUms === 1 ? "UM" : "UMs"}
+            </p>
+            {contagensDiferem && podeCalcular && (
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                ⚠ Contagens diferentes — {Math.min(totalSelTecnicos, totalSelUms)}{" "}
+                {Math.min(totalSelTecnicos, totalSelUms) === 1
+                  ? "alocação será feita"
+                  : "alocações serão feitas"}
+                .{" "}
+                {totalSelTecnicos > totalSelUms
+                  ? `${totalSelTecnicos - totalSelUms} técnico(s) ficarão sem alocação.`
+                  : `${totalSelUms - totalSelTecnicos} UM(s) ficarão sem técnico.`}
+              </p>
+            )}
+            {!contagensDiferem && podeCalcular && (
+              <p className="text-xs text-muted-foreground">
+                Cada técnico será alocado a uma UM, minimizando o deslocamento
+                total do time.
+              </p>
+            )}
+            {!podeCalcular && (
+              <p className="text-xs text-muted-foreground">
+                Selecione pelo menos 1 técnico e 1 UM.
+              </p>
+            )}
+          </div>
+          <Button
+            onClick={handleCalcular}
+            disabled={!podeCalcular}
+            size="lg"
+            className="gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            Calcular Alocação Ótima
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ============================================================
+// SUBCOMPONENTES
+// ============================================================
+
+function CardPrincipal({
+  valor,
+  icone,
+  legenda,
+}: {
+  valor: number
+  icone: React.ReactNode
+  legenda: string
+}) {
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-4 p-6">
+        <div className="rounded-full bg-primary/10 p-3">{icone}</div>
+        <div>
+          <p className="font-heading text-3xl">{valor}</p>
+          <p className="text-sm text-muted-foreground">{legenda}</p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function CabecalhoColuna({
+  titulo,
+  selecionados,
+  total,
+  onSelecionarTodos,
+  onLimpar,
+}: {
+  titulo: string
+  selecionados: number
+  total: number
+  onSelecionarTodos: () => void
+  onLimpar: () => void
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <h3 className="font-heading text-lg">
+        {titulo}{" "}
+        <span className="font-mono text-sm text-muted-foreground">
+          ({selecionados}/{total})
+        </span>
+      </h3>
+      <div className="flex gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onSelecionarTodos}
+          disabled={selecionados === total}
+        >
+          Todos
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onLimpar}
+          disabled={selecionados === 0}
+        >
+          Limpar
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function SkeletonLoading() {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2">
+        {[1, 2].map((i) => (
+          <Card key={i}>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="h-12 w-12 animate-pulse rounded-full bg-muted" />
+              <div className="space-y-2">
+                <div className="h-8 w-12 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-32 animate-pulse rounded bg-muted" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Card>
+        <CardContent className="space-y-3 p-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-12 animate-pulse rounded bg-muted" />
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function EstadoVazio({
+  titulo,
+  descricao,
+  linkLabel,
+  linkHref,
+}: {
+  titulo: string
+  descricao: string
+  linkLabel: string
+  linkHref: string
+}) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+        <div className="rounded-full bg-muted p-4">
+          <AlertCircle className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="font-heading text-2xl">{titulo}</h2>
+          <p className="max-w-md text-sm text-muted-foreground">{descricao}</p>
+        </div>
+        <Button asChild className="mt-2">
+          <Link href={linkHref}>{linkLabel}</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+/**
+ * Extrai iniciais de um nome próprio (primeiras letras de até 2 palavras,
+ * ignorando preposições comuns em pt-BR).
+ */
+function obterIniciais(nome: string): string {
+  const preposicoes = new Set(["de", "do", "da", "dos", "das", "e"])
+  const palavras = nome
+    .split(/\s+/)
+    .filter((p) => p.length > 0 && !preposicoes.has(p.toLowerCase()))
+
+  if (palavras.length === 0) return "?"
+  if (palavras.length === 1) return palavras[0][0]?.toUpperCase() ?? "?"
+
+  return (
+    (palavras[0][0]?.toUpperCase() ?? "") +
+    (palavras[palavras.length - 1][0]?.toUpperCase() ?? "")
   )
 }

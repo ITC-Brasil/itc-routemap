@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
-import { ChevronDown, LogOut, Menu, Settings, User } from "lucide-react"
+import { ChevronDown, LogOut, Menu, Settings } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { logout } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -75,20 +76,30 @@ export function Navbar() {
   const isAdminActive = menusAdmin.some((m) => pathname.startsWith(m.href))
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* === LADO ESQUERDO: Logo + Menus desktop === */}
         <div className="flex items-center gap-8">
-          {/* Logo (placeholder ITC) */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <span className="font-heading text-sm text-primary-foreground">
-                ITC
-              </span>
-            </div>
-            <span className="hidden font-heading text-lg text-foreground sm:inline">
-              RouteMap
-            </span>
+          {/* Logo institucional — troca light/dark via classe do next-themes */}
+          <Link href="/" className="flex items-center" aria-label="ITC RouteMap — Início">
+            {/* Versão clara (fundo branco) — visível no tema light */}
+            <Image
+              src="/logos/itc_routemap-logo-white.png"
+              alt="ITC RouteMap"
+              width={630}
+              height={86}
+              priority
+              className="block h-8 w-auto dark:hidden sm:h-9"
+            />
+            {/* Versão escura (fundo escuro) — visível no tema dark */}
+            <Image
+              src="/logos/itc_routemap-logo-dark.png"
+              alt="ITC RouteMap"
+              width={630}
+              height={86}
+              priority
+              className="hidden h-8 w-auto dark:block sm:h-9"
+            />
           </Link>
 
           {/* Menus desktop (escondidos no mobile) */}

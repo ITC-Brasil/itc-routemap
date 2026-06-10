@@ -25,21 +25,33 @@ const PALAVRAS_MINUSCULAS = [
 export function titleCase(texto: string): string {
   if (!texto) return ""
 
-  const palavras = texto.trim().toLowerCase().split(/\s+/)
+  // IMPORTANTE: split SEM toLowerCase pra preservar maiúsculas em siglas/códigos.
+  // O toLowerCase agora é aplicado por palavra, só quando faz sentido.
+  const palavras = texto.trim().split(/\s+/)
 
   return palavras
     .map((palavra, index) => {
-      // Primeira palavra sempre capitalizada (mesmo se for "de")
-      if (index === 0) {
-        return capitalizar(palavra)
-      }
+      if (!palavra) return ""
 
-      // Preposições/artigos ficam minúsculos no meio
-      if (PALAVRAS_MINUSCULAS.includes(palavra)) {
+      // Heurística: palavras com dígito são códigos/siglas (BSBIA04, UM-1, A1, 2024).
+      // Preserva exatamente como digitadas.
+      if (/\d/.test(palavra)) {
         return palavra
       }
 
-      return capitalizar(palavra)
+      const lower = palavra.toLowerCase()
+
+      // Primeira palavra sempre capitalizada (mesmo se for "de")
+      if (index === 0) {
+        return capitalizar(lower)
+      }
+
+      // Preposições/artigos ficam minúsculos no meio
+      if (PALAVRAS_MINUSCULAS.includes(lower)) {
+        return lower
+      }
+
+      return capitalizar(lower)
     })
     .join(" ")
 }

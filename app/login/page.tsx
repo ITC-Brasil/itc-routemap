@@ -22,17 +22,17 @@ export default function LoginPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  // Ao montar, verifica se há um erro pendente no sessionStorage
-  // Isso garante que o Alert apareça mesmo após remontagens
-  useEffect(() => {
-    const erroSalvo = sessionStorage.getItem(ERRO_STORAGE_KEY)
-    if (erroSalvo) {
-      setError(erroSalvo)
-      sessionStorage.removeItem(ERRO_STORAGE_KEY)
-    }
-  }, [])
+  // Lazy initial state: lê o erro persistido do sessionStorage UMA VEZ no
+// mount. Evita o anti-pattern "useEffect + setState" que o React 19 alerta.
+const [error, setError] = useState<string | null>(() => {
+  if (typeof window === "undefined") return null
+  const erroSalvo = sessionStorage.getItem(ERRO_STORAGE_KEY)
+  if (erroSalvo) {
+    sessionStorage.removeItem(ERRO_STORAGE_KEY)
+    return erroSalvo
+  }
+  return null
+})
 
   // Redireciona pra home APENAS se logado E sem erro ativo
   useEffect(() => {
