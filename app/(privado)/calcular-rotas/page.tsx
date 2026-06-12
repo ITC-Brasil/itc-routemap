@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { AlertCircle, MapPin, Sparkles, Users } from "lucide-react"
+import {
+  AlertCircle,
+  ArrowLeft,
+  MapPin,
+  Sparkles,
+  Users,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +20,10 @@ import { listarTodosPontos, type Ponto } from "@/lib/firestore/pontos"
 import { listarTecnicos, type Tecnico } from "@/lib/firestore/tecnicos"
 import { obterDestinosPorUM } from "@/lib/firestore/rotas"
 import { corTextoIdeal } from "@/lib/firestore/ras"
+import {
+  ResultadoAlocacao,
+  type RespostaAlocacao,
+} from "./_components/resultado-alocacao"
 
 export default function CalcularRotasPage() {
   // ====== ESTADO ======
@@ -147,7 +157,7 @@ function ConteudoCondicional({
   }
 
   return (
-    <SelecaoAlocacao
+    <FluxoAlocacao
       tecnicos={tecnicosComLocalizacao}
       umsAptasPorProjeto={umsAptasPorProjeto}
     />
@@ -155,8 +165,10 @@ function ConteudoCondicional({
 }
 
 // ============================================================
-// SELEÇÃO DE ALOCAÇÃO — coração da página
+// FLUXO DE ALOCAÇÃO — máquina de estados
 // ============================================================
+
+type EtapaCalculo = "selecao" | "calculando" | "resultado" | "erro"
 
 type ItemUM = {
   key: string
@@ -165,7 +177,7 @@ type ItemUM = {
   destino: Ponto
 }
 
-function SelecaoAlocacao({
+function FluxoAlocacao({
   tecnicos,
   umsAptasPorProjeto,
 }: {
@@ -175,7 +187,7 @@ function SelecaoAlocacao({
     destinos: Map<string, Ponto>
   }>
 }) {
-  // Achata as UMs em uma lista plana com contexto
+  // Achata as UMs em lista plana com contexto
   const itensUM = useMemo<ItemUM[]>(() => {
     const lista: ItemUM[] = []
     for (const { projeto, destinos } of umsAptasPorProjeto) {
@@ -191,7 +203,7 @@ function SelecaoAlocacao({
     return lista
   }, [umsAptasPorProjeto])
 
-  // Pré-seleção: tudo marcado (otimiza pro caso comum de "alocar todos")
+  // Pré-seleção: tudo marcado
   const [selectedTecnicoIds, setSelectedTecnicoIds] = useState<Set<string>>(
     () => new Set(tecnicos.map((t) => t.id))
   )
@@ -199,9 +211,15 @@ function SelecaoAlocacao({
     () => new Set(itensUM.map((i) => i.key))
   )
 
+  // Estado da máquina de fluxo
+  const [etapa, setEtapa] = useState<EtapaCalculo>("selecao")
+  const [resultado, setResultado] = useState<RespostaAlocacao | null>(null)
+  const [erroCalculo, setErroCalculo] = useState<string | null>(null)
+
   const totalSelTecnicos = selectedTecnicoIds.size
   const totalSelUms = selectedUmKeys.size
 
+  // === TOGGLES ===
   const toggleTecnico = (id: string) => {
     setSelectedTecnicoIds((prev) => {
       const next = new Set(prev)
@@ -230,13 +248,134 @@ function SelecaoAlocacao({
   const podeCalcular = totalSelTecnicos > 0 && totalSelUms > 0
   const contagensDiferem = totalSelTecnicos !== totalSelUms
 
-  const handleCalcular = () => {
-    // 13.4-13.6: amarrar com a API real (Google Routes + Húngaro + Gemini)
-    toast.info("API de cálculo será implementada em 13.4-13.6.", {
-      description: `Hoje seria calculado com ${totalSelTecnicos} técnicos e ${totalSelUms} UMs.`,
+  // === CHAMADA À API ===
+  const handleCalcular = async () => {
+    setEtapa("calculando")
+    setErroCalculo(null)
+    setResultado(null)
+
+    try {
+      // Valida coordenadas ANTES do cast (TS-safe)
+      const tecsSemCoord = tecnicos
+        .filter((t) => selectedTecnicoIds.has(t.id))
+        .filter((t) => t.latitude === null || t.longitude === null)
+      if (tecsSemCoord.length > 0) {
+        throw new Error(
+          `Técnico(s) sem coordenadas: ${tecsSemCoord
+            .map((t) => t.nome)
+            .join(", ")}. Geocodifique antes de alocar.`
+        )
+      }
+
+      const destsSemCoord = itensUM
+        .filter((i) => selectedUmKeys.has(i.key))
+        .filter(
+          (i) => i.destino.latitude === null || i.destino.longitude === null
+        )
+      if (destsSemCoord.length > 0) {
+        throw new Error(
+          `UM(s) sem coordenadas no destino: ${destsSemCoord
+            .map((i) => i.umNome)
+            .join(", ")}.`
+        )
+      }
+
+      // Monta payload (coords garantidas)
+      const tecnicosPayload = tecnicos
+        .filter((t) => selectedTecnicoIds.has(t.id))
+        .map((t) => ({
+          id: t.id,
+          nome: t.nome,
+          endereco: t.endereco,
+          latitude: t.latitude!,
+          longitude: t.longitude!,
+        }))
+
+      const destinosPayload = itensUM
+        .filter((i) => selectedUmKeys.has(i.key))
+        .map((item) => ({
+          id: item.destino.id,
+          umNome: item.umNome,
+          projetoId: item.projeto.id,
+          projetoSigla: item.projeto.sigla,
+          raNome: item.destino.raNome,
+          endereco: item.destino.endereco,
+          latitude: item.destino.latitude!,
+          longitude: item.destino.longitude!,
+          ciclo: item.destino.ciclo,
+          etapa: item.destino.etapa,
+        }))
+
+      const response = await fetch("/api/routes/alocar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tecnicos: tecnicosPayload,
+          destinos: destinosPayload,
+          modoPrincipal: "DRIVE",
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.sucesso) {
+        const msg =
+          data.erro ??
+          data.detalhe ??
+          `HTTP ${response.status}: falha ao calcular alocação.`
+        throw new Error(msg)
+      }
+
+      setResultado(data as RespostaAlocacao)
+      setEtapa("resultado")
+    } catch (err) {
+      console.error("Erro ao calcular alocação:", err)
+      setErroCalculo(
+        err instanceof Error ? err.message : "Erro desconhecido no cálculo."
+      )
+      setEtapa("erro")
+    }
+  }
+
+  const handleVoltar = () => {
+    setEtapa("selecao")
+    setResultado(null)
+    setErroCalculo(null)
+  }
+
+  const handleConfirmar = () => {
+    toast.info("Persistência da alocação chegará na próxima etapa (13.8).", {
+      description:
+        "A alocação será salva no Firestore como rotas Confirmadas e os pontos transitarão para o status Agendado.",
     })
   }
 
+  // === RENDER CONDICIONAL ===
+
+  if (etapa === "calculando") {
+    return <LoadingCalculo totalPares={totalSelTecnicos * totalSelUms} />
+  }
+
+  if (etapa === "resultado" && resultado) {
+    return (
+      <ResultadoAlocacao
+        resultado={resultado}
+        onVoltar={handleVoltar}
+        onConfirmar={handleConfirmar}
+      />
+    )
+  }
+
+  if (etapa === "erro") {
+    return (
+      <ErroCalculo
+        mensagem={erroCalculo ?? "Erro desconhecido."}
+        onVoltar={handleVoltar}
+      />
+    )
+  }
+
+  // etapa === "selecao"
   return (
     <div className="space-y-6">
       {/* PRONTIDÃO */}
@@ -397,14 +536,19 @@ function SelecaoAlocacao({
             </p>
             {contagensDiferem && podeCalcular && (
               <p className="text-xs text-amber-700 dark:text-amber-300">
-                ⚠ Contagens diferentes — {Math.min(totalSelTecnicos, totalSelUms)}{" "}
+                ⚠ Contagens diferentes —{" "}
+                {Math.min(totalSelTecnicos, totalSelUms)}{" "}
                 {Math.min(totalSelTecnicos, totalSelUms) === 1
                   ? "alocação será feita"
                   : "alocações serão feitas"}
                 .{" "}
                 {totalSelTecnicos > totalSelUms
-                  ? `${totalSelTecnicos - totalSelUms} técnico(s) ficarão sem alocação.`
-                  : `${totalSelUms - totalSelTecnicos} UM(s) ficarão sem técnico.`}
+                  ? `${
+                      totalSelTecnicos - totalSelUms
+                    } técnico(s) ficarão sem alocação.`
+                  : `${
+                      totalSelUms - totalSelTecnicos
+                    } UM(s) ficarão sem técnico.`}
               </p>
             )}
             {!contagensDiferem && podeCalcular && (
@@ -435,7 +579,62 @@ function SelecaoAlocacao({
 }
 
 // ============================================================
-// SUBCOMPONENTES
+// LOADING / ERRO
+// ============================================================
+
+function LoadingCalculo({ totalPares }: { totalPares: number }) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center gap-5 py-16 text-center">
+        <div className="relative h-16 w-16">
+          <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Sparkles className="h-8 w-8 animate-pulse text-primary" />
+          </div>
+        </div>
+        <div className="max-w-md space-y-2">
+          <h3 className="font-heading text-2xl">Calculando alocação ótima</h3>
+          <p className="text-sm text-muted-foreground">
+            Consultando Google Routes para {totalPares}{" "}
+            {totalPares === 1 ? "par" : "pares"} (carro, moto e a pé), depois
+            executando o algoritmo Húngaro. Isso leva alguns segundos.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ErroCalculo({
+  mensagem,
+  onVoltar,
+}: {
+  mensagem: string
+  onVoltar: () => void
+}) {
+  return (
+    <Card className="border-destructive/30 bg-destructive/5">
+      <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+        <div className="rounded-full bg-destructive/15 p-4">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+        </div>
+        <div className="max-w-md space-y-2">
+          <h3 className="font-heading text-2xl text-destructive">
+            Erro no cálculo
+          </h3>
+          <p className="text-sm text-muted-foreground">{mensagem}</p>
+        </div>
+        <Button onClick={onVoltar} variant="outline" className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          Voltar e tentar novamente
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================
+// SUBCOMPONENTES REUTILIZÁVEIS
 // ============================================================
 
 function CardPrincipal({
@@ -563,10 +762,6 @@ function EstadoVazio({
 // HELPERS
 // ============================================================
 
-/**
- * Extrai iniciais de um nome próprio (primeiras letras de até 2 palavras,
- * ignorando preposições comuns em pt-BR).
- */
 function obterIniciais(nome: string): string {
   const preposicoes = new Set(["de", "do", "da", "dos", "das", "e"])
   const palavras = nome

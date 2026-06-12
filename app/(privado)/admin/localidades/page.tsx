@@ -182,7 +182,34 @@ export default function LocalidadesPage() {
         }
       }
     }
-
+// ====== 5.5. POÓS sync: geocodifica pontos sem coords ======
+    let geocodingInfo = ""
+    if (sucessos.length > 0) {
+      try {
+        const resGeo = await fetch("/api/geocode-pontos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        })
+        const jsonGeo = (await resGeo.json()) as {
+          sucesso: boolean
+          geocodados: number
+          falhas: number
+        }
+        if (jsonGeo.sucesso && jsonGeo.geocodados > 0) {
+          geocodingInfo = ` · ${jsonGeo.geocodados} geocodificado${
+            jsonGeo.geocodados === 1 ? "" : "s"
+          }`
+        }
+        if (jsonGeo.falhas > 0) {
+          console.warn(
+            `Geocoding: ${jsonGeo.falhas} ponto(s) não puderam ser geocodificados.`
+          )
+        }
+      } catch (err) {
+        console.warn("Geocoding pós-sync falhou (não bloqueia):", err)
+      }
+    }
     // 6. Feedback final (1 toast só, com hierarquia clara)
     toast.dismiss(toastId)
 
@@ -190,7 +217,7 @@ export default function LocalidadesPage() {
       totalNovos === 1 ? "" : "s"
     } · ${totalAtualizados} atualizado${
       totalAtualizados === 1 ? "" : "s"
-    } · ${totalDeletados} removido${totalDeletados === 1 ? "" : "s"}`
+    } · ${totalDeletados} removido${totalDeletados === 1 ? "" : "s"}${geocodingInfo}`
 
     if (falhas.length === 0 && abasComErro.length === 0) {
       toast.success("Sincronização concluída", { description: resumoCounts })

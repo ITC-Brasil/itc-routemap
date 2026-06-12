@@ -203,6 +203,8 @@ export async function POST(request: Request) {
           id: tec.id,
           nome: tec.nome,
           endereco: tec.endereco,
+          latitude: tec.latitude,
+          longitude: tec.longitude,
         },
         destino: {
           id: dest.id,
@@ -213,6 +215,8 @@ export async function POST(request: Request) {
           endereco: dest.endereco,
           ciclo: dest.ciclo,
           etapa: dest.etapa,
+          latitude: dest.latitude,
+          longitude: dest.longitude,
         },
         metricas,
         custoSegundosPrincipal: a.custo,
