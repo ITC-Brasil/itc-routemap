@@ -4,6 +4,7 @@ import { AuthProvider } from "@/contexts/auth-context";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { BackgroundGrid } from "@/components/background-grid"
 
 
 const tenorSans = Tenor_Sans({
@@ -45,6 +46,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <BackgroundGrid />
           <AuthProvider>{children}</AuthProvider>
           <Toaster richColors position="top-right" />
         </ThemeProvider>

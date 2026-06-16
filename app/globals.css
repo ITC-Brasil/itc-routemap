@@ -77,7 +77,7 @@
 :root {
   --background: #ffffff;
   --foreground: #1a2020;
-  --card: #ffffff;
+  --card: rgba(255, 255, 255, 0.55);
   --card-foreground: #1a2020;
   --popover: #ffffff;
   --popover-foreground: #1a2020;
@@ -118,13 +118,23 @@
   --sidebar-accent-foreground: #003c3f;
   --sidebar-border: #d8dede;
   --sidebar-ring: #008f95;
+
+  /* === Background interativo + card hover (tema claro: ambiente bordô) === */
+  --mx: 50%;
+  --my: 50%;
+  --grid-line: rgba(26, 32, 32, 0.07);
+  --grid-line-hl: rgba(73, 16, 39, 0.30);
+  --spot-bg: rgba(73, 16, 39, 0.10);
+  --card-bar: #491027;
+  --card-spot: rgba(0, 143, 149, 0.06);
+  --card-shadow: 0 12px 28px -12px rgba(0, 143, 149, 0.35), 0 6px 16px -6px rgba(73, 16, 39, 0.12);
 }
 
 /* === TEMA ESCURO — Identidade ITC === */
 .dark {
   --background: #1a2020;
   --foreground: #f4f6f6;
-  --card: #3a4040;
+  --card: rgba(58, 64, 64, 0.45);
   --card-foreground: #f4f6f6;
   --popover: #3a4040;
   --popover-foreground: #f4f6f6;
@@ -163,6 +173,14 @@
   --sidebar-accent-foreground: #e0f4f5;
   --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: #4bbac0;
+
+  /* === Background interativo + card hover (tema escuro: ambiente ciano) === */
+  --grid-line: rgba(255, 255, 255, 0.04);
+  --grid-line-hl: rgba(0, 143, 149, 0.5);
+  --spot-bg: rgba(0, 143, 149, 0.18);
+  --card-bar: #008f95;
+  --card-spot: rgba(0, 143, 149, 0.08);
+  --card-shadow: 0 10px 30px -10px rgba(0, 143, 149, 0.25);
 }
 
 @layer base {
@@ -174,5 +192,94 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer components {
+  /* Camadas de fundo (renderizadas pelo <BackgroundGrid />) */
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+  }
+
+  .bg-grid-hl {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid-line-hl) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line-hl) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(circle 300px at var(--mx) var(--my), black 0%, transparent 70%);
+    -webkit-mask-image: radial-gradient(circle 300px at var(--mx) var(--my), black 0%, transparent 70%);
+  }
+
+  .bg-spot {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle 450px at var(--mx) var(--my), var(--spot-bg) 0%, transparent 65%);
+    transition: background 100ms ease-out;
+  }
+
+  /* Glass effect padrão em TODOS os Cards do shadcn.
+     O --card já é transparente (definido nos blocos :root e .dark);
+     esse blur é o que cria o efeito esfumaçado em cima do BackgroundGrid. */
+  [data-slot="card"] {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Card com elevação + barra lateral colorida + spotlight interno.
+     Aplicada manualmente só onde quisermos esse comportamento (ex: CardResumoProjeto). */
+  .card-interactive {
+    position: relative;
+    overflow: hidden;
+    transition: transform 250ms ease-out, border-color 250ms ease-out, box-shadow 250ms ease-out;
+  }
+
+  .card-interactive::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: var(--card-bar);
+    transition: width 250ms ease-out;
+    border-radius: var(--radius) 0 0 var(--radius);
+  }
+
+  .card-interactive::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle 280px at var(--card-mx, 50%) var(--card-my, 50%),
+      var(--card-spot),
+      transparent 70%
+    );
+    opacity: 0;
+    transition: opacity 300ms ease-out;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  .card-interactive:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+    box-shadow: var(--card-shadow);
+  }
+
+  .card-interactive:hover::before {
+    width: 3px;
+  }
+
+  .card-interactive:hover::after {
+    opacity: 1;
   }
 }

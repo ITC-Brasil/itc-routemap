@@ -591,9 +591,17 @@ function CardResumoProjeto({
 }: {
   estatistica: EstatisticaProjeto
 }) {
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    e.currentTarget.style.setProperty("--card-mx", `${e.clientX - rect.left}px`)
+    e.currentTarget.style.setProperty("--card-my", `${e.clientY - rect.top}px`)
+  }
+
   return (
-    <Card>
-      <CardContent className="space-y-4 p-6">
+    <Card
+      onMouseMove={handleMouseMove}
+      className="card-interactive bg-[var(--card-glass)] backdrop-blur-md hover:bg-[var(--card-glass-hover)]">
+      <CardContent className="space-y-4 p-5">
         <div className="space-y-2">
           <span
             className="inline-flex items-center rounded-md px-2.5 py-0.5 font-mono text-xs font-semibold"
@@ -607,8 +615,8 @@ function CardResumoProjeto({
           <p className="font-heading text-lg leading-tight">{est.nome}</p>
         </div>
 
-        <div className="space-y-1">
-          <p className="font-heading text-3xl">{est.totalPontos}</p>
+        <div className="space-y-0.5">
+          <p className="font-heading text-3xl leading-none">{est.totalPontos}</p>
           <p className="text-xs text-muted-foreground">
             {est.totalPontos === 1 ? "ponto" : "pontos"} sincronizado
             {est.totalPontos === 1 ? "" : "s"}
