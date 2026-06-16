@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import {
   AlertCircle,
   ArrowLeft,
+  CheckCircle,
   MapPin,
   Sparkles,
   Users,
@@ -20,10 +21,14 @@ import { listarTodosPontos, type Ponto } from "@/lib/firestore/pontos"
 import { listarTecnicos, type Tecnico } from "@/lib/firestore/tecnicos"
 import { obterDestinosPorUM } from "@/lib/firestore/rotas"
 import { corTextoIdeal } from "@/lib/firestore/ras"
+import { useRouter } from "next/navigation"
+import { confirmarAlocacao } from "@/lib/firestore/rotas"
 import {
   ResultadoAlocacao,
   type RespostaAlocacao,
+  type PayloadConfirmacao,
 } from "./_components/resultado-alocacao"
+
 
 export default function CalcularRotasPage() {
   // ====== ESTADO ======
@@ -168,8 +173,15 @@ function ConteudoCondicional({
 // FLUXO DE ALOCAÇÃO — máquina de estados
 // ============================================================
 
-type EtapaCalculo = "selecao" | "calculando" | "resultado" | "erro"
-
+type EtapaCalculo =
+  | "selecao"
+  | "calculando"
+  | "resultado"
+  | "erro"
+  | "confirmando"
+  | "confirmado"
+  | "erroConfirmar"
+  
 type ItemUM = {
   key: string
   projeto: Projeto
@@ -215,6 +227,9 @@ function FluxoAlocacao({
   const [etapa, setEtapa] = useState<EtapaCalculo>("selecao")
   const [resultado, setResultado] = useState<RespostaAlocacao | null>(null)
   const [erroCalculo, setErroCalculo] = useState<string | null>(null)
+  const [rotasConfirmadasIds, setRotasConfirmadasIds] = useState<string[]>([])
+  const [erroConfirmar, setErroConfirmar] = useState<string | null>(null)
+  const router = useRouter()
 
   const totalSelTecnicos = selectedTecnicoIds.size
   const totalSelUms = selectedUmKeys.size
@@ -343,11 +358,20 @@ function FluxoAlocacao({
     setErroCalculo(null)
   }
 
-  const handleConfirmar = () => {
-    toast.info("Persistência da alocação chegará na próxima etapa (13.8).", {
-      description:
-        "A alocação será salva no Firestore como rotas Confirmadas e os pontos transitarão para o status Agendado.",
-    })
+const handleConfirmar = async (payload: PayloadConfirmacao) => {
+    setEtapa("confirmando")
+    setErroConfirmar(null)
+    try {
+      const { rotasIds } = await confirmarAlocacao(payload)
+      setRotasConfirmadasIds(rotasIds)
+      setEtapa("confirmado")
+    } catch (err) {
+      console.error("Erro ao confirmar alocação:", err)
+      setErroConfirmar(
+        err instanceof Error ? err.message : "Erro desconhecido ao salvar."
+      )
+      setEtapa("erroConfirmar")
+    }
   }
 
   // === RENDER CONDICIONAL ===
@@ -375,6 +399,30 @@ function FluxoAlocacao({
     )
   }
 
+  if (etapa === "confirmando") {
+    return <ConfirmandoLoading totalAlocacoes={resultado?.alocacoes.length ?? 0} />
+  }
+
+  if (etapa === "confirmado") {
+    return (
+      <ConfirmadoCard
+        totalRotas={rotasConfirmadasIds.length}
+        onIrAgora={() => router.push("/admin/localidades")}
+        onCancelarRedirect={() => setEtapa("selecao")}
+      />
+    )
+  }
+
+  if (etapa === "erroConfirmar") {
+    return (
+      <ErroConfirmacao
+        mensagem={erroConfirmar ?? "Erro desconhecido."}
+        onVoltarParaResultado={() => setEtapa("resultado")}
+      />
+    )
+  }
+
+  
   // etapa === "selecao"
   return (
     <div className="space-y-6">
@@ -627,6 +675,127 @@ function ErroCalculo({
         <Button onClick={onVoltar} variant="outline" className="gap-2">
           <ArrowLeft className="h-4 w-4" />
           Voltar e tentar novamente
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================
+// COMPONENTES DE CONFIRMAÇÃO (13.8)
+// ============================================================
+
+function ConfirmandoLoading({ totalAlocacoes }: { totalAlocacoes: number }) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center gap-5 py-16 text-center">
+        <div className="relative h-16 w-16">
+          <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <CheckCircle className="h-8 w-8 animate-pulse text-primary" />
+          </div>
+        </div>
+        <div className="max-w-md space-y-2">
+          <h3 className="font-heading text-2xl">Salvando alocação</h3>
+          <p className="text-sm text-muted-foreground">
+            Persistindo {totalAlocacoes}{" "}
+            {totalAlocacoes === 1 ? "rota" : "rotas"} no Firestore e atualizando
+            o status dos pontos. Não feche a página.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ConfirmadoCard({
+  totalRotas,
+  onIrAgora,
+  onCancelarRedirect,
+}: {
+  totalRotas: number
+  onIrAgora: () => void
+  onCancelarRedirect: () => void
+}) {
+  const [contagem, setContagem] = useState(3)
+  const [paused, setPaused] = useState(false)
+
+  useEffect(() => {
+    if (paused) return
+    if (contagem <= 0) {
+      onIrAgora()
+      return
+    }
+    const t = setTimeout(() => setContagem((c) => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [contagem, paused, onIrAgora])
+
+  return (
+    <Card className="border-emerald-300 bg-emerald-50/60 dark:border-emerald-800/60 dark:bg-emerald-950/30">
+      <CardContent className="flex flex-col items-center gap-5 py-16 text-center">
+        <div className="rounded-full bg-emerald-500/20 p-4">
+          <CheckCircle className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+        </div>
+        <div className="max-w-md space-y-2">
+          <h3 className="font-heading text-3xl text-emerald-900 dark:text-emerald-100">
+            Alocação confirmada!
+          </h3>
+          <p className="text-sm text-emerald-900/80 dark:text-emerald-200/80">
+            {totalRotas} {totalRotas === 1 ? "rota foi salva" : "rotas foram salvas"} no
+            Firestore com status <strong>Confirmada</strong>. Os pontos
+            correspondentes agora estão como <strong>Agendado</strong>.
+          </p>
+          {!paused && (
+            <p className="pt-2 font-mono text-xs uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
+              Redirecionando em {contagem}s...
+            </p>
+          )}
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button onClick={onIrAgora} size="lg" className="gap-2">
+            Ir para localidades agora
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setPaused(true)
+              onCancelarRedirect()
+            }}
+          >
+            Ficar aqui
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ErroConfirmacao({
+  mensagem,
+  onVoltarParaResultado,
+}: {
+  mensagem: string
+  onVoltarParaResultado: () => void
+}) {
+  return (
+    <Card className="border-destructive/30 bg-destructive/5">
+      <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+        <div className="rounded-full bg-destructive/15 p-4">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+        </div>
+        <div className="max-w-md space-y-2">
+          <h3 className="font-heading text-2xl text-destructive">
+            Erro ao salvar a alocação
+          </h3>
+          <p className="text-sm text-muted-foreground">{mensagem}</p>
+          <p className="text-xs text-muted-foreground">
+            Nada foi persistido — a operação é atômica. Você pode tentar
+            confirmar de novo.
+          </p>
+        </div>
+        <Button onClick={onVoltarParaResultado} variant="outline" className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          Voltar para o resultado
         </Button>
       </CardContent>
     </Card>

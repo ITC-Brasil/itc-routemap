@@ -84,6 +84,26 @@ export type RespostaAlocacao = {
 }
 
 // ============================================================
+// PAYLOAD ENVIADO PRO PAI AO CONFIRMAR
+// ============================================================
+
+export type PayloadConfirmacao = {
+  loteId: string
+  loteJustificativa: string
+  alocacoes: Array<{
+    tecnicoId: string
+    tecnicoNome: string
+    pontoId: string
+    umNome: string
+    projetoId: string
+    origem: { endereco: string; latitude: number; longitude: number }
+    destino: { endereco: string; latitude: number; longitude: number }
+    metricas: Partial<Record<ModoTransporte, MetricaModo>>
+    modoEscolhido: ModoTransporte
+  }>
+}
+
+// ============================================================
 // TIPOS LOCAIS PARA CACHE DA ROTA DETALHADA
 // ============================================================
 
@@ -135,7 +155,7 @@ const MODOS_SELECIONAVEIS: ModoTransporte[] = [
 interface Props {
   resultado: RespostaAlocacao
   onVoltar: () => void
-  onConfirmar: () => void
+  onConfirmar: (payload: PayloadConfirmacao) => void
 }
 
 function chaveAlocacao(a: AlocacaoRica): string {
@@ -290,6 +310,52 @@ export function ResultadoAlocacao({
     void carregarRota(aloc, novoModo)
   }
 
+  // ====== Confirma alocação: monta payload com tudo + dispara callback ======
+  const handleConfirmar = () => {
+    const payload: PayloadConfirmacao = {
+      loteId: resultado.loteId,
+      loteJustificativa: resultado.justificativaGemini,
+      alocacoes: resultado.alocacoes.map((aloc) => {
+        const key = chaveAlocacao(aloc)
+        const modoEscolhido =
+          modosPorAloc.get(key) ?? resultado.modoPrincipal
+
+        // Compila métricas: matriz original + TRANSIT (se foi buscado)
+        const metricas: Partial<Record<ModoTransporte, MetricaModo>> = {
+          ...aloc.metricas,
+        }
+        const transitEntry = rotaCache.get(`${key}|TRANSIT`)
+        if (transitEntry?.estado === "ok") {
+          metricas.TRANSIT = {
+            distanciaMetros: transitEntry.distanciaMetros,
+            duracaoSegundos: transitEntry.duracaoSegundos,
+          }
+        }
+
+        return {
+          tecnicoId: aloc.origem.id,
+          tecnicoNome: aloc.origem.nome,
+          pontoId: aloc.destino.id,
+          umNome: aloc.destino.umNome,
+          projetoId: aloc.destino.projetoId,
+          origem: {
+            endereco: aloc.origem.endereco,
+            latitude: aloc.origem.latitude,
+            longitude: aloc.origem.longitude,
+          },
+          destino: {
+            endereco: aloc.destino.endereco,
+            latitude: aloc.destino.latitude,
+            longitude: aloc.destino.longitude,
+          },
+          metricas,
+          modoEscolhido,
+        }
+      }),
+    }
+    onConfirmar(payload)
+  }
+
   // ====== Render ======
   return (
     <div className="space-y-6">
@@ -340,7 +406,7 @@ export function ResultadoAlocacao({
 
       <BotoesAcao
         onVoltar={onVoltar}
-        onConfirmar={onConfirmar}
+        onConfirmar={handleConfirmar}
         totalAlocados={resultado.alocacoes.length}
       />
     </div>

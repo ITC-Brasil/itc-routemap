@@ -359,3 +359,106 @@ function mapearRota(id: string, data: Record<string, unknown>): Rota {
     atualizadoEm: (data.atualizadoEm as Timestamp) ?? null,
   }
 }
+
+// ============================================================
+// CONFIRMAÇÃO DE ALOCAÇÃO (cria rotas + atualiza pontos)
+// ============================================================
+ 
+/**
+ * Payload de entrada para confirmar uma alocação.
+ * Cada item é um par técnico → ponto que vai virar uma Rota persistida.
+ */
+export type ConfirmarAlocacaoInput = {
+  loteId: string
+  loteJustificativa: string
+  alocacoes: Array<{
+    tecnicoId: string
+    tecnicoNome: string
+    pontoId: string
+    umNome: string
+    projetoId: string
+    origem: {
+      endereco: string
+      latitude: number
+      longitude: number
+    }
+    destino: {
+      endereco: string
+      latitude: number
+      longitude: number
+    }
+    metricas: Partial<Record<ModoTransporte, MetricaModo>>
+    /** Modo que o usuário escolheu para essa alocação específica. */
+    modoEscolhido: ModoTransporte
+  }>
+}
+ 
+export type ConfirmarAlocacaoResultado = {
+  rotasIds: string[]
+  pontosAtualizados: string[]
+}
+ 
+/**
+ * Confirma uma alocação inteira atomicamente:
+ *   - Cria N documentos em /rotas com status="Confirmada"
+ *   - Atualiza N documentos em /pontos: status="Agendado", tecnicoId, rotaId
+ *
+ * Tudo num único writeBatch. Se qualquer operação falhar, NADA é persistido —
+ * mantém consistência: ou a alocação está inteira no banco, ou não está.
+ *
+ * O `modoPrincipal` salvo em cada Rota reflete o que o USUÁRIO escolheu
+ * para aquele par específico (pode variar entre rotas do mesmo lote).
+ *
+ * @param input  Dados estruturados da alocação confirmada
+ * @returns      IDs das rotas criadas e dos pontos atualizados
+ */
+export async function confirmarAlocacao(
+  input: ConfirmarAlocacaoInput
+): Promise<ConfirmarAlocacaoResultado> {
+  if (input.alocacoes.length === 0) {
+    return { rotasIds: [], pontosAtualizados: [] }
+  }
+ 
+  const batch = writeBatch(db)
+  const rotasIds: string[] = []
+  const pontosAtualizados: string[] = []
+ 
+  input.alocacoes.forEach((aloc, indice) => {
+    // 1. Pré-aloca a referência da rota (gera ID localmente sem ida ao server)
+    const rotaRef = doc(collection(db, COLECAO))
+    rotasIds.push(rotaRef.id)
+ 
+    // 2. Set do documento da rota
+    batch.set(rotaRef, {
+      loteId: input.loteId,
+      loteOrdem: indice + 1,
+      loteJustificativa: input.loteJustificativa,
+      tecnicoId: aloc.tecnicoId,
+      tecnicoNome: aloc.tecnicoNome,
+      pontoId: aloc.pontoId,
+      umNome: aloc.umNome,
+      projetoId: aloc.projetoId,
+      origem: aloc.origem,
+      destino: aloc.destino,
+      metricas: aloc.metricas,
+      modoPrincipal: aloc.modoEscolhido,
+      status: "Confirmada" as StatusRota,
+      criadoEm: serverTimestamp(),
+      atualizadoEm: serverTimestamp(),
+    })
+ 
+    // 3. Update do ponto correspondente
+    const pontoRef = doc(db, "pontos", aloc.pontoId)
+    batch.update(pontoRef, {
+      status: STATUS_PONTO_AGENDADO,
+      tecnicoId: aloc.tecnicoId,
+      rotaId: rotaRef.id,
+      atualizadoEm: serverTimestamp(),
+    })
+    pontosAtualizados.push(aloc.pontoId)
+  })
+ 
+  await batch.commit()
+  return { rotasIds, pontosAtualizados }
+}
+ 
