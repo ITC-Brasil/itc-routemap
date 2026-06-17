@@ -600,7 +600,8 @@ function CardResumoProjeto({
   return (
     <Card
       onMouseMove={handleMouseMove}
-      className="card-interactive bg-[var(--card-glass)] backdrop-blur-md hover:bg-[var(--card-glass-hover)]">
+      className="card-interactive"
+    >
       <CardContent className="space-y-4 p-5">
         <div className="space-y-2">
           <span
