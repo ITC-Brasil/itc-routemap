@@ -141,3 +141,32 @@ P3 (Fase 6) — Refinar firestore.rules por coleção:
   - Atualizar GEMINI_API_KEY no .env.local
   - Trocar GEMINI_ENABLED=false → true
   - Testar via /api/routes/alocar
+
+
+  ## Backlog técnico — Infra Firebase
+
+### Versionar índices do Firestore no repo
+
+**Problema:** índices compostos do Firestore vivem só no projeto atual.
+Quando criar staging/prod ou outro dev clonar o repo, vai dar
+"FirebaseError: The query requires an index" em produção até alguém
+criar os índices manualmente no Console.
+
+**Solução:** versionar `firestore.indexes.json` na raiz do projeto.
+
+**Passos (~10min, fazer uma vez na Fase 5):**
+
+1. `firebase login` (se ainda não tá logado)
+2. `firebase init firestore` na raiz do projeto
+   - Escolhe o projeto `itc-routemap`
+   - Aceita `firestore.indexes.json` e `firestore.rules` como nomes padrão
+3. Puxa os índices que já existem hoje:
+   `firebase firestore:indexes > firestore.indexes.json`
+4. Commita o arquivo: `git add firestore.indexes.json firebase.json`
+5. Daqui pra frente, sempre que criar índice no Console, rodar
+   `firebase firestore:indexes > firestore.indexes.json` pra atualizar
+6. Pra recriar em ambiente novo:
+   `firebase deploy --only firestore:indexes`
+
+**Índices que existem hoje (atualizar quando criar novos):**
+- `rotas`: `loteId ASC, loteOrdem ASC` — criado em [data] pra histórico

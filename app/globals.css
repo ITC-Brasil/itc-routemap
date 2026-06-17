@@ -75,16 +75,16 @@
 
 /* === TEMA CLARO — Identidade ITC === */
 :root {
-  --background: #ffffff;
+  --background: #BABABA;
   --foreground: #1a2020;
   --card: rgba(255, 255, 255, 0.55);
   --card-foreground: #1a2020;
-  --popover: #ffffff;
+  --popover: #BABABA;
   --popover-foreground: #1a2020;
 
   /* Ciano ITC como cor primária */
   --primary: #008f95;
-  --primary-foreground: #ffffff;
+  --primary-foreground: #BABABA;
 
   --secondary: #f4f6f6;
   --secondary-foreground: #1a2020;
