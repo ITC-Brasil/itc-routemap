@@ -94,7 +94,7 @@ export default function HistoricoPage() {
 
   // ====== RENDER ======
   return (
-    <div className="container mx-auto space-y-8 px-4 py-8">
+    <div className="space-y-8">
       {/* HEADER */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>

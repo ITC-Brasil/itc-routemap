@@ -417,7 +417,7 @@ export default function DetalheLotePage() {
 
   if (erro || rotas.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div>
         <Button
           variant="ghost"
           onClick={() => router.push("/historico")}
@@ -456,7 +456,7 @@ export default function DetalheLotePage() {
   const totalUmsUnicas = new Set(rotas.map((r) => r.umNome)).size
 
   return (
-    <div className="container mx-auto space-y-8 px-4 py-8">
+    <div className="space-y-8">
       {/* HEADER */}
       <div>
         <Button
@@ -999,7 +999,7 @@ function StatusBadge({ statusLote }: { statusLote: StatusLote }) {
 
 function SkeletonLoading() {
   return (
-    <div className="container mx-auto space-y-8 px-4 py-8">
+    <div className="space-y-8">
       <div className="h-9 w-44 animate-pulse rounded bg-muted" />
       <div className="space-y-3">
         <div className="h-3 w-24 animate-pulse rounded bg-muted" />
