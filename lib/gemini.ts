@@ -2,17 +2,23 @@
 //
 // Geração de justificativa em linguagem natural para uma alocação.
 //
-// Estratégia:
+// Migração para o novo SDK oficial @google/genai (substitui @google/generative-ai
+// que foi deprecated em nov/2025).
+//
+// Estratégia (igual à anterior, comportamento preservado):
 //   1) Se GEMINI_ENABLED=false no .env.local → usa o template procedural local
 //   2) Se GEMINI_ENABLED não estiver definida (ou ≠ "false") → tenta o Gemini,
 //      com fallback automático no template se a chamada falhar.
 //   3) Se a chamada do Gemini falhar (rede, billing, modelo indisponível, etc),
 //      cai no template — usuário nunca vê "indisponível".
 
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenAI } from "@google/genai"
 import type { ResultadoAlocacao } from "@/lib/alocacao"
 import type { ModoTransporte } from "@/lib/firestore/rotas"
 
+// Modelo: Flash 2.5 dá output mais elaborado que o Lite, free tier suficiente
+// para o volume previsto (10-30 alocações/dia).
+// Trocar pra "gemini-2.5-flash-lite" se algum dia a quota apertar.
 const MODELO = "gemini-2.5-flash"
 
 export interface ContextoAlocacao {
@@ -49,14 +55,29 @@ export async function gerarJustificativaAlocacao(
 
   // Tenta Gemini com fallback automático no template em qualquer erro
   try {
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: MODELO })
+    const ai = new GoogleGenAI({ apiKey })
     const prompt = construirPrompt(resultado, contexto)
-    const result = await model.generateContent(prompt)
-    const texto = result.response.text().trim()
+
+    const response = await ai.models.generateContent({
+      model: MODELO,
+      contents: prompt,
+      config: {
+        // Temperatura um pouco acima do default deixa o texto mais natural,
+        // sem virar criativo demais. 1.1 é um sweet spot pra análise narrativa.
+        temperature: 1.1,
+        // Limite suficiente pra ~6 frases de análise rica.
+        // (1 frase português ≈ 30-50 tokens; 500 cobre 10+ frases com folga)
+        maxOutputTokens: 500,
+      },
+    })
+
+    const texto = (response.text ?? "").trim()
     return texto || gerarJustificativaTemplate(resultado, contexto)
   } catch (err) {
-    console.warn("Gemini indisponível, usando fallback template:", err instanceof Error ? err.message : err)
+    console.warn(
+      "Gemini indisponível, usando fallback template:",
+      err instanceof Error ? err.message : err,
+    )
     return gerarJustificativaTemplate(resultado, contexto)
   }
 }
@@ -146,6 +167,16 @@ function nomeAmigavelModo(modo: ModoTransporte): string {
 // Prompt do Gemini (usado quando habilitado)
 // ============================================================
 
+/**
+ * Monta um prompt rico em contexto pra fazer o Gemini gerar uma análise
+ * narrativa de qualidade. Diferenças do prompt antigo:
+ *   - Identifica o sistema como Grupo ITC Brasil (contexto institucional)
+ *   - Lista alocações por NOME (não só por ID)
+ *   - Calcula métricas comparativas (mais longa, mais curta, variação)
+ *   - Pede pra citar pares específicos por nome
+ *   - Pede análise mais elaborada (4-6 frases)
+ *   - Estrutura instruções em seções claras (===)
+ */
 function construirPrompt(
   resultado: ResultadoAlocacao,
   contexto: ContextoAlocacao,
@@ -153,16 +184,54 @@ function construirPrompt(
   const modoLabel = nomeAmigavelModo(contexto.modoPrincipal)
   const totalAlocados = resultado.alocacoes.length
 
-  const alocacoesTexto = resultado.alocacoes
-    .map((a, i) => {
+  // Lista detalhada das alocações já com nomes resolvidos
+  const alocacoesDetalhadas = resultado.alocacoes
+    .map((a) => {
       const nome = contexto.tecnicos.get(a.tecnicoId) || a.tecnicoId
       const um = contexto.umsLookup.get(a.destinoId)
       const destinoLabel = um ? `${um.umNome} (${um.raNome})` : a.destinoId
       const min = Math.round(a.custo / 60)
-      return `${i + 1}. ${nome} → ${destinoLabel}: ${min} min`
+      return `  - ${nome} → ${destinoLabel}: ${min} min`
     })
     .join("\n")
 
+  // Métricas comparativas
+  const tempos = resultado.alocacoes.map((a) => a.custo)
+  const tempoMaxSeg = tempos.length > 0 ? Math.max(...tempos) : 0
+  const tempoMinSeg = tempos.length > 0 ? Math.min(...tempos) : 0
+  const tempoMaxMin = Math.round(tempoMaxSeg / 60)
+  const tempoMinMin = Math.round(tempoMinSeg / 60)
+  const tempoMedioMin = Math.round(resultado.custoMedio / 60)
+  const tempoTotalMin = Math.round(resultado.custoTotal / 60)
+
+  // Identifica os pares de maior/menor tempo
+  const alocMaisLonga = resultado.alocacoes.find((a) => a.custo === tempoMaxSeg)
+  const alocMaisCurta = resultado.alocacoes.find((a) => a.custo === tempoMinSeg)
+  const tecMaxNome = alocMaisLonga
+    ? contexto.tecnicos.get(alocMaisLonga.tecnicoId) ?? "?"
+    : "?"
+  const tecMinNome = alocMaisCurta
+    ? contexto.tecnicos.get(alocMaisCurta.tecnicoId) ?? "?"
+    : "?"
+  const umMaxNome = alocMaisLonga
+    ? contexto.umsLookup.get(alocMaisLonga.destinoId)?.umNome ?? "?"
+    : "?"
+  const umMinNome = alocMaisCurta
+    ? contexto.umsLookup.get(alocMaisCurta.destinoId)?.umNome ?? "?"
+    : "?"
+
+  // Análise da variação entre técnicos
+  const variacao = tempoMaxMin - tempoMinMin
+  const variacaoTexto =
+    variacao === 0
+      ? "tempos idênticos entre técnicos"
+      : variacao <= 5
+        ? "tempos bem equilibrados entre técnicos"
+        : variacao <= 15
+          ? "variação moderada entre técnicos"
+          : "variação significativa entre técnicos"
+
+  // Bloco de sobras (só inclui se houver)
   const sobrasTexto: string[] = []
   if (resultado.tecnicosNaoAlocados.length > 0) {
     const nomes = resultado.tecnicosNaoAlocados
@@ -179,17 +248,43 @@ function construirPrompt(
       .join(", ")
     sobrasTexto.push(`UMs sem técnico: ${nomes}`)
   }
-  const sobrasBloco = sobrasTexto.length > 0 ? `\n\n${sobrasTexto.join("\n")}` : ""
+  const sobrasBloco =
+    sobrasTexto.length > 0
+      ? `\n\n=== SOBRAS ===\n${sobrasTexto.map((s) => `  - ${s}`).join("\n")}\nMotivo: técnicos e UMs em quantidades diferentes nesta rodada.`
+      : ""
 
-  return `Você é um assistente que explica decisões de alocação de equipes técnicas.
+  return `Você é um analista sênior de operações logísticas do Grupo ITC Brasil, especializado em alocação de equipes técnicas em campo no Distrito Federal. Sua tarefa é gerar uma análise narrativa sobre uma rodada de alocação que acabou de ser calculada pelo sistema.
 
-Contexto: ${contexto.totalTecnicos} técnicos disponíveis e ${contexto.totalUMs} unidades móveis (UMs) a serem visitadas. Modo de transporte principal: ${modoLabel}.
+=== CONTEXTO OPERACIONAL ===
+- Empresa: Grupo ITC Brasil
+- Operação: alocação de técnicos a unidades móveis (UMs) para visitas em campo no DF
+- Técnicos disponíveis nesta rodada: ${contexto.totalTecnicos}
+- UMs a serem visitadas: ${contexto.totalUMs}
+- Modo de transporte principal: ${modoLabel}
 
-Alocação calculada (${totalAlocados} pares):
-${alocacoesTexto}
+=== ALOCAÇÃO PROPOSTA (${totalAlocados} ${totalAlocados === 1 ? "par" : "pares"}) ===
+${alocacoesDetalhadas}
 
-Tempo total de deslocamento: ${Math.round(resultado.custoTotal / 60)} min
-Tempo médio por técnico: ${Math.round(resultado.custoMedio / 60)} min${sobrasBloco}
+=== MÉTRICAS GLOBAIS ===
+- Tempo total de deslocamento: ${tempoTotalMin} min
+- Tempo médio por técnico: ${tempoMedioMin} min
+- Rota mais curta: ${tempoMinMin} min (${tecMinNome} → ${umMinNome})
+- Rota mais longa: ${tempoMaxMin} min (${tecMaxNome} → ${umMaxNome})
+- Diferença entre rotas: ${variacao} min (${variacaoTexto})${sobrasBloco}
 
-Em 2-3 frases em português brasileiro, explique de forma natural por que essa alocação é eficiente. Mencione o tempo total/médio e, se houver, sobras (técnicos ou UMs sem par). Não use bullet points, apenas texto corrido. Não cite o nome do algoritmo (Húngaro) — fale como se fosse uma análise de operações.`
+=== INSTRUÇÕES ===
+Escreva uma análise narrativa de 4 a 6 frases em português brasileiro que:
+1. Comece comentando o tamanho e a eficiência geral da alocação (quantos técnicos foram alocados, tempo total)
+2. Destaque pelo menos um par específico citando NOMES de técnicos e UMs (a rota mais longa, a mais curta, ou outra característica notável da lista acima)
+3. Comente o equilíbrio (ou desequilíbrio) entre os técnicos com base na variação dos tempos
+4. Se houver sobras (técnicos ou UMs sem par), explique a causa de forma objetiva — sem soar negativo
+5. Termine com uma observação prática sobre a viabilidade operacional da rodada (ex: dia tranquilo, dia exigente, etc)
+
+Estilo:
+- Tom profissional, analítico, claro — como um consultor apresentando o resultado pra um gestor
+- Parágrafo único, fluente, sem listas
+- Use números específicos quando relevante (ex: "Anne percorrerá apenas 11 min até a UM BSBIA02")
+- NÃO use bullets, listas, marcadores ou quebras de linha
+- NÃO cite jargão técnico (algoritmos, modelos, "matriz de custo", etc) — fale como uma pessoa real
+- NÃO comece frases vazias do tipo "esta é uma alocação eficiente" sem justificar com números`
 }

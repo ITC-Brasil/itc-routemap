@@ -2,10 +2,11 @@
 
 // app/(privado)/calcular-rotas/_components/resultado-alocacao.tsx
 //
-// VERSÃO 2 (13.7.3): UI com seletor de modo por alocação + mapa por par
-// + detalhes de TRANSIT (linhas de ônibus/metrô) + recálculo de totais.
+// VERSÃO 3 (Q1 do Gemini): adiciona contexto no bloco expandido de cada
+// alocação — justificativa global do lote replicada + explicação algorítmica
+// inline (rank, comparação com média, decisão por par).
 //
-// Arquitetura:
+// Arquitetura mantida da V2:
 //   - Estado central: modosPorAloc (Map<key, modo>) e rotaCache (Map<key|modo, RotaData>)
 //   - rotaCache é alimentada lazy via /api/routes/single quando o usuário
 //     expande uma alocação ou troca o modo dela
@@ -292,6 +293,16 @@ export function ResultadoAlocacao({
     }
   }, [resultado, modosPorAloc, obterDuracaoSeg])
 
+  // ====== Contexto algorítmico (Q1) — calculado uma vez por render ======
+  // Pra cada linha mostrar sua posição relativa, precisa da lista global
+  // de custos no modoPrincipal da rodada. Como não muda com troca de modo
+  // individual (é sobre a decisão original), é estável.
+  const todosCustosLote = useMemo(
+    () => resultado.alocacoes.map((a) => a.custoSegundosPrincipal),
+    [resultado.alocacoes],
+  )
+  const modoLabelLote = nomeAmigavelModo(resultado.modoPrincipal)
+
   // ====== Handlers ======
   const handleExpandir = (aloc: AlocacaoRica) => {
     const key = chaveAlocacao(aloc)
@@ -398,6 +409,10 @@ export function ResultadoAlocacao({
                 duracaoSeg={obterDuracaoSeg(aloc, modo)}
                 onExpandir={() => handleExpandir(aloc)}
                 onTrocarModo={(m) => handleTrocarModo(aloc, m)}
+                // Q1: contexto pra explicação algorítmica + justificativa global
+                todosCustosLote={todosCustosLote}
+                modoLabelLote={modoLabelLote}
+                justificativaLote={resultado.justificativaGemini}
               />
             )
           })}
@@ -570,6 +585,41 @@ function BannerSobras({
 }
 
 // ============================================================
+// Q1 — JUSTIFICATIVA GLOBAL MINI (replicada no expand de cada rota)
+// ============================================================
+
+function JustificativaGlobalMini({ texto }: { texto: string }) {
+  return (
+    <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
+      <div className="mb-1.5 flex items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <span className="font-mono text-[10px] uppercase tracking-widest text-primary">
+          Análise da rodada
+        </span>
+      </div>
+      <p className="text-sm leading-relaxed">{texto}</p>
+    </div>
+  )
+}
+
+// ============================================================
+// Q1 — EXPLICAÇÃO ALGORÍTMICA (gerada por código, sem IA)
+// ============================================================
+
+function ExplicacaoAlgoritmica({ texto }: { texto: string }) {
+  return (
+    <div className="rounded-md border bg-muted/50 p-3">
+      <div className="mb-1.5 flex items-center gap-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          ⚙ Decisão do algoritmo
+        </span>
+      </div>
+      <p className="text-sm leading-relaxed text-muted-foreground">{texto}</p>
+    </div>
+  )
+}
+
+// ============================================================
 // LINHA DE ALOCAÇÃO (cada par técnico → UM)
 // ============================================================
 
@@ -582,6 +632,9 @@ function LinhaAlocacao({
   duracaoSeg,
   onExpandir,
   onTrocarModo,
+  todosCustosLote,
+  modoLabelLote,
+  justificativaLote,
 }: {
   alocacao: AlocacaoRica
   ordem: number
@@ -591,6 +644,10 @@ function LinhaAlocacao({
   duracaoSeg: number | null
   onExpandir: () => void
   onTrocarModo: (m: ModoTransporte) => void
+  // Q1: contexto pra explicação algorítmica + replicar justificativa
+  todosCustosLote: number[]
+  modoLabelLote: string
+  justificativaLote: string
 }) {
   const duracaoMin = duracaoSeg != null ? Math.round(duracaoSeg / 60) : null
   const distanciaKm =
@@ -599,6 +656,15 @@ function LinhaAlocacao({
       : modo !== "TRANSIT"
         ? ((alocacao.metricas[modo]?.distanciaMetros ?? 0) / 1000).toFixed(1)
         : null
+
+  // Q1: explicação algorítmica calculada uma vez por linha (não muda com modo)
+  const explicacao = gerarExplicacaoAlgoritmica({
+    tecnicoNome: alocacao.origem.nome,
+    umNome: alocacao.destino.umNome,
+    meuCustoSegundos: alocacao.custoSegundosPrincipal,
+    todosCustosSegundos: todosCustosLote,
+    modoLabel: modoLabelLote,
+  })
 
   return (
     <Card>
@@ -677,6 +743,14 @@ function LinhaAlocacao({
         {/* Detalhes — só visíveis quando expandido */}
         {expandido && (
           <div className="space-y-4 border-t pt-4">
+            {/* Q1-A: justificativa global do lote replicada aqui */}
+            {justificativaLote && justificativaLote.trim().length > 0 && (
+              <JustificativaGlobalMini texto={justificativaLote} />
+            )}
+
+            {/* Q1-C: explicação algorítmica deste par específico */}
+            {explicacao && <ExplicacaoAlgoritmica texto={explicacao} />}
+
             <SeletorModo
               modoAtual={modo}
               onTrocar={onTrocarModo}
@@ -1009,4 +1083,63 @@ function modoMaisFrequente(
     }
   }
   return topModo
+}
+
+// ============================================================
+// Q1 — HELPER PURO PRA EXPLICAÇÃO ALGORÍTMICA
+// ============================================================
+// TODO P4: centralizar com historico/[loteId]/page.tsx (duplicado lá).
+
+/**
+ * Gera explicação algorítmica de UMA alocação no contexto de TODAS as
+ * alocações do mesmo lote. Sem IA — só código, baseado em rank + média.
+ *
+ * Saída exemplo:
+ *   "Esta é a rota mais curta do lote (3 rotas no total) — 11 min de
+ *    deslocamento via carro, 22 min abaixo da média (33 min). O algoritmo
+ *    escolheu Anne → BSBIA02 porque essa combinação tinha o menor custo
+ *    de tempo dentre as opções possíveis para esta UM."
+ */
+function gerarExplicacaoAlgoritmica(input: {
+  tecnicoNome: string
+  umNome: string
+  meuCustoSegundos: number
+  todosCustosSegundos: number[]
+  modoLabel: string
+}): string {
+  const {
+    tecnicoNome,
+    umNome,
+    meuCustoSegundos,
+    todosCustosSegundos,
+    modoLabel,
+  } = input
+  const total = todosCustosSegundos.length
+  if (total === 0) return ""
+
+  const meuMin = Math.round(meuCustoSegundos / 60)
+
+  if (total === 1) {
+    return `Esta é a única rota da rodada (${meuMin} min via ${modoLabel}). O algoritmo selecionou ${tecnicoNome} → ${umNome} como a alocação com menor custo de deslocamento possível.`
+  }
+
+  const ordenados = [...todosCustosSegundos].sort((a, b) => a - b)
+  const rank = ordenados.indexOf(meuCustoSegundos) + 1
+  const media = todosCustosSegundos.reduce((s, c) => s + c, 0) / total
+  const mediaMin = Math.round(media / 60)
+  const diff = meuMin - mediaMin
+
+  let rankLabel: string
+  if (rank === 1) rankLabel = "rota mais curta"
+  else if (rank === total) rankLabel = "rota mais longa"
+  else rankLabel = `${rank}ª rota mais curta`
+
+  const diffLabel =
+    diff === 0
+      ? "exatamente na média da rodada"
+      : diff < 0
+        ? `${Math.abs(diff)} min abaixo da média (${mediaMin} min)`
+        : `${diff} min acima da média (${mediaMin} min)`
+
+  return `Esta é a ${rankLabel} do lote (${total} rotas no total) — ${meuMin} min de deslocamento via ${modoLabel}, ${diffLabel}. O algoritmo escolheu ${tecnicoNome} → ${umNome} porque essa combinação tinha o menor custo de tempo dentre as opções possíveis para esta UM.`
 }

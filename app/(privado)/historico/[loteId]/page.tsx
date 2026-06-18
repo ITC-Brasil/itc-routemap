@@ -2,6 +2,10 @@
 
 // app/(privado)/historico/[loteId]/page.tsx
 //
+// VERSÃO 2 (Q1 do Gemini): adiciona contexto no bloco expandido de cada
+// rota — justificativa global do lote replicada + explicação algorítmica
+// inline (rank, comparação com média, decisão por par).
+//
 // Página de detalhe de um lote do histórico. Mostra:
 //   - Header com data, status do lote, qtd de rotas e botão voltar/cancelar
 //   - Banner com justificativa da IA
@@ -11,8 +15,9 @@
 // Reaproveita o componente <MapaAlocacao /> da feature calcular-rotas, e
 // chama o endpoint /api/routes/single (mesmo fluxo do ResultadoAlocacao).
 //
-// TODO P4: SeletorModo e helpers IconeModo/MODOS_SELECIONAVEIS estão duplicados
-// aqui e em resultado-alocacao.tsx. Centralizar quando estabilizar.
+// TODO P4: SeletorModo, helpers IconeModo/MODOS_SELECIONAVEIS e
+// gerarExplicacaoAlgoritmica estão duplicados aqui e em resultado-alocacao.tsx.
+// Centralizar quando estabilizar.
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
@@ -455,6 +460,9 @@ export default function DetalheLotePage() {
   const totalTecnicosUnicos = new Set(rotas.map((r) => r.tecnicoNome)).size
   const totalUmsUnicas = new Set(rotas.map((r) => r.umNome)).size
 
+  // Q1: justificativa global do lote, pra replicar no expand de cada rota
+  const justificativaLote = primeiraRota.loteJustificativa ?? ""
+
   return (
     <div className="space-y-8">
       {/* HEADER */}
@@ -500,10 +508,9 @@ export default function DetalheLotePage() {
       </div>
 
       {/* JUSTIFICATIVA */}
-      {primeiraRota.loteJustificativa &&
-        primeiraRota.loteJustificativa.trim().length > 0 && (
-          <JustificativaBanner texto={primeiraRota.loteJustificativa} />
-        )}
+      {justificativaLote.trim().length > 0 && (
+        <JustificativaBanner texto={justificativaLote} />
+      )}
 
       {/* MÉTRICAS AGREGADAS */}
       {rotasAtivas.length > 0 && (
@@ -535,6 +542,9 @@ export default function DetalheLotePage() {
                 distanciaMetros={obterDistanciaMetros(rota, modo)}
                 onExpandir={() => handleExpandir(rota.id)}
                 onTrocarModo={(m) => handleTrocarModo(rota.id, m)}
+                // Q1: contexto pra explicação algorítmica + replicar justificativa
+                todasRotasLote={rotas}
+                justificativaLote={justificativaLote}
               />
             )
           })}
@@ -653,6 +663,45 @@ function CardMetrica({
   )
 }
 
+// ============================================================
+// Q1 — JUSTIFICATIVA GLOBAL MINI (replicada no expand de cada rota)
+// ============================================================
+
+function JustificativaGlobalMini({ texto }: { texto: string }) {
+  return (
+    <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
+      <div className="mb-1.5 flex items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <span className="font-mono text-[10px] uppercase tracking-widest text-primary">
+          Análise da rodada
+        </span>
+      </div>
+      <p className="text-sm leading-relaxed">{texto}</p>
+    </div>
+  )
+}
+
+// ============================================================
+// Q1 — EXPLICAÇÃO ALGORÍTMICA (gerada por código, sem IA)
+// ============================================================
+
+function ExplicacaoAlgoritmica({ texto }: { texto: string }) {
+  return (
+    <div className="rounded-md border bg-muted/50 p-3">
+      <div className="mb-1.5 flex items-center gap-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          ⚙ Decisão do algoritmo
+        </span>
+      </div>
+      <p className="text-sm leading-relaxed text-muted-foreground">{texto}</p>
+    </div>
+  )
+}
+
+// ============================================================
+// LINHA DE ROTA (cada par técnico → UM, no histórico)
+// ============================================================
+
 function LinhaRotaHistorico({
   rota,
   ordem,
@@ -663,6 +712,8 @@ function LinhaRotaHistorico({
   distanciaMetros,
   onExpandir,
   onTrocarModo,
+  todasRotasLote,
+  justificativaLote,
 }: {
   rota: Rota
   ordem: number
@@ -673,7 +724,29 @@ function LinhaRotaHistorico({
   distanciaMetros: number | null
   onExpandir: () => void
   onTrocarModo: (m: ModoTransporte) => void
+  // Q1: contexto pra explicação algorítmica + replicar justificativa
+  todasRotasLote: Rota[]
+  justificativaLote: string
 }) {
+  // Q1: calcula explicação algorítmica baseada no modoPrincipal SALVO da rota
+  // (que é o modo original do Húngaro, não o que o usuário trocou no seletor).
+  // Pra cada rota do lote, pega o tempo no MESMO modoPrincipal pra comparar.
+  const meuCusto = rota.metricas[rota.modoPrincipal]?.duracaoSegundos ?? 0
+  const todosCustosLote = todasRotasLote
+    .map((r) => r.metricas[rota.modoPrincipal]?.duracaoSegundos)
+    .filter((s): s is number => s !== undefined && s > 0)
+
+  const explicacao =
+    meuCusto > 0
+      ? gerarExplicacaoAlgoritmica({
+          tecnicoNome: rota.tecnicoNome,
+          umNome: rota.umNome,
+          meuCustoSegundos: meuCusto,
+          todosCustosSegundos: todosCustosLote,
+          modoLabel: nomeAmigavelModo(rota.modoPrincipal),
+        })
+      : ""
+
   return (
     <Card
       className={
@@ -753,6 +826,14 @@ function LinhaRotaHistorico({
         {/* Detalhes — só visíveis quando expandido */}
         {expandido && (
           <div className="space-y-4 border-t pt-4">
+            {/* Q1-A: justificativa global do lote replicada aqui */}
+            {justificativaLote.trim().length > 0 && (
+              <JustificativaGlobalMini texto={justificativaLote} />
+            )}
+
+            {/* Q1-C: explicação algorítmica deste par específico */}
+            {explicacao && <ExplicacaoAlgoritmica texto={explicacao} />}
+
             <SeletorModo
               modoAtual={modo}
               onTrocar={onTrocarModo}
@@ -1071,4 +1152,63 @@ function formatarHoraISO(iso: string): string {
   } catch {
     return iso
   }
+}
+
+// ============================================================
+// Q1 — HELPER PURO PRA EXPLICAÇÃO ALGORÍTMICA
+// ============================================================
+// TODO P4: centralizar com resultado-alocacao.tsx (duplicado lá).
+
+/**
+ * Gera explicação algorítmica de UMA rota no contexto de TODAS as rotas
+ * do mesmo lote. Sem IA — só código, baseado em rank + média.
+ *
+ * Saída exemplo:
+ *   "Esta é a rota mais curta do lote (3 rotas no total) — 11 min de
+ *    deslocamento via carro, 22 min abaixo da média (33 min). O algoritmo
+ *    escolheu Anne → BSBIA02 porque essa combinação tinha o menor custo
+ *    de tempo dentre as opções possíveis para esta UM."
+ */
+function gerarExplicacaoAlgoritmica(input: {
+  tecnicoNome: string
+  umNome: string
+  meuCustoSegundos: number
+  todosCustosSegundos: number[]
+  modoLabel: string
+}): string {
+  const {
+    tecnicoNome,
+    umNome,
+    meuCustoSegundos,
+    todosCustosSegundos,
+    modoLabel,
+  } = input
+  const total = todosCustosSegundos.length
+  if (total === 0) return ""
+
+  const meuMin = Math.round(meuCustoSegundos / 60)
+
+  if (total === 1) {
+    return `Esta é a única rota da rodada (${meuMin} min via ${modoLabel}). O algoritmo selecionou ${tecnicoNome} → ${umNome} como a alocação com menor custo de deslocamento possível.`
+  }
+
+  const ordenados = [...todosCustosSegundos].sort((a, b) => a - b)
+  const rank = ordenados.indexOf(meuCustoSegundos) + 1
+  const media = todosCustosSegundos.reduce((s, c) => s + c, 0) / total
+  const mediaMin = Math.round(media / 60)
+  const diff = meuMin - mediaMin
+
+  let rankLabel: string
+  if (rank === 1) rankLabel = "rota mais curta"
+  else if (rank === total) rankLabel = "rota mais longa"
+  else rankLabel = `${rank}ª rota mais curta`
+
+  const diffLabel =
+    diff === 0
+      ? "exatamente na média da rodada"
+      : diff < 0
+        ? `${Math.abs(diff)} min abaixo da média (${mediaMin} min)`
+        : `${diff} min acima da média (${mediaMin} min)`
+
+  return `Esta é a ${rankLabel} do lote (${total} rotas no total) — ${meuMin} min de deslocamento via ${modoLabel}, ${diffLabel}. O algoritmo escolheu ${tecnicoNome} → ${umNome} porque essa combinação tinha o menor custo de tempo dentre as opções possíveis para esta UM.`
 }
