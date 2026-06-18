@@ -43,6 +43,19 @@ export type MetricaModo = {
 export type StatusRota = "Sugerida" | "Confirmada" | "Cancelada"
 
 /**
+ * Origem da decisão de uma rota (13.11 — Alocação Manual).
+ *
+ * - "auto"            → 100% do algoritmo Húngaro, sem alteração humana
+ * - "ajuste-pos-auto" → algoritmo sugeriu, usuário ajustou 1+ pares antes de confirmar
+ * - "manual"          → reservado pra futura modalidade onde usuário monta do zero
+ *
+ * Decisão de design: aplicado por LOTE, não por par. Se qualquer par do lote
+ * foi ajustado, todas as rotas do lote ganham "ajuste-pos-auto". Suficiente
+ * pro caso de uso (badge no histórico) e simples de manter.
+ */
+export type OrigemDecisao = "auto" | "manual" | "ajuste-pos-auto"
+
+/**
  * Rota — um par técnico → ponto resultado de uma alocação inteligente.
  *
  * Várias rotas que compartilham o mesmo `loteId` formam uma "alocação" —
@@ -89,6 +102,13 @@ export type Rota = {
 
   // === Ciclo de vida ===
   status: StatusRota
+
+  /**
+   * Como esta rota foi decidida — 13.11 Alocação Manual.
+   * Compartilhado por todas as rotas do mesmo lote.
+   * Default em rotas antigas (pré-13.11): "auto".
+   */
+  origemDecisao: OrigemDecisao
 
   criadoEm: Timestamp | null
   atualizadoEm: Timestamp | null
@@ -355,6 +375,8 @@ function mapearRota(id: string, data: Record<string, unknown>): Rota {
     metricas: (data.metricas as Rota["metricas"]) ?? {},
     modoPrincipal: (data.modoPrincipal as ModoTransporte) ?? "DRIVE",
     status: (data.status as StatusRota) ?? "Sugerida",
+    // 13.11: fallback "auto" pra rotas antigas no banco que ainda não têm o campo
+    origemDecisao: (data.origemDecisao as OrigemDecisao) ?? "auto",
     criadoEm: (data.criadoEm as Timestamp) ?? null,
     atualizadoEm: (data.atualizadoEm as Timestamp) ?? null,
   }
@@ -371,6 +393,12 @@ function mapearRota(id: string, data: Record<string, unknown>): Rota {
 export type ConfirmarAlocacaoInput = {
   loteId: string
   loteJustificativa: string
+  /**
+   * Como o lote foi formado (13.11).
+   * Opcional pra compatibilidade com call sites antigos — quando omitido,
+   * assume "auto" (vem do algoritmo sem ajuste manual).
+   */
+  origemDecisao?: OrigemDecisao
   alocacoes: Array<{
     tecnicoId: string
     tecnicoNome: string
@@ -409,6 +437,9 @@ export type ConfirmarAlocacaoResultado = {
  * O `modoPrincipal` salvo em cada Rota reflete o que o USUÁRIO escolheu
  * para aquele par específico (pode variar entre rotas do mesmo lote).
  *
+ * O `origemDecisao` é compartilhado por todas as rotas do lote — se qualquer
+ * par foi ajustado manualmente (13.11), o lote inteiro ganha "ajuste-pos-auto".
+ *
  * @param input  Dados estruturados da alocação confirmada
  * @returns      IDs das rotas criadas e dos pontos atualizados
  */
@@ -419,6 +450,9 @@ export async function confirmarAlocacao(
     return { rotasIds: [], pontosAtualizados: [] }
   }
  
+  // Default "auto" se o call site não passar (compatibilidade)
+  const origemDecisao: OrigemDecisao = input.origemDecisao ?? "auto"
+
   const batch = writeBatch(db)
   const rotasIds: string[] = []
   const pontosAtualizados: string[] = []
@@ -443,6 +477,7 @@ export async function confirmarAlocacao(
       metricas: aloc.metricas,
       modoPrincipal: aloc.modoEscolhido,
       status: "Confirmada" as StatusRota,
+      origemDecisao,
       criadoEm: serverTimestamp(),
       atualizadoEm: serverTimestamp(),
     })
@@ -461,4 +496,3 @@ export async function confirmarAlocacao(
   await batch.commit()
   return { rotasIds, pontosAtualizados }
 }
- 
