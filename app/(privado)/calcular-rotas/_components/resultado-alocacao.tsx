@@ -2,19 +2,31 @@
 
 // app/(privado)/calcular-rotas/_components/resultado-alocacao.tsx
 //
-// VERSÃO 3 (Q1 do Gemini): adiciona contexto no bloco expandido de cada
-// alocação — justificativa global do lote replicada + explicação algorítmica
-// inline (rank, comparação com média, decisão por par).
+// VERSÃO 5 (13.11 Bloco 3 — Dropdowns reais por linha): substitui o botão
+// DEV de teste pela UI real de troca dentro do bloco expandido de cada
+// alocação. Dois dropdowns:
+//   - Trocar técnico por: lista os técnicos das outras alocações
+//   - Trocar UM por:      lista as UMs das outras alocações
 //
-// Arquitetura mantida da V2:
-//   - Estado central: modosPorAloc (Map<key, modo>) e rotaCache (Map<key|modo, RotaData>)
-//   - rotaCache é alimentada lazy via /api/routes/single quando o usuário
-//     expande uma alocação ou troca o modo dela
-//   - Totais derivados via useMemo (recalculam a cada troca)
-//   - TRANSIT só faz fetch sob demanda — não tá na matriz inicial
+// Funcionalmente os dois disparam o MESMO `aplicarSwap(keyA, keyB)` — a
+// diferença é só de mentalidade do usuário (qual ponta ele tá pensando
+// em trocar).
+//
+// Mantido do Bloco 2:
+//   - alocacoesEditadas + aplicarSwap + voltarParaOtima
+//   - Banner amarelo de "alocação ajustada manualmente"
+//   - PayloadConfirmacao.origemDecisao = "ajuste-pos-auto" quando editado
+//   - Explicação algorítmica adapta texto pra alocação manual
+//
+// Mantido do Q1:
+//   - JustificativaGlobalMini no expand (só quando NÃO editado)
+//   - ExplicacaoAlgoritmica inline
+//
+// Arquitetura: modosPorAloc + rotaCache lazy via /api/routes/single
 
 import { useCallback, useMemo, useState } from "react"
 import {
+  AlertCircle,
   ArrowLeft,
   Bike,
   Bus,
@@ -24,6 +36,7 @@ import {
   ChevronUp,
   Clock,
   PersonStanding,
+  RotateCcw,
   Sparkles,
   Timer,
   Train,
@@ -33,7 +46,17 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import type { ModoTransporte } from "@/lib/firestore/rotas"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import type {
+  ModoTransporte,
+  OrigemDecisao,
+} from "@/lib/firestore/rotas"
 import { MapaAlocacao, type RotaData } from "./mapa-alocacao"
 
 // ============================================================
@@ -91,6 +114,8 @@ export type RespostaAlocacao = {
 export type PayloadConfirmacao = {
   loteId: string
   loteJustificativa: string
+  /** 13.11: rastreia se houve ajuste manual antes de confirmar */
+  origemDecisao: OrigemDecisao
   alocacoes: Array<{
     tecnicoId: string
     tecnicoNome: string
@@ -168,6 +193,14 @@ export function ResultadoAlocacao({
   onVoltar,
   onConfirmar,
 }: Props) {
+  // ====== 13.11 BLOCO 2: Estado de edição manual ======
+  // null = sem edição (usa resultado.alocacoes original do algoritmo)
+  // array = lista editada com swaps aplicados
+  const [alocacoesEditadas, setAlocacoesEditadas] = useState<
+    AlocacaoRica[] | null
+  >(null)
+  const foiEditada = alocacoesEditadas !== null
+
   // Modo escolhido por alocação (começa com o modo principal global)
   const [modosPorAloc, setModosPorAloc] = useState<
     Map<string, ModoTransporte>
@@ -180,12 +213,19 @@ export function ResultadoAlocacao({
   })
 
   // Cache de rota detalhada: chave = "alocId|modo"
+  // Agora também é usado pra alocações editadas (pares novos pós-swap).
   const [rotaCache, setRotaCache] = useState<Map<string, RotaCacheEntry>>(
     new Map(),
   )
 
   // ID da alocação atualmente expandida (só uma por vez pra economizar mapas)
   const [expandida, setExpandida] = useState<string | null>(null)
+
+  // ====== 13.11 BLOCO 2: helper de acesso unificado ======
+  const obterAlocacoesAtuais = useCallback(
+    (): AlocacaoRica[] => alocacoesEditadas ?? resultado.alocacoes,
+    [alocacoesEditadas, resultado.alocacoes],
+  )
 
   // ====== Fetcher da rota detalhada ======
   const carregarRota = useCallback(
@@ -253,27 +293,24 @@ export function ResultadoAlocacao({
   )
 
   // ====== Helper pra obter duração efetiva de uma alocação ======
-  // Pra modos da matriz inicial (DRIVE/TWO_WHEELER/WALK), usa o cache do JSON.
-  // Pra TRANSIT, depende do fetch — pode retornar null enquanto carrega.
   const obterDuracaoSeg = useCallback(
     (aloc: AlocacaoRica, modo: ModoTransporte): number | null => {
-      if (modo === "TRANSIT") {
-        const entry = rotaCache.get(`${chaveAlocacao(aloc)}|TRANSIT`)
-        if (entry?.estado === "ok") return entry.duracaoSegundos
-        return null
-      }
+      const cacheEntry = rotaCache.get(`${chaveAlocacao(aloc)}|${modo}`)
+      if (cacheEntry?.estado === "ok") return cacheEntry.duracaoSegundos
+      if (modo === "TRANSIT") return null
       return aloc.metricas[modo]?.duracaoSegundos ?? null
     },
     [rotaCache],
   )
 
-  // ====== Métricas DERIVADAS — recalculam a cada troca de modo ======
+  // ====== Métricas DERIVADAS — recalculam a cada troca / edição ======
   const metricasDerivadas = useMemo(() => {
+    const atuais = obterAlocacoesAtuais()
     let totalSeg = 0
     let contados = 0
     let comTransitCarregando = false
 
-    for (const a of resultado.alocacoes) {
+    for (const a of atuais) {
       const modo = modosPorAloc.get(chaveAlocacao(a)) ?? resultado.modoPrincipal
       const seg = obterDuracaoSeg(a, modo)
       if (seg != null) {
@@ -288,18 +325,15 @@ export function ResultadoAlocacao({
       totalSeg,
       medioSeg: contados > 0 ? totalSeg / contados : 0,
       contados,
-      total: resultado.alocacoes.length,
+      total: atuais.length,
       comTransitCarregando,
     }
-  }, [resultado, modosPorAloc, obterDuracaoSeg])
+  }, [obterAlocacoesAtuais, modosPorAloc, resultado.modoPrincipal, obterDuracaoSeg])
 
-  // ====== Contexto algorítmico (Q1) — calculado uma vez por render ======
-  // Pra cada linha mostrar sua posição relativa, precisa da lista global
-  // de custos no modoPrincipal da rodada. Como não muda com troca de modo
-  // individual (é sobre a decisão original), é estável.
+  // ====== Contexto algorítmico (Q1) — reflete edições do bloco 2 ======
   const todosCustosLote = useMemo(
-    () => resultado.alocacoes.map((a) => a.custoSegundosPrincipal),
-    [resultado.alocacoes],
+    () => obterAlocacoesAtuais().map((a) => a.custoSegundosPrincipal),
+    [obterAlocacoesAtuais],
   )
   const modoLabelLote = nomeAmigavelModo(resultado.modoPrincipal)
 
@@ -321,17 +355,197 @@ export function ResultadoAlocacao({
     void carregarRota(aloc, novoModo)
   }
 
+  // ====== 13.11 BLOCO 2: SWAP entre 2 alocações ======
+  const aplicarSwap = useCallback(
+    async (keyA: string, keyB: string) => {
+      if (keyA === keyB) return
+      const atuais = obterAlocacoesAtuais()
+      const linhaA = atuais.find((a) => chaveAlocacao(a) === keyA)
+      const linhaB = atuais.find((a) => chaveAlocacao(a) === keyB)
+      if (!linhaA || !linhaB) {
+        console.warn("[swap] linha não encontrada", { keyA, keyB })
+        return
+      }
+
+      // 1) Cria as 2 novas alocações trocando destinos
+      const novaA: AlocacaoRica = {
+        origem: linhaA.origem,
+        destino: linhaB.destino,
+        metricas: {},
+        custoSegundosPrincipal: 0,
+      }
+      const novaB: AlocacaoRica = {
+        origem: linhaB.origem,
+        destino: linhaA.destino,
+        metricas: {},
+        custoSegundosPrincipal: 0,
+      }
+      const keyNovaA = chaveAlocacao(novaA)
+      const keyNovaB = chaveAlocacao(novaB)
+
+      // 2) Substitui as 2 linhas no array — mantém ordem original
+      const novoArray = atuais.map((a) => {
+        const k = chaveAlocacao(a)
+        if (k === keyA) return novaA
+        if (k === keyB) return novaB
+        return a
+      })
+      setAlocacoesEditadas(novoArray)
+
+      // 3) Reset estados que ficaram referenciando keys antigas
+      setExpandida(null)
+      setModosPorAloc((prev) => {
+        const next = new Map(prev)
+        next.delete(keyA)
+        next.delete(keyB)
+        next.set(keyNovaA, resultado.modoPrincipal)
+        next.set(keyNovaB, resultado.modoPrincipal)
+        return next
+      })
+
+      // 4) Marca como "carregando" no rotaCache pros 2 novos pares
+      setRotaCache((prev) => {
+        const next = new Map(prev)
+        next.set(`${keyNovaA}|${resultado.modoPrincipal}`, {
+          estado: "carregando",
+        })
+        next.set(`${keyNovaB}|${resultado.modoPrincipal}`, {
+          estado: "carregando",
+        })
+        return next
+      })
+
+      // 5) Fetch paralelo das métricas pros 2 novos pares (modoPrincipal)
+      const buscarMetrica = async (
+        aloc: AlocacaoRica,
+        keyNova: string,
+      ): Promise<
+        | { ok: true; key: string; data: RotaCacheEntry & { estado: "ok" } }
+        | { ok: false; key: string; mensagem: string }
+      > => {
+        try {
+          const res = await fetch("/api/routes/single", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              origem: {
+                latitude: aloc.origem.latitude,
+                longitude: aloc.origem.longitude,
+              },
+              destino: {
+                latitude: aloc.destino.latitude,
+                longitude: aloc.destino.longitude,
+              },
+              modo: resultado.modoPrincipal,
+            }),
+          })
+          const data = await res.json()
+          if (!data.sucesso) {
+            return {
+              ok: false,
+              key: keyNova,
+              mensagem: data.erro ?? "Erro desconhecido",
+            }
+          }
+          return {
+            ok: true,
+            key: keyNova,
+            data: {
+              estado: "ok",
+              polyline: data.polyline ?? null,
+              distanciaMetros: data.distanciaMetros,
+              duracaoSegundos: data.duracaoSegundos,
+              transitSteps: data.transitSteps ?? [],
+              partidaIso: data.partidaIso ?? null,
+              chegadaIso: data.chegadaIso ?? null,
+            },
+          }
+        } catch (err) {
+          return {
+            ok: false,
+            key: keyNova,
+            mensagem: err instanceof Error ? err.message : "Erro de rede",
+          }
+        }
+      }
+
+      const [resA, resB] = await Promise.all([
+        buscarMetrica(novaA, keyNovaA),
+        buscarMetrica(novaB, keyNovaB),
+      ])
+
+      // 6) Atualiza rotaCache com resultados
+      setRotaCache((prev) => {
+        const next = new Map(prev)
+        for (const r of [resA, resB]) {
+          const cacheKey = `${r.key}|${resultado.modoPrincipal}`
+          if (r.ok) next.set(cacheKey, r.data)
+          else next.set(cacheKey, { estado: "erro", mensagem: r.mensagem })
+        }
+        return next
+      })
+
+      // 7) Atualiza alocacoesEditadas com métricas + custoSegundosPrincipal
+      setAlocacoesEditadas((prev) => {
+        if (!prev) return prev
+        return prev.map((aloc) => {
+          const k = chaveAlocacao(aloc)
+          if (k === keyNovaA && resA.ok) {
+            return {
+              ...aloc,
+              metricas: {
+                [resultado.modoPrincipal]: {
+                  distanciaMetros: resA.data.distanciaMetros,
+                  duracaoSegundos: resA.data.duracaoSegundos,
+                },
+              },
+              custoSegundosPrincipal: resA.data.duracaoSegundos,
+            }
+          }
+          if (k === keyNovaB && resB.ok) {
+            return {
+              ...aloc,
+              metricas: {
+                [resultado.modoPrincipal]: {
+                  distanciaMetros: resB.data.distanciaMetros,
+                  duracaoSegundos: resB.data.duracaoSegundos,
+                },
+              },
+              custoSegundosPrincipal: resB.data.duracaoSegundos,
+            }
+          }
+          return aloc
+        })
+      })
+    },
+    [obterAlocacoesAtuais, resultado.modoPrincipal],
+  )
+
+  // ====== 13.11 BLOCO 2: Voltar pra sugestão original ======
+  const voltarParaOtima = useCallback(() => {
+    setAlocacoesEditadas(null)
+    setExpandida(null)
+    const m = new Map<string, ModoTransporte>()
+    for (const a of resultado.alocacoes) {
+      m.set(chaveAlocacao(a), resultado.modoPrincipal)
+    }
+    setModosPorAloc(m)
+  }, [resultado.alocacoes, resultado.modoPrincipal])
+
   // ====== Confirma alocação: monta payload com tudo + dispara callback ======
   const handleConfirmar = () => {
+    const atuais = obterAlocacoesAtuais()
     const payload: PayloadConfirmacao = {
       loteId: resultado.loteId,
-      loteJustificativa: resultado.justificativaGemini,
-      alocacoes: resultado.alocacoes.map((aloc) => {
+      loteJustificativa: foiEditada
+        ? "" // Sem texto da IA — alocação foi ajustada manualmente
+        : resultado.justificativaGemini,
+      origemDecisao: foiEditada ? "ajuste-pos-auto" : "auto",
+      alocacoes: atuais.map((aloc) => {
         const key = chaveAlocacao(aloc)
         const modoEscolhido =
           modosPorAloc.get(key) ?? resultado.modoPrincipal
 
-        // Compila métricas: matriz original + TRANSIT (se foi buscado)
         const metricas: Partial<Record<ModoTransporte, MetricaModo>> = {
           ...aloc.metricas,
         }
@@ -368,15 +582,22 @@ export function ResultadoAlocacao({
   }
 
   // ====== Render ======
+  const alocacoesAtuais = obterAlocacoesAtuais()
+
   return (
     <div className="space-y-6">
-      <JustificativaBanner texto={resultado.justificativaGemini} />
+      {/* 13.11: banner muda se foi editado */}
+      {foiEditada ? (
+        <AvisoAlocacaoEditada onVoltarParaOtima={voltarParaOtima} />
+      ) : (
+        <JustificativaBanner texto={resultado.justificativaGemini} />
+      )}
 
       <MetricasCards
         derivadas={metricasDerivadas}
         modoMaisUsado={modoMaisFrequente(modosPorAloc, resultado.modoPrincipal)}
         totalTecnicos={
-          resultado.alocacoes.length + resultado.tecnicosNaoAlocados.length
+          alocacoesAtuais.length + resultado.tecnicosNaoAlocados.length
         }
       />
 
@@ -390,14 +611,18 @@ export function ResultadoAlocacao({
 
       <section className="space-y-3">
         <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          Alocações ({resultado.alocacoes.length})
+          Alocações ({alocacoesAtuais.length})
         </h2>
         <div className="space-y-3">
-          {resultado.alocacoes.map((aloc, i) => {
+          {alocacoesAtuais.map((aloc, i) => {
             const key = chaveAlocacao(aloc)
             const modo = modosPorAloc.get(key) ?? resultado.modoPrincipal
             const expandido = expandida === key
             const rotaEntry = rotaCache.get(`${key}|${modo}`)
+            // 13.11 BLOCO 3: outras alocações pra alimentar os dropdowns
+            const outrasAlocacoes = alocacoesAtuais.filter(
+              (o) => chaveAlocacao(o) !== key,
+            )
             return (
               <LinhaAlocacao
                 key={key}
@@ -413,6 +638,10 @@ export function ResultadoAlocacao({
                 todosCustosLote={todosCustosLote}
                 modoLabelLote={modoLabelLote}
                 justificativaLote={resultado.justificativaGemini}
+                // 13.11: edição manual
+                foiEditada={foiEditada}
+                outrasAlocacoes={outrasAlocacoes}
+                onSwap={(keyOutra) => void aplicarSwap(key, keyOutra)}
               />
             )
           })}
@@ -422,14 +651,57 @@ export function ResultadoAlocacao({
       <BotoesAcao
         onVoltar={onVoltar}
         onConfirmar={handleConfirmar}
-        totalAlocados={resultado.alocacoes.length}
+        totalAlocados={alocacoesAtuais.length}
+        foiEditada={foiEditada}
+        onVoltarParaOtima={voltarParaOtima}
       />
     </div>
   )
 }
 
 // ============================================================
-// JUSTIFICATIVA BANNER
+// 13.11 BLOCO 2: Aviso quando alocação foi editada manualmente
+// ============================================================
+
+function AvisoAlocacaoEditada({
+  onVoltarParaOtima,
+}: {
+  onVoltarParaOtima: () => void
+}) {
+  return (
+    <Card className="border-amber-300 bg-amber-50/60 dark:border-amber-800/60 dark:bg-amber-950/30">
+      <CardContent className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/20">
+            <AlertCircle className="h-5 w-5 text-amber-700 dark:text-amber-300" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <p className="font-mono text-xs uppercase tracking-widest text-amber-800 dark:text-amber-300">
+              Alocação ajustada manualmente
+            </p>
+            <p className="text-sm leading-relaxed">
+              A análise da IA não reflete os ajustes feitos. As métricas
+              (tempo total, médio, etc) são recalculadas em tempo real
+              com base na configuração atual.
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onVoltarParaOtima}
+          className="gap-2 self-start sm:self-center"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          Voltar pra ótima
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================
+// JUSTIFICATIVA BANNER (estado normal, sem edição)
 // ============================================================
 
 function JustificativaBanner({ texto }: { texto: string }) {
@@ -620,6 +892,103 @@ function ExplicacaoAlgoritmica({ texto }: { texto: string }) {
 }
 
 // ============================================================
+// 13.11 BLOCO 3: EDITAR PAR (dropdowns reais)
+// ============================================================
+// Aparece dentro do bloco expandido de cada alocação.
+// Os 2 dropdowns disparam o mesmo aplicarSwap — diferença é só de
+// mentalidade (qual ponta o usuário está pensando em trocar).
+//
+// Ficam desabilitados enquanto o swap ainda está em andamento
+// (custoSegundosPrincipal === 0 indica estado placeholder pós-swap).
+
+function EditarPar({
+  alocacaoAtual,
+  outrasAlocacoes,
+  onSwap,
+}: {
+  alocacaoAtual: AlocacaoRica
+  outrasAlocacoes: AlocacaoRica[]
+  onSwap: (keyOutra: string) => void
+}) {
+  if (outrasAlocacoes.length === 0) return null
+
+  // Se a alocação ainda está com custo placeholder, está em meio de swap
+  const desabilitado = alocacaoAtual.custoSegundosPrincipal === 0
+
+  return (
+    <div className="space-y-3 rounded-md border border-dashed border-primary/30 bg-primary/5 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-mono text-[10px] uppercase tracking-widest text-primary">
+          ⇄ Editar este par
+        </p>
+        {desabilitado && (
+          <span className="font-mono text-[10px] text-muted-foreground">
+            calculando…
+          </span>
+        )}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {/* Trocar técnico por... */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] text-muted-foreground">
+            Trocar técnico por:
+          </label>
+          <Select
+            disabled={desabilitado}
+            onValueChange={(keyOutra) => onSwap(keyOutra)}
+          >
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Escolher técnico..." />
+            </SelectTrigger>
+            <SelectContent>
+              {outrasAlocacoes.map((o) => (
+                <SelectItem key={chaveAlocacao(o)} value={chaveAlocacao(o)}>
+                  {o.origem.nome}{" "}
+                  <span className="text-muted-foreground">
+                    (atual em {o.destino.umNome})
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Trocar UM por... */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] text-muted-foreground">
+            Trocar UM por:
+          </label>
+          <Select
+            disabled={desabilitado}
+            onValueChange={(keyOutra) => onSwap(keyOutra)}
+          >
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Escolher UM..." />
+            </SelectTrigger>
+            <SelectContent>
+              {outrasAlocacoes.map((o) => (
+                <SelectItem key={chaveAlocacao(o)} value={chaveAlocacao(o)}>
+                  {o.destino.umNome}{" "}
+                  <span className="text-muted-foreground">
+                    (atual com {o.origem.nome})
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        Ao escolher, este par troca com o selecionado (swap automático —
+        ambos os técnicos mudam de destino).
+      </p>
+    </div>
+  )
+}
+
+// ============================================================
 // LINHA DE ALOCAÇÃO (cada par técnico → UM)
 // ============================================================
 
@@ -635,6 +1004,9 @@ function LinhaAlocacao({
   todosCustosLote,
   modoLabelLote,
   justificativaLote,
+  foiEditada,
+  outrasAlocacoes,
+  onSwap,
 }: {
   alocacao: AlocacaoRica
   ordem: number
@@ -644,10 +1016,12 @@ function LinhaAlocacao({
   duracaoSeg: number | null
   onExpandir: () => void
   onTrocarModo: (m: ModoTransporte) => void
-  // Q1: contexto pra explicação algorítmica + replicar justificativa
   todosCustosLote: number[]
   modoLabelLote: string
   justificativaLote: string
+  foiEditada: boolean
+  outrasAlocacoes: AlocacaoRica[]
+  onSwap: (keyOutra: string) => void
 }) {
   const duracaoMin = duracaoSeg != null ? Math.round(duracaoSeg / 60) : null
   const distanciaKm =
@@ -657,13 +1031,13 @@ function LinhaAlocacao({
         ? ((alocacao.metricas[modo]?.distanciaMetros ?? 0) / 1000).toFixed(1)
         : null
 
-  // Q1: explicação algorítmica calculada uma vez por linha (não muda com modo)
   const explicacao = gerarExplicacaoAlgoritmica({
     tecnicoNome: alocacao.origem.nome,
     umNome: alocacao.destino.umNome,
     meuCustoSegundos: alocacao.custoSegundosPrincipal,
     todosCustosSegundos: todosCustosLote,
     modoLabel: modoLabelLote,
+    manual: foiEditada,
   })
 
   return (
@@ -743,13 +1117,22 @@ function LinhaAlocacao({
         {/* Detalhes — só visíveis quando expandido */}
         {expandido && (
           <div className="space-y-4 border-t pt-4">
-            {/* Q1-A: justificativa global do lote replicada aqui */}
-            {justificativaLote && justificativaLote.trim().length > 0 && (
-              <JustificativaGlobalMini texto={justificativaLote} />
-            )}
+            {/* Q1-A: justificativa global do lote — SÓ se não foi editada. */}
+            {!foiEditada &&
+              justificativaLote &&
+              justificativaLote.trim().length > 0 && (
+                <JustificativaGlobalMini texto={justificativaLote} />
+              )}
 
             {/* Q1-C: explicação algorítmica deste par específico */}
             {explicacao && <ExplicacaoAlgoritmica texto={explicacao} />}
+
+            {/* 13.11 BLOCO 3: dropdowns reais de troca */}
+            <EditarPar
+              alocacaoAtual={alocacao}
+              outrasAlocacoes={outrasAlocacoes}
+              onSwap={onSwap}
+            />
 
             <SeletorModo
               modoAtual={modo}
@@ -971,17 +1354,21 @@ function DetalhesTransit({
 }
 
 // ============================================================
-// BOTÕES DE AÇÃO
+// BOTÕES DE AÇÃO (rodapé)
 // ============================================================
 
 function BotoesAcao({
   onVoltar,
   onConfirmar,
   totalAlocados,
+  foiEditada,
+  onVoltarParaOtima,
 }: {
   onVoltar: () => void
   onConfirmar: () => void
   totalAlocados: number
+  foiEditada: boolean
+  onVoltarParaOtima: () => void
 }) {
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -989,6 +1376,16 @@ function BotoesAcao({
         <ArrowLeft className="h-4 w-4" />
         Voltar para seleção
       </Button>
+      {foiEditada && (
+        <Button
+          variant="outline"
+          onClick={onVoltarParaOtima}
+          className="gap-2"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Voltar pra ótima
+        </Button>
+      )}
       <Button
         onClick={onConfirmar}
         disabled={totalAlocados === 0}
@@ -1090,22 +1487,13 @@ function modoMaisFrequente(
 // ============================================================
 // TODO P4: centralizar com historico/[loteId]/page.tsx (duplicado lá).
 
-/**
- * Gera explicação algorítmica de UMA alocação no contexto de TODAS as
- * alocações do mesmo lote. Sem IA — só código, baseado em rank + média.
- *
- * Saída exemplo:
- *   "Esta é a rota mais curta do lote (3 rotas no total) — 11 min de
- *    deslocamento via carro, 22 min abaixo da média (33 min). O algoritmo
- *    escolheu Anne → BSBIA02 porque essa combinação tinha o menor custo
- *    de tempo dentre as opções possíveis para esta UM."
- */
 function gerarExplicacaoAlgoritmica(input: {
   tecnicoNome: string
   umNome: string
   meuCustoSegundos: number
   todosCustosSegundos: number[]
   modoLabel: string
+  manual?: boolean
 }): string {
   const {
     tecnicoNome,
@@ -1113,14 +1501,19 @@ function gerarExplicacaoAlgoritmica(input: {
     meuCustoSegundos,
     todosCustosSegundos,
     modoLabel,
+    manual,
   } = input
   const total = todosCustosSegundos.length
   if (total === 0) return ""
 
   const meuMin = Math.round(meuCustoSegundos / 60)
 
+  const linhaDecisao = manual
+    ? `Esta combinação ${tecnicoNome} → ${umNome} foi escolhida manualmente, fora da sugestão do algoritmo.`
+    : `O algoritmo escolheu ${tecnicoNome} → ${umNome} porque essa combinação tinha o menor custo de tempo dentre as opções possíveis para esta UM.`
+
   if (total === 1) {
-    return `Esta é a única rota da rodada (${meuMin} min via ${modoLabel}). O algoritmo selecionou ${tecnicoNome} → ${umNome} como a alocação com menor custo de deslocamento possível.`
+    return `Esta é a única rota da rodada (${meuMin} min via ${modoLabel}). ${linhaDecisao}`
   }
 
   const ordenados = [...todosCustosSegundos].sort((a, b) => a - b)
@@ -1141,5 +1534,5 @@ function gerarExplicacaoAlgoritmica(input: {
         ? `${Math.abs(diff)} min abaixo da média (${mediaMin} min)`
         : `${diff} min acima da média (${mediaMin} min)`
 
-  return `Esta é a ${rankLabel} do lote (${total} rotas no total) — ${meuMin} min de deslocamento via ${modoLabel}, ${diffLabel}. O algoritmo escolheu ${tecnicoNome} → ${umNome} porque essa combinação tinha o menor custo de tempo dentre as opções possíveis para esta UM.`
+  return `Esta é a ${rankLabel} do lote (${total} rotas no total) — ${meuMin} min de deslocamento via ${modoLabel}, ${diffLabel}. ${linhaDecisao}`
 }
