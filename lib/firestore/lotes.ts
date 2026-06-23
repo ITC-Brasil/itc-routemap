@@ -22,6 +22,7 @@ import {
   listarRotas,
   listarRotasPorLote,
   type ModoTransporte,
+  type OrigemDecisao,
   type Rota,
   type StatusRota,
 } from "./rotas"
@@ -52,6 +53,13 @@ export type LoteSumario = {
   /** Soma de distanciaMetros do modoPrincipal de cada rota. */
   distanciaTotalMetros: number
   statusLote: StatusLote
+  /**
+   * 13.11: Como o lote foi formado.
+   * Todas as rotas de um mesmo lote têm a mesma origemDecisao (design do bloco 1).
+   * "auto" = veio do algoritmo sem ajuste; "ajuste-pos-auto" = teve swap manual antes
+   * de confirmar; "manual" = reservado pra futura modalidade.
+   */
+  origemDecisao: OrigemDecisao
   /** Justificativa da IA (pega da 1ª rota — todas do lote têm a mesma). */
   justificativaGemini?: string
 }
@@ -232,6 +240,11 @@ function sumarizarLote(loteId: string, rotas: Rota[]): LoteSumario | null {
     }
   }
 
+  // 13.11: origemDecisao do lote — pega da primeira rota.
+  // Todas as rotas de um mesmo lote têm a mesma origemDecisao (design do bloco 1).
+  // Fallback "auto" pra rotas antigas pré-13.11 que não têm o campo no banco.
+  const origemDecisao: OrigemDecisao = relevantes[0]?.origemDecisao ?? "auto"
+
   // Justificativa: todas as rotas do lote compartilham. Pega da primeira.
   const justificativa = relevantes[0]?.loteJustificativa
   const justificativaGemini =
@@ -250,6 +263,7 @@ function sumarizarLote(loteId: string, rotas: Rota[]): LoteSumario | null {
     tempoTotalSegundos,
     distanciaTotalMetros,
     statusLote,
+    origemDecisao,
     justificativaGemini,
   }
 }

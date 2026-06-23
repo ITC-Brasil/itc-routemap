@@ -4,6 +4,7 @@ import Link from "next/link"
 import {
   ArrowRight,
   Clock,
+  Hand,
   MoreVertical,
   Route as RouteIcon,
   Users,
@@ -36,6 +37,9 @@ export function CardLote({ lote, onCancelar }: Props) {
   // Pega o id curto (primeiros 8 chars do uuid) pra exibição
   const loteIdCurto = lote.loteId.slice(0, 8)
 
+  // 13.11: lote teve ajuste manual antes da confirmação?
+  const teveAjusteManual = lote.origemDecisao !== "auto"
+
   return (
     <Card className="card-interactive">
       <CardContent className="p-5">
@@ -43,11 +47,12 @@ export function CardLote({ lote, onCancelar }: Props) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           {/* Lado esquerdo: identificação */}
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
                 Lote {loteIdCurto}
               </span>
               <StatusBadge lote={lote} />
+              {teveAjusteManual && <BadgeAjusteManual />}
             </div>
             <p className="font-heading text-lg leading-tight">
               {formatarDataHora(lote.dataConfirmacao)}
@@ -167,6 +172,26 @@ function StatusBadge({ lote }: { lote: LoteSumario }) {
       className="border-itc-atencao/30 bg-itc-atencao/10 text-itc-atencao"
     >
       Mista
+    </Badge>
+  )
+}
+
+// ============================================================
+// 13.11: BADGE DE AJUSTE MANUAL
+// ============================================================
+// Aparece SEMPRE em conjunto com o StatusBadge quando o lote teve
+// ao menos 1 swap manual antes da confirmação (origemDecisao !== "auto").
+// Cor accent (bordô do tema ITC) — distinguível dos demais sem ser
+// alarmante (não é erro, é uma informação extra).
+
+function BadgeAjusteManual() {
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1 border-accent/40 bg-accent/10 text-accent"
+    >
+      <Hand className="h-3 w-3" />
+      Ajuste manual
     </Badge>
   )
 }

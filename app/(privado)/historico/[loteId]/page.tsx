@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Hand,
   PersonStanding,
   Sparkles,
   Timer,
@@ -362,6 +363,7 @@ export default function DetalheLotePage() {
       tempoTotalSegundos: metricasAgregadas.totalSeg,
       distanciaTotalMetros: metricasAgregadas.totalMetros,
       statusLote,
+      origemDecisao: relevantes[0]?.origemDecisao ?? "auto",
       justificativaGemini:
         relevantes[0]?.loteJustificativa?.trim()
           ? relevantes[0].loteJustificativa
@@ -478,12 +480,15 @@ export default function DetalheLotePage() {
 
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
                 Lote {loteIdCurto}
               </p>
               <StatusBadge statusLote={statusLote} />
+              {primeiraRota.origemDecisao !== "auto" && <BadgeAjusteManual />}
             </div>
+
+            
             <h1 className="mt-1 font-heading text-4xl">
               {formatarDataHora(dataLote)}
             </h1>
@@ -968,6 +973,45 @@ function DetalhesTransit({
     )
   }
 
+  // Agrupa caminhadas CONSECUTIVAS num único item com totais somados.
+  // Evita poluir a lista quando o Google retorna 5+ walking steps seguidos
+  // de poucos segundos cada (típico em conexões entre paradas).
+  type ItemAgrupado =
+    | {
+        tipo: "walking-grouped"
+        duracaoSegundos: number
+        distanciaMetros: number
+      }
+    | { tipo: "transit"; step: TransitStep }
+
+  const itensAgrupados: ItemAgrupado[] = []
+  let acumuladoSegs = 0
+  let acumuladoMetros = 0
+
+  const fecharGrupoWalking = () => {
+    if (acumuladoSegs > 0 || acumuladoMetros > 0) {
+      itensAgrupados.push({
+        tipo: "walking-grouped",
+        duracaoSegundos: acumuladoSegs,
+        distanciaMetros: acumuladoMetros,
+      })
+    }
+    acumuladoSegs = 0
+    acumuladoMetros = 0
+  }
+
+  for (const step of steps) {
+    if (step.tipo === "walking") {
+      acumuladoSegs += step.duracaoSegundos
+      acumuladoMetros += step.distanciaMetros ?? 0
+    } else {
+      fecharGrupoWalking()
+      itensAgrupados.push({ tipo: "transit", step })
+    }
+  }
+  // Fecha o último grupo (caminhadas no final do trajeto)
+  fecharGrupoWalking()
+
   return (
     <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50/40 p-4 dark:border-amber-800/60 dark:bg-amber-950/20">
       <div className="flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-widest text-amber-800 dark:text-amber-300">
@@ -979,16 +1023,17 @@ function DetalhesTransit({
         )}
       </div>
       <ol className="space-y-2">
-        {steps.map((step, i) => {
-          if (step.tipo === "walking") {
-            const min = Math.round(step.duracaoSegundos / 60)
-            const km = step.distanciaMetros
-              ? (step.distanciaMetros / 1000).toFixed(1)
+        {itensAgrupados.map((item, i) => {
+          if (item.tipo === "walking-grouped") {
+            const min = Math.round(item.duracaoSegundos / 60)
+            const km = item.distanciaMetros
+              ? (item.distanciaMetros / 1000).toFixed(1)
               : null
-            if (min === 0 && !km) return null
+            // Esconde grupo simbólico (0 min E 0.0 km)
+            if (min === 0 && (!km || km === "0.0")) return null
             return (
               <li
-                key={i}
+                key={`walk-${i}`}
                 className="flex items-center gap-2 text-xs text-muted-foreground"
               >
                 <PersonStanding className="h-3.5 w-3.5" />
@@ -996,9 +1041,14 @@ function DetalhesTransit({
               </li>
             )
           }
+          // item.tipo === "transit"
+          const step = item.step
           const VeiculoIcon = iconeDoVeiculoTransit(step.veiculo)
           return (
-            <li key={i} className="flex items-start gap-2 text-sm">
+            <li
+              key={`transit-${i}`}
+              className="flex items-start gap-2 text-sm"
+            >
               <VeiculoIcon className="mt-0.5 h-4 w-4 text-amber-700 dark:text-amber-400" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2">
@@ -1074,6 +1124,18 @@ function StatusBadge({ statusLote }: { statusLote: StatusLote }) {
       className="border-itc-atencao/30 bg-itc-atencao/10 text-itc-atencao"
     >
       Mista
+    </Badge>
+  )
+}
+
+function BadgeAjusteManual() {
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1 border-accent/40 bg-accent/10 text-accent"
+    >
+      <Hand className="h-3 w-3" />
+      Ajuste manual
     </Badge>
   )
 }
