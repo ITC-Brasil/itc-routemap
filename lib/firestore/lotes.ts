@@ -60,6 +60,12 @@ export type LoteSumario = {
    * de confirmar; "manual" = reservado pra futura modalidade.
    */
   origemDecisao: OrigemDecisao
+  /**
+   * 13.12: true quando ao menos uma rota do lote substituiu uma rota anterior
+   * (campo realocadaDe preenchido). Usado pra exibir badge "Re-otimização"
+   * no card do histórico.
+   */
+  temRealocacoes: boolean
   /** Justificativa da IA (pega da 1ª rota — todas do lote têm a mesma). */
   justificativaGemini?: string
 }
@@ -245,6 +251,9 @@ function sumarizarLote(loteId: string, rotas: Rota[]): LoteSumario | null {
   // Fallback "auto" pra rotas antigas pré-13.11 que não têm o campo no banco.
   const origemDecisao: OrigemDecisao = relevantes[0]?.origemDecisao ?? "auto"
 
+  // 13.12: true se qualquer rota do lote substituiu uma rota anterior.
+  const temRealocacoes = relevantes.some((r) => r.realocadaDe !== null)
+
   // Justificativa: todas as rotas do lote compartilham. Pega da primeira.
   const justificativa = relevantes[0]?.loteJustificativa
   const justificativaGemini =
@@ -264,6 +273,7 @@ function sumarizarLote(loteId: string, rotas: Rota[]): LoteSumario | null {
     distanciaTotalMetros,
     statusLote,
     origemDecisao,
+    temRealocacoes,
     justificativaGemini,
   }
 }

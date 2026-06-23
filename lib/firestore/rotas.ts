@@ -110,6 +110,12 @@ export type Rota = {
    */
   origemDecisao: OrigemDecisao
 
+  /**
+   * ID da rota anterior que esta rota substituiu — 13.12 Re-otimização.
+   * null quando a rota foi criada normalmente (não é uma re-otimização).
+   */
+  realocadaDe: string | null
+
   criadoEm: Timestamp | null
   atualizadoEm: Timestamp | null
 }
@@ -187,6 +193,54 @@ export function obterDestinosPorUM(
   const resultado = new Map<string, Ponto>()
   for (const um of umsDoProjeto) {
     const destino = obterDestinoDaUM(pontos, projetoId, um)
+    if (destino) resultado.set(um, destino)
+  }
+  return resultado
+}
+
+/**
+ * Retorna o ponto destino de uma UM considerando status realocáveis:
+ * Pendente, Agendado ou Atual — exclui Histórico.
+ *
+ * 13.12 Re-otimização: usado pra incluir pontos de técnicos com rotas ativas
+ * no cálculo de re-otimização.
+ */
+export function obterDestinoRealocavelDaUM(
+  pontos: Ponto[],
+  projetoId: string,
+  umNome: string
+): Ponto | null {
+  const STATUS_REALOCAVEIS = new Set(["Pendente", "Agendado", "Atual"])
+  const candidatos = pontos.filter(
+    (p) =>
+      p.projetoId === projetoId &&
+      p.umNome === umNome &&
+      STATUS_REALOCAVEIS.has(p.status)
+  )
+  if (candidatos.length === 0) return null
+  candidatos.sort((a, b) => {
+    if (b.ciclo !== a.ciclo) return b.ciclo - a.ciclo
+    return b.etapa - a.etapa
+  })
+  return candidatos[0]
+}
+
+/**
+ * Retorna {umNome → ponto destino} para todas as UMs de um projeto que
+ * têm ao menos um ponto realocável (Pendente, Agendado ou Atual).
+ *
+ * 13.12 Re-otimização: escopo mais amplo que obterDestinosPorUM.
+ */
+export function obterDestinosRealocaveisPorUM(
+  pontos: Ponto[],
+  projetoId: string
+): Map<string, Ponto> {
+  const umsDoProjeto = new Set(
+    pontos.filter((p) => p.projetoId === projetoId).map((p) => p.umNome)
+  )
+  const resultado = new Map<string, Ponto>()
+  for (const um of umsDoProjeto) {
+    const destino = obterDestinoRealocavelDaUM(pontos, projetoId, um)
     if (destino) resultado.set(um, destino)
   }
   return resultado
@@ -377,6 +431,8 @@ function mapearRota(id: string, data: Record<string, unknown>): Rota {
     status: (data.status as StatusRota) ?? "Sugerida",
     // 13.11: fallback "auto" pra rotas antigas no banco que ainda não têm o campo
     origemDecisao: (data.origemDecisao as OrigemDecisao) ?? "auto",
+    // 13.12: null pra rotas antigas que não passaram por re-otimização
+    realocadaDe: (data.realocadaDe as string) ?? null,
     criadoEm: (data.criadoEm as Timestamp) ?? null,
     atualizadoEm: (data.atualizadoEm as Timestamp) ?? null,
   }
@@ -418,6 +474,8 @@ export type ConfirmarAlocacaoInput = {
     metricas: Partial<Record<ModoTransporte, MetricaModo>>
     /** Modo que o usuário escolheu para essa alocação específica. */
     modoEscolhido: ModoTransporte
+    /** 13.12: ID da rota anterior se esta substituiu uma rota ativa. */
+    realocadaDe?: string | null
   }>
 }
  
@@ -478,6 +536,7 @@ export async function confirmarAlocacao(
       modoPrincipal: aloc.modoEscolhido,
       status: "Confirmada" as StatusRota,
       origemDecisao,
+      realocadaDe: aloc.realocadaDe ?? null,
       criadoEm: serverTimestamp(),
       atualizadoEm: serverTimestamp(),
     })
@@ -495,4 +554,137 @@ export async function confirmarAlocacao(
  
   await batch.commit()
   return { rotasIds, pontosAtualizados }
+}
+
+// ============================================================
+// RE-OTIMIZAÇÃO DE ALOCAÇÕES (13.12)
+// ============================================================
+
+/**
+ * Payload de entrada para aplicar re-otimização inteligente.
+ *
+ * Cada item pode ser:
+ * - Re-otimização: técnico já tinha rota ativa (rotaAntigaId + pontoAntigoId definidos)
+ *   → cancela rota antiga, libera ponto antigo, cria nova rota com realocadaDe
+ * - Nova alocação: técnico sem rota ativa (sem rotaAntigaId)
+ *   → cria rota normalmente, como em confirmarAlocacao
+ */
+export type ReotimizacaoInput = {
+  loteId: string
+  loteJustificativa: string
+  origemDecisao?: OrigemDecisao
+  alocacoes: Array<{
+    /** Rota ativa a cancelar (13.12: re-otimização). Omitir pra novas alocações. */
+    rotaAntigaId?: string
+    /** Ponto a liberar (Agendado → Pendente). Obrigatório quando rotaAntigaId está presente. */
+    pontoAntigoId?: string
+    tecnicoId: string
+    tecnicoNome: string
+    pontoId: string
+    umNome: string
+    projetoId: string
+    origem: {
+      endereco: string
+      latitude: number
+      longitude: number
+    }
+    destino: {
+      endereco: string
+      latitude: number
+      longitude: number
+    }
+    metricas: Partial<Record<ModoTransporte, MetricaModo>>
+    modoEscolhido: ModoTransporte
+  }>
+}
+
+export type ReotimizacaoResultado = {
+  rotasIds: string[]
+  pontosAtualizados: string[]
+  rotasCanceladas: number
+  pontosLiberados: number
+}
+
+/**
+ * Aplica re-otimização inteligente atomicamente (13.12).
+ *
+ * Num único writeBatch:
+ *   - Cancela rotas ativas que serão substituídas (status → "Cancelada")
+ *   - Libera pontos das rotas canceladas (status → "Pendente", remove tecnicoId/rotaId)
+ *   - Cria novas rotas (status → "Confirmada", realocadaDe aponta pra rota antiga)
+ *   - Agenda novos pontos (status → "Agendado", vincula tecnicoId/rotaId)
+ *
+ * Tudo atômico: ou tudo persiste, ou nada.
+ */
+export async function aplicarReotimizacao(
+  input: ReotimizacaoInput
+): Promise<ReotimizacaoResultado> {
+  if (input.alocacoes.length === 0) {
+    return { rotasIds: [], pontosAtualizados: [], rotasCanceladas: 0, pontosLiberados: 0 }
+  }
+
+  const origemDecisao: OrigemDecisao = input.origemDecisao ?? "auto"
+  const batch = writeBatch(db)
+  const rotasIds: string[] = []
+  const pontosAtualizados: string[] = []
+  let rotasCanceladas = 0
+  let pontosLiberados = 0
+
+  input.alocacoes.forEach((aloc, indice) => {
+    // 1. Cancela rota antiga (se re-otimização)
+    if (aloc.rotaAntigaId) {
+      batch.update(doc(db, COLECAO, aloc.rotaAntigaId), {
+        status: "Cancelada" as StatusRota,
+        atualizadoEm: serverTimestamp(),
+      })
+      rotasCanceladas++
+    }
+
+    // 2. Libera ponto antigo (se re-otimização)
+    if (aloc.pontoAntigoId) {
+      batch.update(doc(db, "pontos", aloc.pontoAntigoId), {
+        status: "Pendente",
+        tecnicoId: null,
+        rotaId: null,
+        atualizadoEm: serverTimestamp(),
+      })
+      pontosLiberados++
+    }
+
+    // 3. Cria nova rota
+    const rotaRef = doc(collection(db, COLECAO))
+    rotasIds.push(rotaRef.id)
+    batch.set(rotaRef, {
+      loteId: input.loteId,
+      loteOrdem: indice + 1,
+      loteJustificativa: input.loteJustificativa,
+      tecnicoId: aloc.tecnicoId,
+      tecnicoNome: aloc.tecnicoNome,
+      pontoId: aloc.pontoId,
+      umNome: aloc.umNome,
+      projetoId: aloc.projetoId,
+      origem: aloc.origem,
+      destino: aloc.destino,
+      metricas: aloc.metricas,
+      modoPrincipal: aloc.modoEscolhido,
+      status: "Confirmada" as StatusRota,
+      origemDecisao,
+      realocadaDe: aloc.rotaAntigaId ?? null,
+      criadoEm: serverTimestamp(),
+      atualizadoEm: serverTimestamp(),
+    })
+
+    // 4. Agenda novo ponto
+    const pontoRef = doc(db, "pontos", aloc.pontoId)
+    batch.update(pontoRef, {
+      status: STATUS_PONTO_AGENDADO,
+      tecnicoId: aloc.tecnicoId,
+      rotaId: rotaRef.id,
+      atualizadoEm: serverTimestamp(),
+    })
+    pontosAtualizados.push(aloc.pontoId)
+  })
+
+  await batch.commit()
+  return { rotasIds, pontosAtualizados, rotasCanceladas, pontosLiberados }
 }

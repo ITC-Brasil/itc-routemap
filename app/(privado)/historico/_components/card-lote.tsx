@@ -6,6 +6,7 @@ import {
   Clock,
   Hand,
   MoreVertical,
+  RefreshCw,
   Route as RouteIcon,
   Users,
 } from "lucide-react"
@@ -39,6 +40,8 @@ export function CardLote({ lote, onCancelar }: Props) {
 
   // 13.11: lote teve ajuste manual antes da confirmação?
   const teveAjusteManual = lote.origemDecisao !== "auto"
+  // 13.12: lote contém ao menos uma rota de re-otimização?
+  const teveReotimizacao = lote.temRealocacoes
 
   return (
     <Card className="card-interactive">
@@ -53,6 +56,7 @@ export function CardLote({ lote, onCancelar }: Props) {
               </span>
               <StatusBadge lote={lote} />
               {teveAjusteManual && <BadgeAjusteManual />}
+              {teveReotimizacao && <BadgeReotimizacao />}
             </div>
             <p className="font-heading text-lg leading-tight">
               {formatarDataHora(lote.dataConfirmacao)}
@@ -192,6 +196,20 @@ function BadgeAjusteManual() {
     >
       <Hand className="h-3 w-3" />
       Ajuste manual
+    </Badge>
+  )
+}
+
+// 13.12: badge de re-otimização — lote teve ao menos uma rota substituída
+// pelo algoritmo de re-otimização inteligente.
+function BadgeReotimizacao() {
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1 border-blue-300/50 bg-blue-50/40 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/20 dark:text-blue-400"
+    >
+      <RefreshCw className="h-3 w-3" />
+      Re-otimização
     </Badge>
   )
 }

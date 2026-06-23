@@ -31,6 +31,7 @@ import {
   Clock,
   Hand,
   PersonStanding,
+  RefreshCw,
   Sparkles,
   Timer,
   Train,
@@ -364,6 +365,7 @@ export default function DetalheLotePage() {
       distanciaTotalMetros: metricasAgregadas.totalMetros,
       statusLote,
       origemDecisao: relevantes[0]?.origemDecisao ?? "auto",
+      temRealocacoes: relevantes.some((r) => r.realocadaDe !== null),
       justificativaGemini:
         relevantes[0]?.loteJustificativa?.trim()
           ? relevantes[0].loteJustificativa
@@ -486,6 +488,7 @@ export default function DetalheLotePage() {
               </p>
               <StatusBadge statusLote={statusLote} />
               {primeiraRota.origemDecisao !== "auto" && <BadgeAjusteManual />}
+              {rotas.some((r) => r.realocadaDe !== null) && <BadgeReotimizacao />}
             </div>
 
             
@@ -790,6 +793,15 @@ function LinhaRotaHistorico({
               </Badge>
               {rota.status === "Cancelada" && (
                 <Badge variant="destructive">Cancelada</Badge>
+              )}
+              {rota.realocadaDe !== null && (
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-blue-300/50 bg-blue-50/40 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/20 dark:text-blue-400"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Re-otimização
+                </Badge>
               )}
             </div>
             <p
@@ -1136,6 +1148,18 @@ function BadgeAjusteManual() {
     >
       <Hand className="h-3 w-3" />
       Ajuste manual
+    </Badge>
+  )
+}
+
+function BadgeReotimizacao() {
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1 border-blue-300/50 bg-blue-50/40 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/20 dark:text-blue-400"
+    >
+      <RefreshCw className="h-3 w-3" />
+      Re-otimização
     </Badge>
   )
 }

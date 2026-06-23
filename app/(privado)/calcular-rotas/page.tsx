@@ -7,7 +7,9 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle,
+  Info,
   MapPin,
+  RefreshCw,
   Sparkles,
   Users,
 } from "lucide-react"
@@ -19,12 +21,19 @@ import { Label } from "@/components/ui/label"
 import { listarProjetos, type Projeto } from "@/lib/firestore/projetos"
 import { listarTodosPontos, type Ponto } from "@/lib/firestore/pontos"
 import { listarTecnicos, type Tecnico } from "@/lib/firestore/tecnicos"
-import { obterDestinosPorUM } from "@/lib/firestore/rotas"
+import {
+  aplicarReotimizacao,
+  confirmarAlocacao,
+  listarRotasPorStatus,
+  obterDestinosPorUM,
+  obterDestinosRealocaveisPorUM,
+  type Rota,
+} from "@/lib/firestore/rotas"
 import { corTextoIdeal } from "@/lib/firestore/ras"
 import { useRouter } from "next/navigation"
-import { confirmarAlocacao } from "@/lib/firestore/rotas"
 import {
   ResultadoAlocacao,
+  type AlocacaoRica,
   type RespostaAlocacao,
   type PayloadConfirmacao,
 } from "./_components/resultado-alocacao"
@@ -35,6 +44,7 @@ export default function CalcularRotasPage() {
   const [projetos, setProjetos] = useState<Projeto[]>([])
   const [pontos, setPontos] = useState<Ponto[]>([])
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([])
+  const [rotasConfirmadas, setRotasConfirmadas] = useState<Rota[]>([])
   const [carregando, setCarregando] = useState(true)
 
   // ====== CARREGAMENTO INICIAL ======
@@ -43,15 +53,18 @@ export default function CalcularRotasPage() {
 
     async function carregar() {
       try {
-        const [listaProjetos, listaPontos, listaTecnicos] = await Promise.all([
-          listarProjetos(),
-          listarTodosPontos(),
-          listarTecnicos(),
-        ])
+        const [listaProjetos, listaPontos, listaTecnicos, listaRotasConfirmadas] =
+          await Promise.all([
+            listarProjetos(),
+            listarTodosPontos(),
+            listarTecnicos(),
+            listarRotasPorStatus("Confirmada"),
+          ])
         if (cancelado) return
         setProjetos(listaProjetos)
         setPontos(listaPontos)
         setTecnicos(listaTecnicos)
+        setRotasConfirmadas(listaRotasConfirmadas)
       } catch (err) {
         if (cancelado) return
         console.error("Erro ao carregar dados:", err)
@@ -93,6 +106,7 @@ export default function CalcularRotasPage() {
           projetos={projetos}
           pontos={pontos}
           tecnicos={tecnicos}
+          rotasConfirmadas={rotasConfirmadas}
         />
       )}
     </div>
@@ -107,10 +121,12 @@ function ConteudoCondicional({
   projetos,
   pontos,
   tecnicos,
+  rotasConfirmadas,
 }: {
   projetos: Projeto[]
   pontos: Ponto[]
   tecnicos: Tecnico[]
+  rotasConfirmadas: Rota[]
 }) {
   const umsAptasPorProjeto = projetos
     .map((p) => ({
@@ -127,6 +143,17 @@ function ConteudoCondicional({
   const tecnicosComLocalizacao = tecnicos.filter(
     (t) => t.latitude !== null && t.longitude !== null
   )
+
+  // 13.12: UMs com pontos realocáveis (Pendente + Agendado + Atual)
+  const umsRealocaveisPorProjeto = projetos
+    .map((p) => ({
+      projeto: p,
+      destinos: obterDestinosRealocaveisPorUM(pontos, p.id),
+    }))
+    .filter((p) => p.destinos.size > 0)
+
+  const tecnicosComRotaAtiva = new Set(rotasConfirmadas.map((r) => r.tecnicoId))
+  const temRotasAtivas = tecnicosComRotaAtiva.size > 0
 
   if (tecnicos.length === 0) {
     return (
@@ -150,7 +177,8 @@ function ConteudoCondicional({
     )
   }
 
-  if (totalUmsAptas === 0) {
+  // Com re-otimização: se há pontos realocáveis (mesmo sem Pendentes), prossegue
+  if (totalUmsAptas === 0 && !temRotasAtivas) {
     return (
       <EstadoVazio
         titulo="Nenhuma UM aguardando alocação"
@@ -164,7 +192,9 @@ function ConteudoCondicional({
   return (
     <FluxoAlocacao
       tecnicos={tecnicosComLocalizacao}
-      umsAptasPorProjeto={umsAptasPorProjeto}
+      umsAptasPorProjeto={totalUmsAptas > 0 ? umsAptasPorProjeto : []}
+      umsRealocaveisPorProjeto={umsRealocaveisPorProjeto}
+      rotasConfirmadas={rotasConfirmadas}
     />
   )
 }
@@ -177,11 +207,12 @@ type EtapaCalculo =
   | "selecao"
   | "calculando"
   | "resultado"
+  | "reotimizacao"
   | "erro"
   | "confirmando"
   | "confirmado"
   | "erroConfirmar"
-  
+
 type ItemUM = {
   key: string
   projeto: Projeto
@@ -189,27 +220,38 @@ type ItemUM = {
   destino: Ponto
 }
 
+/** Oportunidade de re-otimização detectada após cálculo (13.12). */
+type OportunidadeReotimizacao = {
+  tecnicoId: string
+  tecnicoNome: string
+  rotaAtualId: string
+  pontoAtualId: string
+  umAtual: string
+  tempoAtualSeg: number
+  umNova: string
+  pontoNovoId: string
+  tempoNovoSeg: number
+  economiaSeg: number
+  novaAloc: AlocacaoRica
+}
+
 function FluxoAlocacao({
   tecnicos,
   umsAptasPorProjeto,
+  umsRealocaveisPorProjeto,
+  rotasConfirmadas,
 }: {
   tecnicos: Tecnico[]
-  umsAptasPorProjeto: Array<{
-    projeto: Projeto
-    destinos: Map<string, Ponto>
-  }>
+  umsAptasPorProjeto: Array<{ projeto: Projeto; destinos: Map<string, Ponto> }>
+  umsRealocaveisPorProjeto: Array<{ projeto: Projeto; destinos: Map<string, Ponto> }>
+  rotasConfirmadas: Rota[]
 }) {
-  // Achata as UMs em lista plana com contexto
+  // Achata as UMs Pendentes em lista plana (seleção visível na UI)
   const itensUM = useMemo<ItemUM[]>(() => {
     const lista: ItemUM[] = []
     for (const { projeto, destinos } of umsAptasPorProjeto) {
       for (const [umNome, destino] of destinos) {
-        lista.push({
-          key: `${projeto.id}|${umNome}`,
-          projeto,
-          umNome,
-          destino,
-        })
+        lista.push({ key: `${projeto.id}|${umNome}`, projeto, umNome, destino })
       }
     }
     return lista
@@ -227,9 +269,29 @@ function FluxoAlocacao({
   const [etapa, setEtapa] = useState<EtapaCalculo>("selecao")
   const [resultado, setResultado] = useState<RespostaAlocacao | null>(null)
   const [erroCalculo, setErroCalculo] = useState<string | null>(null)
+  const [oportunidades, setOportunidades] = useState<OportunidadeReotimizacao[]>([])
   const [rotasConfirmadasIds, setRotasConfirmadasIds] = useState<string[]>([])
   const [erroConfirmar, setErroConfirmar] = useState<string | null>(null)
   const router = useRouter()
+
+  // 13.12: map tecnicoId → rotaAtiva (Confirmada)
+  const rotaAtivaPorTecnico = useMemo<Map<string, Rota>>(() => {
+    const m = new Map<string, Rota>()
+    for (const r of rotasConfirmadas) {
+      const existente = m.get(r.tecnicoId)
+      if (!existente || (r.criadoEm && existente.criadoEm && r.criadoEm > existente.criadoEm)) {
+        m.set(r.tecnicoId, r)
+      }
+    }
+    return m
+  }, [rotasConfirmadas])
+
+  // 13.12: rotas ativas dos técnicos atualmente selecionados
+  const tecnicosAtivosSelected = useMemo<Rota[]>(() => {
+    return Array.from(rotaAtivaPorTecnico.values()).filter((r) =>
+      selectedTecnicoIds.has(r.tecnicoId)
+    )
+  }, [rotaAtivaPorTecnico, selectedTecnicoIds])
 
   const totalSelTecnicos = selectedTecnicoIds.size
   const totalSelUms = selectedUmKeys.size
@@ -268,34 +330,27 @@ function FluxoAlocacao({
     setEtapa("calculando")
     setErroCalculo(null)
     setResultado(null)
+    setOportunidades([])
 
     try {
-      // Valida coordenadas ANTES do cast (TS-safe)
       const tecsSemCoord = tecnicos
         .filter((t) => selectedTecnicoIds.has(t.id))
         .filter((t) => t.latitude === null || t.longitude === null)
       if (tecsSemCoord.length > 0) {
         throw new Error(
-          `Técnico(s) sem coordenadas: ${tecsSemCoord
-            .map((t) => t.nome)
-            .join(", ")}. Geocodifique antes de alocar.`
+          `Técnico(s) sem coordenadas: ${tecsSemCoord.map((t) => t.nome).join(", ")}. Geocodifique antes de alocar.`
         )
       }
 
       const destsSemCoord = itensUM
         .filter((i) => selectedUmKeys.has(i.key))
-        .filter(
-          (i) => i.destino.latitude === null || i.destino.longitude === null
-        )
+        .filter((i) => i.destino.latitude === null || i.destino.longitude === null)
       if (destsSemCoord.length > 0) {
         throw new Error(
-          `UM(s) sem coordenadas no destino: ${destsSemCoord
-            .map((i) => i.umNome)
-            .join(", ")}.`
+          `UM(s) sem coordenadas no destino: ${destsSemCoord.map((i) => i.umNome).join(", ")}.`
         )
       }
 
-      // Monta payload (coords garantidas)
       const tecnicosPayload = tecnicos
         .filter((t) => selectedTecnicoIds.has(t.id))
         .map((t) => ({
@@ -306,7 +361,9 @@ function FluxoAlocacao({
           longitude: t.longitude!,
         }))
 
-      const destinosPayload = itensUM
+      // 13.12: destinos selecionados (Pendentes) + pontos ativos de técnicos com rota ativa
+      // A união garante que técnicos ativos também entram na comparação do Húngaro
+      const destinosPendentesSelecionados = itensUM
         .filter((i) => selectedUmKeys.has(i.key))
         .map((item) => ({
           id: item.destino.id,
@@ -320,6 +377,35 @@ function FluxoAlocacao({
           ciclo: item.destino.ciclo,
           etapa: item.destino.etapa,
         }))
+
+      // Pontos ativos (Agendado/Atual) de técnicos selecionados com rota ativa
+      const pontosAtivosIds = new Set(destinosPendentesSelecionados.map((d) => d.id))
+      const destinosAtivos = tecnicosAtivosSelected
+        .map((rotaAtiva) => {
+          // Busca o ponto correspondente na lista completa de pontos realocáveis
+          for (const { projeto, destinos } of umsRealocaveisPorProjeto) {
+            const ponto = destinos.get(rotaAtiva.umNome)
+            if (ponto && ponto.id === rotaAtiva.pontoId && !pontosAtivosIds.has(ponto.id)) {
+              pontosAtivosIds.add(ponto.id)
+              return {
+                id: ponto.id,
+                umNome: rotaAtiva.umNome,
+                projetoId: rotaAtiva.projetoId,
+                projetoSigla: projeto.sigla,
+                raNome: ponto.raNome,
+                endereco: ponto.endereco,
+                latitude: ponto.latitude!,
+                longitude: ponto.longitude!,
+                ciclo: ponto.ciclo,
+                etapa: ponto.etapa,
+              }
+            }
+          }
+          return null
+        })
+        .filter((d): d is NonNullable<typeof d> => d !== null && d.latitude !== null && d.longitude !== null)
+
+      const destinosPayload = [...destinosPendentesSelecionados, ...destinosAtivos]
 
       const response = await fetch("/api/routes/alocar", {
         method: "POST",
@@ -335,14 +421,49 @@ function FluxoAlocacao({
 
       if (!response.ok || !data.sucesso) {
         const msg =
-          data.erro ??
-          data.detalhe ??
-          `HTTP ${response.status}: falha ao calcular alocação.`
+          data.erro ?? data.detalhe ?? `HTTP ${response.status}: falha ao calcular alocação.`
         throw new Error(msg)
       }
 
-      setResultado(data as RespostaAlocacao)
-      setEtapa("resultado")
+      const resposta = data as RespostaAlocacao
+      setResultado(resposta)
+
+      // 13.12: detecta oportunidades de re-otimização (threshold: 5 min = 300s)
+      const THRESHOLD_SEG = 300
+      const ops: OportunidadeReotimizacao[] = []
+      for (const aloc of resposta.alocacoes) {
+        const rotaAtiva = rotaAtivaPorTecnico.get(aloc.origem.id)
+        if (!rotaAtiva) continue
+        if (aloc.destino.id === rotaAtiva.pontoId) continue // mesmo ponto, sem mudança
+
+        const tempoAtual =
+          rotaAtiva.metricas[rotaAtiva.modoPrincipal]?.duracaoSegundos ?? 0
+        const tempoNovo = aloc.custoSegundosPrincipal
+        const economia = tempoAtual - tempoNovo
+
+        if (economia >= THRESHOLD_SEG) {
+          ops.push({
+            tecnicoId: aloc.origem.id,
+            tecnicoNome: aloc.origem.nome,
+            rotaAtualId: rotaAtiva.id,
+            pontoAtualId: rotaAtiva.pontoId,
+            umAtual: rotaAtiva.umNome,
+            tempoAtualSeg: tempoAtual,
+            umNova: aloc.destino.umNome,
+            pontoNovoId: aloc.destino.id,
+            tempoNovoSeg: tempoNovo,
+            economiaSeg: economia,
+            novaAloc: aloc,
+          })
+        }
+      }
+
+      if (ops.length > 0) {
+        setOportunidades(ops)
+        setEtapa("reotimizacao")
+      } else {
+        setEtapa("resultado")
+      }
     } catch (err) {
       console.error("Erro ao calcular alocação:", err)
       setErroCalculo(
@@ -356,6 +477,56 @@ function FluxoAlocacao({
     setEtapa("selecao")
     setResultado(null)
     setErroCalculo(null)
+    setOportunidades([])
+  }
+
+  // 13.12: aplica re-otimização atomicamente
+  const handleAplicarReotimizacao = async () => {
+    if (!resultado) return
+    setEtapa("confirmando")
+    setErroConfirmar(null)
+    try {
+      const alocacoesInput = resultado.alocacoes.map((aloc) => {
+        const rotaAtiva = rotaAtivaPorTecnico.get(aloc.origem.id)
+        const isReotimizacao = rotaAtiva && aloc.destino.id !== rotaAtiva.pontoId
+        return {
+          rotaAntigaId: isReotimizacao ? rotaAtiva.id : undefined,
+          pontoAntigoId: isReotimizacao ? rotaAtiva.pontoId : undefined,
+          tecnicoId: aloc.origem.id,
+          tecnicoNome: aloc.origem.nome,
+          pontoId: aloc.destino.id,
+          umNome: aloc.destino.umNome,
+          projetoId: aloc.destino.projetoId,
+          origem: {
+            endereco: aloc.origem.endereco,
+            latitude: aloc.origem.latitude,
+            longitude: aloc.origem.longitude,
+          },
+          destino: {
+            endereco: aloc.destino.endereco,
+            latitude: aloc.destino.latitude,
+            longitude: aloc.destino.longitude,
+          },
+          metricas: aloc.metricas,
+          modoEscolhido: resultado.modoPrincipal,
+        }
+      })
+
+      const { rotasIds } = await aplicarReotimizacao({
+        loteId: resultado.loteId,
+        loteJustificativa: resultado.justificativaGemini,
+        origemDecisao: "auto",
+        alocacoes: alocacoesInput,
+      })
+      setRotasConfirmadasIds(rotasIds)
+      setEtapa("confirmado")
+    } catch (err) {
+      console.error("Erro ao aplicar re-otimização:", err)
+      setErroConfirmar(
+        err instanceof Error ? err.message : "Erro desconhecido ao salvar."
+      )
+      setEtapa("erroConfirmar")
+    }
   }
 
 const handleConfirmar = async (payload: PayloadConfirmacao) => {
@@ -386,6 +557,17 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
         resultado={resultado}
         onVoltar={handleVoltar}
         onConfirmar={handleConfirmar}
+      />
+    )
+  }
+
+  if (etapa === "reotimizacao" && resultado) {
+    return (
+      <BannerReotimizacao
+        oportunidades={oportunidades}
+        resultado={resultado}
+        onAplicar={handleAplicarReotimizacao}
+        onIgnorar={() => setEtapa("resultado")}
       />
     )
   }
@@ -572,6 +754,32 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
           </Card>
         </div>
       </section>
+
+      {/* 13.12: AVISO DE RE-OTIMIZAÇÃO quando técnicos têm rotas ativas */}
+      {tecnicosAtivosSelected.length > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-300 bg-blue-50/60 p-4 dark:border-blue-800/60 dark:bg-blue-950/30">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+          <div className="space-y-1 text-sm">
+            <p className="font-medium text-blue-900 dark:text-blue-100">
+              Re-otimização inteligente ativa
+            </p>
+            <p className="text-blue-800/80 dark:text-blue-200/80">
+              {tecnicosAtivosSelected.length}{" "}
+              {tecnicosAtivosSelected.length === 1
+                ? "técnico selecionado tem"
+                : "técnicos selecionados têm"}{" "}
+              rota ativa. O algoritmo considerará re-otimização automática —
+              se houver melhora de 5+ minutos, você verá as oportunidades antes
+              de confirmar.
+            </p>
+            <p className="flex items-center gap-1 text-xs text-blue-700/70 dark:text-blue-300/70">
+              <RefreshCw className="h-3 w-3" />
+              Sincronize as planilhas antes de calcular para garantir dados
+              atualizados.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* RESUMO + AÇÃO */}
       <Card>
@@ -799,6 +1007,115 @@ function ErroConfirmacao({
         </Button>
       </CardContent>
     </Card>
+  )
+}
+
+// ============================================================
+// BANNER DE RE-OTIMIZAÇÃO (13.12)
+// ============================================================
+
+function BannerReotimizacao({
+  oportunidades,
+  resultado,
+  onAplicar,
+  onIgnorar,
+}: {
+  oportunidades: OportunidadeReotimizacao[]
+  resultado: RespostaAlocacao
+  onAplicar: () => void
+  onIgnorar: () => void
+}) {
+  const economiaTotalSeg = oportunidades.reduce((acc, o) => acc + o.economiaSeg, 0)
+  const economiaTotalMin = Math.round(economiaTotalSeg / 60)
+
+  function formatarMin(seg: number) {
+    return `${Math.round(seg / 60)} min`
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+          Re-otimização inteligente
+        </p>
+        <h2 className="mt-1 font-heading text-3xl">
+          {oportunidades.length}{" "}
+          {oportunidades.length === 1 ? "oportunidade detectada" : "oportunidades detectadas"}
+        </h2>
+        <p className="mt-2 text-muted-foreground">
+          O algoritmo encontrou uma alocação melhor para{" "}
+          {oportunidades.length}{" "}
+          {oportunidades.length === 1 ? "técnico" : "técnicos"} já alocados.
+          Economia potencial: <strong>{economiaTotalMin} min/dia</strong> no
+          total.
+        </p>
+      </div>
+
+      {/* Lista de oportunidades */}
+      <Card className="border-amber-300 bg-amber-50/40 dark:border-amber-800/60 dark:bg-amber-950/20">
+        <CardContent className="space-y-4 p-6">
+          <p className="font-mono text-xs uppercase tracking-widest text-amber-800 dark:text-amber-300">
+            Detalhes das oportunidades
+          </p>
+          <ul className="space-y-3">
+            {oportunidades.map((op) => (
+              <li
+                key={op.tecnicoId}
+                className="flex flex-col gap-1 rounded-md border border-amber-200 bg-white/60 p-3 dark:border-amber-800/40 dark:bg-amber-950/30 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="space-y-0.5">
+                  <p className="font-medium">{op.tecnicoNome}</p>
+                  <p className="text-sm text-muted-foreground">
+                    <span className="line-through">{op.umAtual}</span>
+                    <span className="mx-2">→</span>
+                    <span className="font-medium text-foreground">{op.umNova}</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-muted-foreground line-through">
+                    {formatarMin(op.tempoAtualSeg)}
+                  </span>
+                  <span className="font-medium">{formatarMin(op.tempoNovoSeg)}</span>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-mono text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                    −{formatarMin(op.economiaSeg)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {resultado.alocacoes.length > oportunidades.length && (
+            <p className="text-xs text-muted-foreground">
+              + {resultado.alocacoes.length - oportunidades.length} alocação(ões)
+              nova(s) para pontos pendentes serão aplicadas junto.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Ações */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="font-heading text-lg">Aplicar re-otimização?</p>
+            <p className="text-xs text-muted-foreground">
+              Rotas ativas substituídas serão canceladas automaticamente.
+              Operação atômica.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={onIgnorar} className="gap-2">
+              Ignorar e ver resultado
+            </Button>
+            <Button onClick={onAplicar} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Aplicar re-otimização
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
