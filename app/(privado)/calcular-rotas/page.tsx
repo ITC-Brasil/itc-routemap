@@ -181,10 +181,10 @@ function ConteudoCondicional({
   if (totalUmsAptas === 0 && !temRotasAtivas) {
     return (
       <EstadoVazio
-        titulo="Nenhuma UM aguardando alocação"
-        descricao="Para calcular rotas, é preciso ter pelo menos uma UM com ponto Pendente. Sincronize as planilhas para trazer novos destinos."
-        linkLabel="Ir para Localidades"
-        linkHref="/admin/localidades"
+        titulo="Todos os pontos pendentes foram alocados"
+        descricao="Não há UMs com pontos Pendentes no momento. Confira o histórico para ver as rotas ativas ou sincronize a planilha para importar novos destinos."
+        linkLabel="Ver histórico de alocações"
+        linkHref="/historico"
       />
     )
   }

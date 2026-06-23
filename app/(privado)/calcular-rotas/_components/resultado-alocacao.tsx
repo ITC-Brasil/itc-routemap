@@ -58,6 +58,11 @@ import type {
   OrigemDecisao,
 } from "@/lib/firestore/rotas"
 import { MapaAlocacao, type RotaData } from "./mapa-alocacao"
+import {
+  IconeModo,
+  MODOS_SELECIONAVEIS,
+  gerarExplicacaoAlgoritmica,
+} from "@/lib/modos-transporte"
 
 // ============================================================
 // TIPOS DA RESPOSTA DA API /api/routes/alocar
@@ -166,13 +171,7 @@ type RotaCacheEntry =
       mensagem: string
     }
 
-// Modos disponíveis pro seletor (TRANSIT incluso, lazy)
-const MODOS_SELECIONAVEIS: ModoTransporte[] = [
-  "DRIVE",
-  "TWO_WHEELER",
-  "WALK",
-  "TRANSIT",
-]
+// MODOS_SELECIONAVEIS importado de @/lib/modos-transporte
 
 // ============================================================
 // COMPONENTE PRINCIPAL
@@ -1090,6 +1089,8 @@ function LinhaAlocacao({
             <IconeModo modo={modo} className="h-4 w-4" />
             {duracaoMin != null ? (
               <span>{duracaoMin} min</span>
+            ) : modo === "TRANSIT" ? (
+              <span className="text-xs">buscando…</span>
             ) : (
               <span className="text-xs">calculando…</span>
             )}
@@ -1181,13 +1182,27 @@ function LinhaAlocacao({
               )}
             </div>
 
-            {/* Detalhes de TRANSIT */}
+            {/* Detalhes de TRANSIT — ok */}
             {modo === "TRANSIT" && rotaEntry?.estado === "ok" && (
               <DetalhesTransit
                 steps={rotaEntry.transitSteps}
                 partidaIso={rotaEntry.partidaIso}
                 chegadaIso={rotaEntry.chegadaIso}
               />
+            )}
+
+            {/* Empty state TRANSIT — sem rota disponível */}
+            {modo === "TRANSIT" && rotaEntry?.estado === "erro" && (
+              <div className="rounded-md border border-amber-300 bg-amber-50/40 p-4 dark:border-amber-800/60 dark:bg-amber-950/20">
+                <p className="font-medium text-amber-900 dark:text-amber-100">
+                  Transporte público não disponível
+                </p>
+                <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-200/80">
+                  Não foi encontrada rota de transporte público entre esses
+                  pontos no horário solicitado. Escolha outro modo de
+                  transporte para esta UM.
+                </p>
+              </div>
             )}
           </div>
         )}
@@ -1447,6 +1462,8 @@ function BotoesAcao({
 // HELPERS
 // ============================================================
 
+// IconeModo importado de @/lib/modos-transporte
+
 function nomeAmigavelModo(modo: ModoTransporte): string {
   const nomes: Record<ModoTransporte, string> = {
     DRIVE: "carro",
@@ -1456,29 +1473,6 @@ function nomeAmigavelModo(modo: ModoTransporte): string {
     TRANSIT: "transporte público",
   }
   return nomes[modo] || modo.toLowerCase()
-}
-
-function IconeModo({
-  modo,
-  className,
-}: {
-  modo: ModoTransporte
-  className?: string
-}) {
-  switch (modo) {
-    case "DRIVE":
-      return <Car className={className} />
-    case "TWO_WHEELER":
-      return <Bike className={className} />
-    case "WALK":
-      return <PersonStanding className={className} />
-    case "BICYCLE":
-      return <Bike className={className} />
-    case "TRANSIT":
-      return <Bus className={className} />
-    default:
-      return <Car className={className} />
-  }
 }
 
 function iconeDoVeiculoTransit(veiculo?: string) {
@@ -1526,57 +1520,4 @@ function modoMaisFrequente(
   return topModo
 }
 
-// ============================================================
-// Q1 — HELPER PURO PRA EXPLICAÇÃO ALGORÍTMICA
-// ============================================================
-// TODO P4: centralizar com historico/[loteId]/page.tsx (duplicado lá).
-
-function gerarExplicacaoAlgoritmica(input: {
-  tecnicoNome: string
-  umNome: string
-  meuCustoSegundos: number
-  todosCustosSegundos: number[]
-  modoLabel: string
-  manual?: boolean
-}): string {
-  const {
-    tecnicoNome,
-    umNome,
-    meuCustoSegundos,
-    todosCustosSegundos,
-    modoLabel,
-    manual,
-  } = input
-  const total = todosCustosSegundos.length
-  if (total === 0) return ""
-
-  const meuMin = Math.round(meuCustoSegundos / 60)
-
-  const linhaDecisao = manual
-    ? `Esta combinação ${tecnicoNome} → ${umNome} foi escolhida manualmente, fora da sugestão do algoritmo.`
-    : `O algoritmo escolheu ${tecnicoNome} → ${umNome} porque essa combinação tinha o menor custo de tempo dentre as opções possíveis para esta UM.`
-
-  if (total === 1) {
-    return `Esta é a única rota da rodada (${meuMin} min via ${modoLabel}). ${linhaDecisao}`
-  }
-
-  const ordenados = [...todosCustosSegundos].sort((a, b) => a - b)
-  const rank = ordenados.indexOf(meuCustoSegundos) + 1
-  const media = todosCustosSegundos.reduce((s, c) => s + c, 0) / total
-  const mediaMin = Math.round(media / 60)
-  const diff = meuMin - mediaMin
-
-  let rankLabel: string
-  if (rank === 1) rankLabel = "rota mais curta"
-  else if (rank === total) rankLabel = "rota mais longa"
-  else rankLabel = `${rank}ª rota mais curta`
-
-  const diffLabel =
-    diff === 0
-      ? "exatamente na média da rodada"
-      : diff < 0
-        ? `${Math.abs(diff)} min abaixo da média (${mediaMin} min)`
-        : `${diff} min acima da média (${mediaMin} min)`
-
-  return `Esta é a ${rankLabel} do lote (${total} rotas no total) — ${meuMin} min de deslocamento via ${modoLabel}, ${diffLabel}. ${linhaDecisao}`
-}
+// gerarExplicacaoAlgoritmica importado de @/lib/modos-transporte

@@ -23,14 +23,12 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
-  Bike,
   Bus,
-  Car,
   ChevronDown,
   ChevronUp,
   Clock,
   Hand,
-  PersonStanding,
+  PersonStanding, // DetalhesTransit
   RefreshCw,
   Sparkles,
   Timer,
@@ -51,6 +49,11 @@ import {
   type ModoTransporte,
   type Rota,
 } from "@/lib/firestore/rotas"
+import {
+  IconeModo,
+  MODOS_SELECIONAVEIS,
+  gerarExplicacaoAlgoritmica,
+} from "@/lib/modos-transporte"
 import type { LoteSumario, StatusLote } from "@/lib/firestore/lotes"
 import { CancelarLoteDialog } from "../_components/cancelar-lote-dialog"
 import {
@@ -92,13 +95,7 @@ type RotaCacheEntry =
     }
   | { estado: "erro"; mensagem: string }
 
-// Modos disponíveis no seletor (TRANSIT incluso, fetch sob demanda)
-const MODOS_SELECIONAVEIS: ModoTransporte[] = [
-  "DRIVE",
-  "TWO_WHEELER",
-  "WALK",
-  "TRANSIT",
-]
+// MODOS_SELECIONAVEIS importado de @/lib/modos-transporte
 
 // ============================================================
 // PÁGINA
@@ -1189,31 +1186,10 @@ function SkeletonLoading() {
 }
 
 // ============================================================
-// HELPERS (TODO P4: centralizar com resultado-alocacao.tsx)
+// HELPERS
 // ============================================================
 
-function IconeModo({
-  modo,
-  className,
-}: {
-  modo: ModoTransporte
-  className?: string
-}) {
-  switch (modo) {
-    case "DRIVE":
-      return <Car className={className} />
-    case "TWO_WHEELER":
-      return <Bike className={className} />
-    case "WALK":
-      return <PersonStanding className={className} />
-    case "BICYCLE":
-      return <Bike className={className} />
-    case "TRANSIT":
-      return <Bus className={className} />
-    default:
-      return <Car className={className} />
-  }
-}
+// IconeModo importado de @/lib/modos-transporte
 
 function iconeDoVeiculoTransit(veiculo?: string) {
   switch (veiculo) {
@@ -1240,61 +1216,4 @@ function formatarHoraISO(iso: string): string {
   }
 }
 
-// ============================================================
-// Q1 — HELPER PURO PRA EXPLICAÇÃO ALGORÍTMICA
-// ============================================================
-// TODO P4: centralizar com resultado-alocacao.tsx (duplicado lá).
-
-/**
- * Gera explicação algorítmica de UMA rota no contexto de TODAS as rotas
- * do mesmo lote. Sem IA — só código, baseado em rank + média.
- *
- * Saída exemplo:
- *   "Esta é a rota mais curta do lote (3 rotas no total) — 11 min de
- *    deslocamento via carro, 22 min abaixo da média (33 min). O algoritmo
- *    escolheu Anne → BSBIA02 porque essa combinação tinha o menor custo
- *    de tempo dentre as opções possíveis para esta UM."
- */
-function gerarExplicacaoAlgoritmica(input: {
-  tecnicoNome: string
-  umNome: string
-  meuCustoSegundos: number
-  todosCustosSegundos: number[]
-  modoLabel: string
-}): string {
-  const {
-    tecnicoNome,
-    umNome,
-    meuCustoSegundos,
-    todosCustosSegundos,
-    modoLabel,
-  } = input
-  const total = todosCustosSegundos.length
-  if (total === 0) return ""
-
-  const meuMin = Math.round(meuCustoSegundos / 60)
-
-  if (total === 1) {
-    return `Esta é a única rota da rodada (${meuMin} min via ${modoLabel}). O algoritmo selecionou ${tecnicoNome} → ${umNome} como a alocação com menor custo de deslocamento possível.`
-  }
-
-  const ordenados = [...todosCustosSegundos].sort((a, b) => a - b)
-  const rank = ordenados.indexOf(meuCustoSegundos) + 1
-  const media = todosCustosSegundos.reduce((s, c) => s + c, 0) / total
-  const mediaMin = Math.round(media / 60)
-  const diff = meuMin - mediaMin
-
-  let rankLabel: string
-  if (rank === 1) rankLabel = "rota mais curta"
-  else if (rank === total) rankLabel = "rota mais longa"
-  else rankLabel = `${rank}ª rota mais curta`
-
-  const diffLabel =
-    diff === 0
-      ? "exatamente na média da rodada"
-      : diff < 0
-        ? `${Math.abs(diff)} min abaixo da média (${mediaMin} min)`
-        : `${diff} min acima da média (${mediaMin} min)`
-
-  return `Esta é a ${rankLabel} do lote (${total} rotas no total) — ${meuMin} min de deslocamento via ${modoLabel}, ${diffLabel}. O algoritmo escolheu ${tecnicoNome} → ${umNome} porque essa combinação tinha o menor custo de tempo dentre as opções possíveis para esta UM.`
-}
+// gerarExplicacaoAlgoritmica importado de @/lib/modos-transporte
