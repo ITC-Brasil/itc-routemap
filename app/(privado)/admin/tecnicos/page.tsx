@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { MapPin, Pencil, Plus, Trash2, Users } from "lucide-react"
+import { Pencil, Plus, Trash2, Users } from "lucide-react"
 import {
   listarTecnicos,
   deletarTecnico,
@@ -182,10 +182,6 @@ function ItemTecnico({
   const temCoordenadas =
     tecnico.latitude !== null && tecnico.longitude !== null
 
-  const linkMaps = temCoordenadas
-    ? `https://www.google.com/maps?q=${tecnico.latitude},${tecnico.longitude}`
-    : ""
-
   return (
     <AccordionItem
       value={tecnico.id}
@@ -215,9 +211,9 @@ function ItemTecnico({
 
       <AccordionContent>
         <div className="pb-4">
-          <div className="flex flex-col gap-4 lg:flex-row">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Coluna esquerda: dados e ações */}
-            <div className="flex flex-1 flex-col gap-4">
+            <div className="flex flex-col gap-4">
               <div className="space-y-3 rounded-md border bg-background p-4">
                 <DetalheLinha label="Endereço" valor={tecnico.endereco || "—"} />
                 <DetalheLinha
@@ -259,35 +255,19 @@ function ItemTecnico({
                   <Trash2 className="h-3.5 w-3.5" />
                   Deletar
                 </Button>
-                {temCoordenadas && (
-                  <a
-                    href={linkMaps}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-                  >
-                    <MapPin className="h-3.5 w-3.5" />
-                    Ver no Google Maps
-                  </a>
-                )}
               </div>
             </div>
 
-            {/* Coluna direita: mapa estático */}
-            {temCoordenadas && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && (
-              <a
-                href={linkMaps}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 overflow-hidden rounded-md border lg:w-64"
-              >
-                <img
-                  src={`https://maps.googleapis.com/maps/api/staticmap?center=${tecnico.latitude},${tecnico.longitude}&zoom=15&size=512x256&scale=2&markers=color:red%7C${tecnico.latitude},${tecnico.longitude}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
-                  alt={`Mapa da residência de ${tecnico.nome}`}
-                  className="h-full w-full object-cover"
+            {/* Coluna direita: mapa embed */}
+            {temCoordenadas && (
+              <div className="overflow-hidden rounded-md border">
+                <iframe
+                  src={`https://www.google.com/maps?q=${tecnico.latitude},${tecnico.longitude}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                  className="h-48 w-full border-0 lg:h-full"
                   loading="lazy"
+                  title={`Localização de ${tecnico.nome}`}
                 />
-              </a>
+              </div>
             )}
           </div>
         </div>
