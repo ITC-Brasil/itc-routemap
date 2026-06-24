@@ -839,31 +839,6 @@ function LinhaRotaHistorico({
               metricasDisponiveis={rota.metricas}
             />
 
-            <MapaAlocacao
-              origem={{
-                latitude: rota.origem.latitude,
-                longitude: rota.origem.longitude,
-              }}
-              destino={{
-                latitude: rota.destino.latitude,
-                longitude: rota.destino.longitude,
-              }}
-              modo={modo}
-              rotaData={
-                rotaEntry?.estado === "ok"
-                  ? ({
-                      polyline: rotaEntry.polyline,
-                      distanciaMetros: rotaEntry.distanciaMetros,
-                      duracaoSegundos: rotaEntry.duracaoSegundos,
-                    } satisfies RotaData)
-                  : null
-              }
-              carregando={rotaEntry?.estado === "carregando"}
-              erro={
-                rotaEntry?.estado === "erro" ? rotaEntry.mensagem : null
-              }
-            />
-
             <div className="flex flex-wrap items-center gap-3 text-sm">
               {duracaoSeg != null && (
                 <div className="rounded-md bg-muted px-3 py-1.5">
@@ -883,14 +858,44 @@ function LinhaRotaHistorico({
               )}
             </div>
 
-            {/* Detalhes de TRANSIT */}
-            {modo === "TRANSIT" && rotaEntry?.estado === "ok" && (
-              <DetalhesTransit
-                steps={rotaEntry.transitSteps}
-                partidaIso={rotaEntry.partidaIso}
-                chegadaIso={rotaEntry.chegadaIso}
-              />
-            )}
+            <div className="flex flex-col gap-4 lg:flex-row">
+              <div className={modo === "TRANSIT" && rotaEntry?.estado === "ok" ? "lg:w-1/2" : "w-full"}>
+                <MapaAlocacao
+                  origem={{
+                    latitude: rota.origem.latitude,
+                    longitude: rota.origem.longitude,
+                  }}
+                  destino={{
+                    latitude: rota.destino.latitude,
+                    longitude: rota.destino.longitude,
+                  }}
+                  modo={modo}
+                  rotaData={
+                    rotaEntry?.estado === "ok"
+                      ? ({
+                          polyline: rotaEntry.polyline,
+                          distanciaMetros: rotaEntry.distanciaMetros,
+                          duracaoSegundos: rotaEntry.duracaoSegundos,
+                        } satisfies RotaData)
+                      : null
+                  }
+                  carregando={rotaEntry?.estado === "carregando"}
+                  erro={
+                    rotaEntry?.estado === "erro" ? rotaEntry.mensagem : null
+                  }
+                />
+              </div>
+
+              {modo === "TRANSIT" && rotaEntry?.estado === "ok" && (
+                <div className="overflow-y-auto lg:w-1/2 lg:max-h-[400px]">
+                  <DetalhesTransit
+                    steps={rotaEntry.transitSteps}
+                    partidaIso={rotaEntry.partidaIso}
+                    chegadaIso={rotaEntry.chegadaIso}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </CardContent>

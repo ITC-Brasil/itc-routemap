@@ -1188,31 +1188,6 @@ function LinhaAlocacao({
               metricasMatrizDisponivel={alocacao.metricas}
             />
 
-            <MapaAlocacao
-              origem={{
-                latitude: alocacao.origem.latitude,
-                longitude: alocacao.origem.longitude,
-              }}
-              destino={{
-                latitude: alocacao.destino.latitude,
-                longitude: alocacao.destino.longitude,
-              }}
-              modo={modo}
-              rotaData={
-                rotaEntry?.estado === "ok"
-                  ? ({
-                      polyline: rotaEntry.polyline,
-                      distanciaMetros: rotaEntry.distanciaMetros,
-                      duracaoSegundos: rotaEntry.duracaoSegundos,
-                    } satisfies RotaData)
-                  : null
-              }
-              carregando={rotaEntry?.estado === "carregando"}
-              erro={
-                rotaEntry?.estado === "erro" ? rotaEntry.mensagem : null
-              }
-            />
-
             {/* Métricas do modo + distância */}
             <div className="flex flex-wrap items-center gap-3 text-sm">
               {duracaoMin != null && (
@@ -1229,14 +1204,44 @@ function LinhaAlocacao({
               )}
             </div>
 
-            {/* Detalhes de TRANSIT — ok */}
-            {modo === "TRANSIT" && rotaEntry?.estado === "ok" && (
-              <DetalhesTransit
-                steps={rotaEntry.transitSteps}
-                partidaIso={rotaEntry.partidaIso}
-                chegadaIso={rotaEntry.chegadaIso}
-              />
-            )}
+            <div className="flex flex-col gap-4 lg:flex-row">
+              <div className={modo === "TRANSIT" && rotaEntry?.estado === "ok" ? "lg:w-1/2" : "w-full"}>
+                <MapaAlocacao
+                  origem={{
+                    latitude: alocacao.origem.latitude,
+                    longitude: alocacao.origem.longitude,
+                  }}
+                  destino={{
+                    latitude: alocacao.destino.latitude,
+                    longitude: alocacao.destino.longitude,
+                  }}
+                  modo={modo}
+                  rotaData={
+                    rotaEntry?.estado === "ok"
+                      ? ({
+                          polyline: rotaEntry.polyline,
+                          distanciaMetros: rotaEntry.distanciaMetros,
+                          duracaoSegundos: rotaEntry.duracaoSegundos,
+                        } satisfies RotaData)
+                      : null
+                  }
+                  carregando={rotaEntry?.estado === "carregando"}
+                  erro={
+                    rotaEntry?.estado === "erro" ? rotaEntry.mensagem : null
+                  }
+                />
+              </div>
+
+              {modo === "TRANSIT" && rotaEntry?.estado === "ok" && (
+                <div className="overflow-y-auto lg:w-1/2 lg:max-h-[400px]">
+                  <DetalhesTransit
+                    steps={rotaEntry.transitSteps}
+                    partidaIso={rotaEntry.partidaIso}
+                    chegadaIso={rotaEntry.chegadaIso}
+                  />
+                </div>
+              )}
+            </div>
 
             {/* Empty state TRANSIT — sem rota disponível */}
             {modo === "TRANSIT" && rotaEntry?.estado === "erro" && (
