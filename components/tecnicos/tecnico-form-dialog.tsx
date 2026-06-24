@@ -20,8 +20,17 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ColorPicker } from "@/components/color-picker"
 import { TecnicoAvatar } from "@/components/tecnico-avatar"
+import { MODOS_SELECIONAVEIS, IconeModo } from "@/lib/modos-transporte"
+import { nomeAmigavelModo } from "@/app/(privado)/historico/_components/historico-formatters"
 
 type TecnicoFormDialogProps = {
   open: boolean
@@ -46,6 +55,7 @@ export function TecnicoFormDialog({
   const [plusCode, setPlusCode] = useState("")
   const [latitude, setLatitude] = useState<number | null>(null)
   const [longitude, setLongitude] = useState<number | null>(null)
+  const [modoPrincipal, setModoPrincipal] = useState<string>("")
 
   // Estados de UI
   const [salvando, setSalvando] = useState(false)
@@ -61,6 +71,7 @@ export function TecnicoFormDialog({
       setPlusCode(tecnico?.plusCode ?? "")
       setLatitude(tecnico?.latitude ?? null)
       setLongitude(tecnico?.longitude ?? null)
+      setModoPrincipal(tecnico?.modoPrincipal ?? "")
     }
   }, [open, tecnico])
 
@@ -133,6 +144,7 @@ export function TecnicoFormDialog({
         plusCode,
         latitude,
         longitude,
+        modoPrincipal: modoPrincipal || undefined,
       }
 
       if (modoEdicao && tecnico) {
@@ -191,38 +203,6 @@ export function TecnicoFormDialog({
             disabled={salvando}
           />
 
-          {/* Endereço */}
-          <div className="space-y-2">
-            <Label htmlFor="endereco">Endereço residencial</Label>
-            <Input
-              id="endereco"
-              value={endereco}
-              onChange={(e) => setEndereco(e.target.value)}
-              placeholder="Ex: QNN 15, Conjunto B, Lote 24, Ceilândia Norte"
-              maxLength={200}
-              disabled={salvando}
-            />
-            <p className="text-xs text-muted-foreground">
-              Endereço completo da residência do técnico.
-            </p>
-          </div>
-
-          {/* Ponto de Referência */}
-          <div className="space-y-2">
-            <Label htmlFor="referencia">Ponto de referência</Label>
-            <Input
-              id="referencia"
-              value={pontoReferencia}
-              onChange={(e) => setPontoReferencia(e.target.value)}
-              placeholder="Ex: Ao lado do Mercado Central"
-              maxLength={150}
-              disabled={salvando}
-            />
-            <p className="text-xs text-muted-foreground">
-              Opcional. Ajuda em entregas ou visitas.
-            </p>
-          </div>
-
           {/* Plus Code + Obter Coordenadas */}
           <div className="space-y-2">
             <Label htmlFor="plusCode">Plus Code da residência</Label>
@@ -258,6 +238,65 @@ export function TecnicoFormDialog({
             </div>
             <p className="text-xs text-muted-foreground">
               Cole o Plus Code do Google Maps e clique em &quot;Obter Coordenadas&quot;.
+            </p>
+          </div>
+
+          {/* Endereço */}
+          <div className="space-y-2">
+            <Label htmlFor="endereco">Endereço residencial</Label>
+            <Input
+              id="endereco"
+              value={endereco}
+              onChange={(e) => setEndereco(e.target.value)}
+              placeholder="Ex: QNN 15, Conjunto B, Lote 24, Ceilândia Norte"
+              maxLength={200}
+              disabled={salvando}
+            />
+            <p className="text-xs text-muted-foreground">
+              Endereço completo da residência do técnico.
+            </p>
+          </div>
+
+          {/* Ponto de Referência */}
+          <div className="space-y-2">
+            <Label htmlFor="referencia">Ponto de referência</Label>
+            <Input
+              id="referencia"
+              value={pontoReferencia}
+              onChange={(e) => setPontoReferencia(e.target.value)}
+              placeholder="Ex: Ao lado do Mercado Central"
+              maxLength={150}
+              disabled={salvando}
+            />
+            <p className="text-xs text-muted-foreground">
+              Opcional. Ajuda em entregas ou visitas.
+            </p>
+          </div>
+
+          {/* Modo principal de transporte */}
+          <div className="space-y-2">
+            <Label htmlFor="modoPrincipal">Modo de transporte principal</Label>
+            <Select
+              value={modoPrincipal}
+              onValueChange={setModoPrincipal}
+              disabled={salvando}
+            >
+              <SelectTrigger id="modoPrincipal">
+                <SelectValue placeholder="Selecione o modo..." />
+              </SelectTrigger>
+              <SelectContent>
+                {MODOS_SELECIONAVEIS.map((modo) => (
+                  <SelectItem key={modo} value={modo}>
+                    <div className="flex items-center gap-2">
+                      <IconeModo modo={modo} className="h-4 w-4" />
+                      {nomeAmigavelModo(modo)}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Opcional. Usado como sugestão padrão no cálculo de rotas.
             </p>
           </div>
 

@@ -30,6 +30,7 @@ export type Tecnico = {
   plusCode: string
   latitude: number | null
   longitude: number | null
+  modoPrincipal?: string
   criadoEm: Timestamp | null
 }
 
@@ -41,6 +42,7 @@ export type CriarTecnicoInput = {
   plusCode: string
   latitude: number | null
   longitude: number | null
+  modoPrincipal?: string
 }
 
 export type AtualizarTecnicoInput = CriarTecnicoInput
@@ -75,6 +77,7 @@ export async function listarTecnicos(): Promise<Tecnico[]> {
       plusCode: data.plusCode ?? "",
       latitude: data.latitude ?? null,
       longitude: data.longitude ?? null,
+      modoPrincipal: data.modoPrincipal ?? undefined,
       criadoEm: data.criadoEm ?? null,
     }
   })
@@ -103,6 +106,7 @@ export async function buscarTecnico(id: string): Promise<Tecnico | null> {
     plusCode: data.plusCode ?? "",
     latitude: data.latitude ?? null,
     longitude: data.longitude ?? null,
+    modoPrincipal: data.modoPrincipal ?? undefined,
     criadoEm: data.criadoEm ?? null,
   }
 }
@@ -122,6 +126,7 @@ export async function criarTecnico(
     plusCode: input.plusCode.trim().toUpperCase(),
     latitude: input.latitude,
     longitude: input.longitude,
+    ...(input.modoPrincipal ? { modoPrincipal: input.modoPrincipal } : {}),
     criadoEm: serverTimestamp(),
   })
 
@@ -144,6 +149,7 @@ export async function atualizarTecnico(
     plusCode: input.plusCode.trim().toUpperCase(),
     latitude: input.latitude,
     longitude: input.longitude,
+    modoPrincipal: input.modoPrincipal ?? null,
   })
 }
 

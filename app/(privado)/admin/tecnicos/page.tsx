@@ -12,6 +12,9 @@ import { TecnicoFormDialog } from "@/components/tecnicos/tecnico-form-dialog"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { TecnicoAvatar } from "@/components/tecnico-avatar"
 import { Button } from "@/components/ui/button"
+import { IconeModo } from "@/lib/modos-transporte"
+import { nomeAmigavelModo } from "@/app/(privado)/historico/_components/historico-formatters"
+import type { ModoTransporte } from "@/lib/firestore/rotas"
 import {
   Accordion,
   AccordionContent,
@@ -192,9 +195,17 @@ function ItemTecnico({
         <div className="flex w-full items-center gap-3 pr-4">
           <TecnicoAvatar nome={tecnico.nome} cor={tecnico.cor} size="md" />
           <div className="min-w-0 flex-1 text-left">
-            <p className="truncate font-medium text-foreground" title={tecnico.nome}>
-              {tecnico.nome}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="truncate font-medium text-foreground" title={tecnico.nome}>
+                {tecnico.nome}
+              </p>
+              {tecnico.modoPrincipal && (
+                <span className="flex shrink-0 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                  <IconeModo modo={tecnico.modoPrincipal as ModoTransporte} className="h-3 w-3" />
+                  {nomeAmigavelModo(tecnico.modoPrincipal as ModoTransporte)}
+                </span>
+              )}
+            </div>
             <p className="truncate text-xs text-muted-foreground" title={tecnico.endereco || "Sem endereço cadastrado"}>
               {tecnico.endereco || "Sem endereço cadastrado"}
             </p>
