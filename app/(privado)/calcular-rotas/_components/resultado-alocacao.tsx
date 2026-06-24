@@ -33,6 +33,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ChevronsUpDown,
   Clock,
   RotateCcw,
   Sparkles,
@@ -49,6 +50,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import type {
   ModoTransporte,
   OrigemDecisao,
@@ -897,7 +911,6 @@ function EditarPar({
 }) {
   if (outrasAlocacoes.length === 0) return null
 
-  // Se a alocação ainda está com custo placeholder, está em meio de swap
   const desabilitado = alocacaoAtual.custoSegundosPrincipal === 0
 
   return (
@@ -915,60 +928,108 @@ function EditarPar({
 
       <div className="grid gap-3 sm:grid-cols-2">
         {/* Trocar técnico por... */}
-        <div className="space-y-1.5">
-          <label className="text-[11px] text-muted-foreground">
-            Trocar técnico por:
-          </label>
-          <Select
-            disabled={desabilitado}
-            onValueChange={(keyOutra) => onSwap(keyOutra)}
-          >
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Escolher técnico..." />
-            </SelectTrigger>
-            <SelectContent>
-              {outrasAlocacoes.map((o) => (
-                <SelectItem key={chaveAlocacao(o)} value={chaveAlocacao(o)}>
-                  {o.origem.nome}{" "}
-                  <span className="text-muted-foreground">
-                    (atual em {o.destino.umNome})
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <ComboboxSwap
+          disabled={desabilitado}
+          placeholder="Escolher técnico..."
+          label="Trocar técnico por:"
+          opcoes={outrasAlocacoes.map((o) => ({
+            value: chaveAlocacao(o),
+            label: o.origem.nome,
+            sublabel: `atual em ${o.destino.umNome}`,
+          }))}
+          onSelect={onSwap}
+        />
 
         {/* Trocar UM por... */}
-        <div className="space-y-1.5">
-          <label className="text-[11px] text-muted-foreground">
-            Trocar UM por:
-          </label>
-          <Select
-            disabled={desabilitado}
-            onValueChange={(keyOutra) => onSwap(keyOutra)}
-          >
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Escolher UM..." />
-            </SelectTrigger>
-            <SelectContent>
-              {outrasAlocacoes.map((o) => (
-                <SelectItem key={chaveAlocacao(o)} value={chaveAlocacao(o)}>
-                  {o.destino.umNome}{" "}
-                  <span className="text-muted-foreground">
-                    (atual com {o.origem.nome})
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <ComboboxSwap
+          disabled={desabilitado}
+          placeholder="Escolher UM..."
+          label="Trocar UM por:"
+          opcoes={outrasAlocacoes.map((o) => ({
+            value: chaveAlocacao(o),
+            label: o.destino.umNome,
+            sublabel: `atual com ${o.origem.nome}`,
+          }))}
+          onSelect={onSwap}
+        />
       </div>
 
       <p className="text-[11px] text-muted-foreground">
         Ao escolher, este par troca com o selecionado (swap automático —
         ambos os técnicos mudam de destino).
       </p>
+    </div>
+  )
+}
+
+function ComboboxSwap({
+  disabled,
+  placeholder,
+  label,
+  opcoes,
+  onSelect,
+}: {
+  disabled: boolean
+  placeholder: string
+  label: string
+  opcoes: Array<{ value: string; label: string; sublabel: string }>
+  onSelect: (value: string) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const [busca, setBusca] = useState("")
+
+  const filtradas = opcoes.filter(
+    (o) =>
+      o.label.toLowerCase().includes(busca.toLowerCase()) ||
+      o.sublabel.toLowerCase().includes(busca.toLowerCase())
+  )
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[11px] text-muted-foreground">{label}</label>
+      <Popover open={aberto} onOpenChange={setAberto}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            disabled={disabled}
+            className="h-9 w-full justify-between text-sm font-normal"
+          >
+            <span className="truncate text-muted-foreground">{placeholder}</span>
+            <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[260px] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Buscar..."
+              value={busca}
+              onValueChange={setBusca}
+            />
+            <CommandList>
+              <CommandEmpty>Nenhum resultado.</CommandEmpty>
+              <CommandGroup>
+                {filtradas.map((o) => (
+                  <CommandItem
+                    key={o.value}
+                    value={o.value}
+                    onSelect={() => {
+                      onSelect(o.value)
+                      setBusca("")
+                      setAberto(false)
+                    }}
+                  >
+                    <span className="font-medium">{o.label}</span>
+                    <span className="ml-1 text-muted-foreground">
+                      ({o.sublabel})
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
