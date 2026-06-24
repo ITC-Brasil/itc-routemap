@@ -192,10 +192,10 @@ function ItemTecnico({
         <div className="flex w-full items-center gap-3 pr-4">
           <TecnicoAvatar nome={tecnico.nome} cor={tecnico.cor} size="md" />
           <div className="min-w-0 flex-1 text-left">
-            <p className="truncate font-medium text-foreground">
+            <p className="truncate font-medium text-foreground" title={tecnico.nome}>
               {tecnico.nome}
             </p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground" title={tecnico.endereco || "Sem endereço cadastrado"}>
               {tecnico.endereco || "Sem endereço cadastrado"}
             </p>
           </div>
