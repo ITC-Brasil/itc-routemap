@@ -15,12 +15,20 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useAuth } from "@/contexts/auth-context"
 import { listarTodosPontos } from "@/lib/firestore/pontos"
 import { listarTecnicos } from "@/lib/firestore/tecnicos"
 import { listarRotasPorStatus, type Rota } from "@/lib/firestore/rotas"
 import { IconeModo } from "@/lib/modos-transporte"
-import { formatarDuracao } from "@/app/(privado)/historico/_components/historico-formatters"
+import { formatarDuracao, nomeAmigavelModo } from "@/app/(privado)/historico/_components/historico-formatters"
 
 // ============================================================
 // HELPERS DE DATA
@@ -235,11 +243,25 @@ export default function InicioPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-2">
-            {rotasHoje.map((rota) => (
-              <LinhaRota key={rota.id} rota={rota} />
-            ))}
-          </div>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-5">Técnico</TableHead>
+                    <TableHead>Destino</TableHead>
+                    <TableHead>Modo</TableHead>
+                    <TableHead className="pr-5 text-right">Tempo</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rotasHoje.map((rota) => (
+                    <LinhaRota key={rota.id} rota={rota} />
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         )}
       </section>
 
@@ -305,51 +327,38 @@ function CardKpi({
 }
 
 function LinhaRota({ rota }: { rota: Rota }) {
-  const duracaoSeg =
-    rota.metricas[rota.modoPrincipal]?.duracaoSegundos ?? null
+  const duracaoSeg = rota.metricas[rota.modoPrincipal]?.duracaoSegundos ?? null
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-        {/* Técnico */}
-        <div className="flex-1 min-w-0">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            Técnico
-          </p>
-          <p className="truncate font-medium" title={rota.tecnicoNome}>
-            {rota.tecnicoNome || "—"}
-          </p>
-          <p className="truncate text-xs text-muted-foreground" title={rota.origem.endereco}>
-            {rota.origem.endereco}
-          </p>
+    <TableRow>
+      <TableCell className="pl-5">
+        <p className="font-medium" title={rota.tecnicoNome}>{rota.tecnicoNome || "—"}</p>
+        <p className="text-xs text-muted-foreground truncate max-w-[180px]" title={rota.origem.endereco}>
+          {rota.origem.endereco}
+        </p>
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline" className="font-mono text-xs">{rota.umNome}</Badge>
+        <p className="mt-1 text-xs text-muted-foreground truncate max-w-[200px]" title={rota.destino.endereco}>
+          {rota.destino.endereco}
+        </p>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1.5 text-sm">
+          <IconeModo modo={rota.modoPrincipal} className="h-4 w-4 text-muted-foreground" />
+          <span>{nomeAmigavelModo(rota.modoPrincipal)}</span>
         </div>
-
-        {/* UM destino */}
-        <div className="flex-1 min-w-0">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            Destino
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="font-mono text-xs">
-              {rota.umNome}
-            </Badge>
-          </div>
-          <p className="truncate text-xs text-muted-foreground" title={rota.destino.endereco}>
-            {rota.destino.endereco}
-          </p>
-        </div>
-
-        {/* Modo + tempo */}
-        <div className="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary shrink-0">
-          <IconeModo modo={rota.modoPrincipal} className="h-4 w-4" />
-          {duracaoSeg != null ? (
-            <span>{formatarDuracao(duracaoSeg)}</span>
-          ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      </TableCell>
+      <TableCell className="pr-5 text-right">
+        {duracaoSeg != null ? (
+          <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+            {formatarDuracao(duracaoSeg)}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </TableCell>
+    </TableRow>
   )
 }
 
