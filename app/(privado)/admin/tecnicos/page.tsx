@@ -214,58 +214,79 @@ function ItemTecnico({
       </AccordionTrigger>
 
       <AccordionContent>
-        <div className="space-y-4 pb-4">
-          <div className="space-y-3 rounded-md border bg-background p-4">
-            <DetalheLinha label="Endereço" valor={tecnico.endereco || "—"} />
-            <DetalheLinha
-              label="Ponto de referência"
-              valor={tecnico.pontoReferencia || "—"}
-            />
-            <DetalheLinha
-              label="Plus Code"
-              valor={tecnico.plusCode || "—"}
-              mono
-            />
-            <DetalheLinha
-              label="Coordenadas"
-              valor={
-                temCoordenadas
-                  ? `${tecnico.latitude!.toFixed(7)}, ${tecnico.longitude!.toFixed(7)}`
-                  : "Não obtidas"
-              }
-              mono={temCoordenadas}
-            />
-          </div>
+        <div className="pb-4">
+          <div className="flex flex-col gap-4 lg:flex-row">
+            {/* Coluna esquerda: dados e ações */}
+            <div className="flex flex-1 flex-col gap-4">
+              <div className="space-y-3 rounded-md border bg-background p-4">
+                <DetalheLinha label="Endereço" valor={tecnico.endereco || "—"} />
+                <DetalheLinha
+                  label="Ponto de referência"
+                  valor={tecnico.pontoReferencia || "—"}
+                />
+                <DetalheLinha
+                  label="Plus Code"
+                  valor={tecnico.plusCode || "—"}
+                  mono
+                />
+                <DetalheLinha
+                  label="Coordenadas"
+                  valor={
+                    temCoordenadas
+                      ? `${tecnico.latitude!.toFixed(7)}, ${tecnico.longitude!.toFixed(7)}`
+                      : "Não obtidas"
+                  }
+                  mono={temCoordenadas}
+                />
+              </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEditar(tecnico)}
-              className="gap-2"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Editar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onDeletar(tecnico)}
-              className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Deletar
-            </Button>
-            {temCoordenadas && (
-              
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onEditar(tecnico)}
+                  className="gap-2"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Editar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDeletar(tecnico)}
+                  className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Deletar
+                </Button>
+                {temCoordenadas && (
+                  <a
+                    href={linkMaps}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                    Ver no Google Maps
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Coluna direita: mapa estático */}
+            {temCoordenadas && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && (
               <a
                 href={linkMaps}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                className="shrink-0 overflow-hidden rounded-md border lg:w-64"
               >
-                <MapPin className="h-3.5 w-3.5" />
-                Ver no Google Maps
+                <img
+                  src={`https://maps.googleapis.com/maps/api/staticmap?center=${tecnico.latitude},${tecnico.longitude}&zoom=15&size=512x256&scale=2&markers=color:red%7C${tecnico.latitude},${tecnico.longitude}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
+                  alt={`Mapa da residência de ${tecnico.nome}`}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
               </a>
             )}
           </div>
