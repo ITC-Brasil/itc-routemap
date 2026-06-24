@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Sparkles,
   Users,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -38,6 +39,54 @@ import {
   type PayloadConfirmacao,
 } from "./_components/resultado-alocacao"
 
+// ============================================================
+// PERSISTÊNCIA DE CÁLCULO (sessionStorage)
+// ============================================================
+
+const STORAGE_KEY = "itc_routemap_calculo_pendente"
+const STORAGE_TTL_MS = 2 * 60 * 60 * 1000 // 2 horas
+
+type StoredCalculo = {
+  resultado: RespostaAlocacao
+  loteId: string
+  salvoEm: number
+}
+
+function salvarCalculoStorage(resultado: RespostaAlocacao): void {
+  try {
+    const payload: StoredCalculo = {
+      resultado,
+      loteId: resultado.loteId,
+      salvoEm: Date.now(),
+    }
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+  } catch {
+    // sessionStorage pode estar bloqueado em alguns contextos — ignora silenciosamente
+  }
+}
+
+function limparCalculoStorage(): void {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // ignora
+  }
+}
+
+function restaurarCalculoStorage(): RespostaAlocacao | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const stored: StoredCalculo = JSON.parse(raw)
+    if (Date.now() - stored.salvoEm > STORAGE_TTL_MS) {
+      sessionStorage.removeItem(STORAGE_KEY)
+      return null
+    }
+    return stored.resultado
+  } catch {
+    return null
+  }
+}
 
 export default function CalcularRotasPage() {
   // ====== ESTADO ======
@@ -272,7 +321,19 @@ function FluxoAlocacao({
   const [oportunidades, setOportunidades] = useState<OportunidadeReotimizacao[]>([])
   const [rotasConfirmadasIds, setRotasConfirmadasIds] = useState<string[]>([])
   const [erroConfirmar, setErroConfirmar] = useState<string | null>(null)
+  const [bannerRestaurado, setBannerRestaurado] = useState(false)
   const router = useRouter()
+
+  // Tenta restaurar cálculo pendente ao montar
+  useEffect(() => {
+    const restaurado = restaurarCalculoStorage()
+    if (restaurado) {
+      setResultado(restaurado)
+      setEtapa("resultado")
+      setBannerRestaurado(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 13.12: map tecnicoId → rotaAtiva (Confirmada)
   const rotaAtivaPorTecnico = useMemo<Map<string, Rota>>(() => {
@@ -462,6 +523,7 @@ function FluxoAlocacao({
         setOportunidades(ops)
         setEtapa("reotimizacao")
       } else {
+        salvarCalculoStorage(resposta)
         setEtapa("resultado")
       }
     } catch (err) {
@@ -474,6 +536,8 @@ function FluxoAlocacao({
   }
 
   const handleVoltar = () => {
+    limparCalculoStorage()
+    setBannerRestaurado(false)
     setEtapa("selecao")
     setResultado(null)
     setErroCalculo(null)
@@ -532,6 +596,7 @@ function FluxoAlocacao({
 const handleConfirmar = async (payload: PayloadConfirmacao) => {
     setEtapa("confirmando")
     setErroConfirmar(null)
+    limparCalculoStorage()
     try {
       const { rotasIds } = await confirmarAlocacao(payload)
       setRotasConfirmadasIds(rotasIds)
@@ -553,11 +618,16 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
 
   if (etapa === "resultado" && resultado) {
     return (
-      <ResultadoAlocacao
-        resultado={resultado}
-        onVoltar={handleVoltar}
-        onConfirmar={handleConfirmar}
-      />
+      <div className="space-y-4">
+        {bannerRestaurado && (
+          <BannerRestaurado onFechar={() => setBannerRestaurado(false)} />
+        )}
+        <ResultadoAlocacao
+          resultado={resultado}
+          onVoltar={handleVoltar}
+          onConfirmar={handleConfirmar}
+        />
+      </div>
     )
   }
 
@@ -1115,6 +1185,29 @@ function BannerReotimizacao({
           </div>
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+// ============================================================
+// BANNER DE RESULTADO RESTAURADO DO sessionStorage
+// ============================================================
+
+function BannerRestaurado({ onFechar }: { onFechar: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-300 bg-blue-50/60 px-4 py-3 text-sm dark:border-blue-800/60 dark:bg-blue-950/30">
+      <p className="text-blue-900 dark:text-blue-100">
+        <span className="font-medium">Resultado anterior restaurado.</span>{" "}
+        Calcule novamente se os dados mudaram.
+      </p>
+      <button
+        type="button"
+        onClick={onFechar}
+        className="shrink-0 rounded-md p-1 text-blue-700 hover:bg-blue-200/60 dark:text-blue-300 dark:hover:bg-blue-900/40"
+        aria-label="Fechar aviso"
+      >
+        <X className="h-4 w-4" />
+      </button>
     </div>
   )
 }
