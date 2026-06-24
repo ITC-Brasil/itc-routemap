@@ -48,7 +48,6 @@ const menusAdmin = [
   { href: "/admin/ums", label: "UMs" },
   { href: "/admin/localidades", label: "Localidades" },
   { href: "/admin/tecnicos", label: "Técnicos" },
-  { href: "/historico", label: "Histórico" },
 ]
 
 export function Navbar() {
