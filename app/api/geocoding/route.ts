@@ -1,15 +1,49 @@
 import { NextResponse } from "next/server"
 
-/**
- * API Route — Geocoding via Google Maps Geocoding API.
- *
- * Endpoint: GET /api/geocoding?plusCode=XXXX+XX
- *
- * Recebe um Plus Code (ou endereço) e retorna as coordenadas geográficas
- * usando a chave de servidor (que NÃO pode vazar pro cliente).
- *
- * PRD seção 9.1 — Função "Obter Coordenadas".
- */
+type AddressComponent = {
+  long_name: string
+  short_name: string
+  types: string[]
+}
+
+const PLUS_CODE_REGEX = /^[A-Z0-9]{4,}\+[A-Z0-9]{2,}/i
+
+function extrairEnderecoLegivel(
+  components: AddressComponent[],
+  formattedAddress: string
+): string {
+  if (!PLUS_CODE_REGEX.test(formattedAddress)) {
+    return formattedAddress.replace(/,\s*(Brazil|Brasil)\s*$/i, "").trim()
+  }
+
+  const buscar = (...tipos: string[]) =>
+    components.find((c) => tipos.some((t) => c.types.includes(t)))
+
+  const bairro = buscar("neighborhood", "sublocality_level_2")
+  const sublocal = buscar("sublocality_level_1", "sublocality")
+  const cidade = buscar("administrative_area_level_2", "locality")
+  const estado = buscar("administrative_area_level_1")
+
+  const partes: string[] = []
+  if (bairro) partes.push(bairro.long_name)
+  if (sublocal && sublocal.long_name !== bairro?.long_name) {
+    partes.push(sublocal.long_name)
+  }
+  if (cidade && !partes.includes(cidade.long_name)) {
+    partes.push(cidade.long_name)
+  }
+
+  if (partes.length === 0) {
+    return formattedAddress
+      .replace(/^[A-Z0-9]+\+[A-Z0-9]+\s*/i, "")
+      .replace(/,\s*(Brazil|Brasil)\s*$/i, "")
+      .trim()
+  }
+
+  const sufixoEstado = estado ? ` - ${estado.short_name}` : ""
+  return partes.join(", ") + sufixoEstado
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const plusCode = searchParams.get("plusCode")
@@ -61,14 +95,17 @@ export async function GET(request: Request) {
       )
     }
 
-    // Extrai coordenadas e endereço formatado do primeiro resultado
+    // Extrai coordenadas e endereço legível do primeiro resultado
     const resultado = data.results[0]
     const { lat, lng } = resultado.geometry.location
 
     return NextResponse.json({
       latitude: lat,
       longitude: lng,
-      enderecoFormatado: resultado.formatted_address,
+      enderecoFormatado: extrairEnderecoLegivel(
+        resultado.address_components ?? [],
+        resultado.formatted_address
+      ),
     })
   } catch (err) {
     console.error("Erro ao chamar Google Maps Geocoding:", err)
