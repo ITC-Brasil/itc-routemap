@@ -9,6 +9,7 @@ import {
   listarLotes,
   type LoteSumario,
 } from "@/lib/firestore/lotes"
+import { listarProjetos, type Projeto } from "@/lib/firestore/projetos"
 import { CardLote } from "./_components/card-lote"
 import { CancelarLoteDialog } from "./_components/cancelar-lote-dialog"
 import {
@@ -24,6 +25,7 @@ const FILTROS_INICIAIS: FiltrosHistorico = {
 
 export default function HistoricoPage() {
   const [lotes, setLotes] = useState<LoteSumario[]>([])
+  const [projetos, setProjetos] = useState<Projeto[]>([])
   const [carregando, setCarregando] = useState(true)
   const [filtros, setFiltros] = useState<FiltrosHistorico>(FILTROS_INICIAIS)
   const [loteParaCancelar, setLoteParaCancelar] = useState<LoteSumario | null>(
@@ -36,9 +38,13 @@ export default function HistoricoPage() {
 
     async function carregar() {
       try {
-        const lista = await listarLotes()
+        const [lista, listaProjetos] = await Promise.all([
+          listarLotes(),
+          listarProjetos(),
+        ])
         if (cancelado) return
         setLotes(lista)
+        setProjetos(listaProjetos)
       } catch (err) {
         if (cancelado) return
         console.error("Erro ao carregar histórico:", err)
@@ -173,6 +179,7 @@ export default function HistoricoPage() {
                   <CardLote
                     key={lote.loteId}
                     lote={lote}
+                    projetos={projetos}
                     onCancelar={setLoteParaCancelar}
                   />
                 ))}

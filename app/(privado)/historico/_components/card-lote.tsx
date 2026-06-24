@@ -26,6 +26,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import type { LoteSumario } from "@/lib/firestore/lotes"
+import type { Projeto } from "@/lib/firestore/projetos"
+import { corTextoIdeal } from "@/lib/firestore/ras"
 import {
   formatarDataHora,
   formatarDistancia,
@@ -35,10 +37,12 @@ import {
 
 type Props = {
   lote: LoteSumario
+  projetos: Projeto[]
   onCancelar: (lote: LoteSumario) => void
 }
 
-export function CardLote({ lote, onCancelar }: Props) {
+export function CardLote({ lote, projetos, onCancelar }: Props) {
+  const projetosDoLote = projetos.filter((p) => lote.projetoIds.includes(p.id))
   const podeCancelar = lote.qtdRotasConfirmadas > 0
 
   // Pega o id curto (primeiros 8 chars do uuid) pra exibição
@@ -67,11 +71,26 @@ export function CardLote({ lote, onCancelar }: Props) {
             <p className="font-heading text-lg leading-tight">
               {formatarDataHora(lote.dataConfirmacao)}
             </p>
-            {lote.umsNomes.length > 0 && (
+            {projetosDoLote.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {projetosDoLote.map((projeto) => (
+                  <span
+                    key={projeto.id}
+                    className="inline-flex h-5 items-center rounded px-2 font-mono text-xs font-semibold"
+                    style={{
+                      backgroundColor: projeto.cor,
+                      color: corTextoIdeal(projeto.cor),
+                    }}
+                  >
+                    {projeto.sigla}
+                  </span>
+                ))}
+              </div>
+            ) : lote.umsNomes.length > 0 ? (
               <p className="text-xs text-muted-foreground">
                 {lote.umsNomes.join(" · ")}
               </p>
-            )}
+            ) : null}
           </div>
 
           {/* Lado direito: menu de ações */}

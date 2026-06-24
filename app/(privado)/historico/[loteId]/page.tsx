@@ -352,6 +352,9 @@ export default function DetalheLotePage() {
         relevantes[0]?.loteJustificativa?.trim()
           ? relevantes[0].loteJustificativa
           : undefined,
+      projetoIds: Array.from(
+        new Set(relevantes.map((r) => r.projetoId).filter((id): id is string => !!id))
+      ),
     }
   }, [
     rotas,

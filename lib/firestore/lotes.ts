@@ -68,6 +68,8 @@ export type LoteSumario = {
   temRealocacoes: boolean
   /** Justificativa da IA (pega da 1ª rota — todas do lote têm a mesma). */
   justificativaGemini?: string
+  /** IDs distintos de projetos atendidos no lote. */
+  projetoIds: string[]
 }
 
 export type ResultadoCancelamento = {
@@ -246,6 +248,14 @@ function sumarizarLote(loteId: string, rotas: Rota[]): LoteSumario | null {
     }
   }
 
+  const projetoIds = Array.from(
+    new Set(
+      relevantes
+        .map((r) => r.projetoId)
+        .filter((id): id is string => !!id)
+    )
+  )
+
   // 13.11: origemDecisao do lote — pega da primeira rota.
   // Todas as rotas de um mesmo lote têm a mesma origemDecisao (design do bloco 1).
   // Fallback "auto" pra rotas antigas pré-13.11 que não têm o campo no banco.
@@ -275,6 +285,7 @@ function sumarizarLote(loteId: string, rotas: Rota[]): LoteSumario | null {
     origemDecisao,
     temRealocacoes,
     justificativaGemini,
+    projetoIds,
   }
 }
 
