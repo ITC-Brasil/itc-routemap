@@ -99,6 +99,9 @@ export function TecnicoFormDialog({
 
       setLatitude(data.latitude)
       setLongitude(data.longitude)
+      if (data.enderecoFormatado) {
+        setEndereco(data.enderecoFormatado)
+      }
       toast.success("Coordenadas obtidas com sucesso!")
     } catch (err) {
       console.error("Erro ao obter coordenadas:", err)
