@@ -437,7 +437,7 @@ function ConteudoPrincipal({
         <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
           Resumo por projeto
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {estatisticas.map((est) => (
             <CardResumoProjeto key={est.projetoId} estatistica={est} />
           ))}
@@ -602,7 +602,7 @@ function CardResumoProjeto({
       onMouseMove={handleMouseMove}
       className="card-interactive"
     >
-      <CardContent className="space-y-4 p-5">
+      <CardContent className="space-y-4 p-4">
         <div className="space-y-2">
           <span
             className="inline-flex items-center rounded-md px-2.5 py-0.5 font-mono text-xs font-semibold"
