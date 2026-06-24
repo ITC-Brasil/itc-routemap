@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "rotas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "loteId", "order": "ASCENDING" },
+        { "fieldPath": "loteOrdem", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "rotas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
