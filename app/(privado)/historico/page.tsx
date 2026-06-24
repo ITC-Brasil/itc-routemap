@@ -12,7 +12,7 @@ import {
 import { CardLote } from "./_components/card-lote"
 import { CancelarLoteDialog } from "./_components/cancelar-lote-dialog"
 import {
-  FiltrosHistoricoComp,
+  FiltrosHistoricoPopover,
   type FiltrosHistorico,
 } from "./_components/filtros-historico"
 
@@ -107,16 +107,23 @@ export default function HistoricoPage() {
             Expanda um lote pra ver as rotas individuais ou cancele lotes inteiros.
           </p>
         </div>
-        <Button
-          onClick={recarregar}
-          disabled={carregando}
-          size="lg"
-          variant="outline"
-          className="gap-2"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Recarregar
-        </Button>
+        <div className="flex items-center gap-2">
+          <FiltrosHistoricoPopover
+            filtros={filtros}
+            tecnicosDisponiveis={tecnicosDisponiveis}
+            onChange={setFiltros}
+          />
+          <Button
+            onClick={recarregar}
+            disabled={carregando}
+            size="sm"
+            variant="outline"
+            className="gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Recarregar
+          </Button>
+        </div>
       </div>
 
       {/* CONTEÚDO */}
@@ -144,13 +151,6 @@ export default function HistoricoPage() {
               corValor="text-destructive"
             />
           </div>
-
-          {/* FILTROS */}
-          <FiltrosHistoricoComp
-            filtros={filtros}
-            tecnicosDisponiveis={tecnicosDisponiveis}
-            onChange={setFiltros}
-          />
 
           {/* LISTA DE LOTES */}
           <section className="space-y-3">
