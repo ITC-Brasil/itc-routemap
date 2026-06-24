@@ -49,6 +49,24 @@ export type ResultadoAlocacao = {
  */
 const CUSTO_INFINITO = 1e9
 
+/**
+ * Fator de penalidade por distância residencial — regra de negócio ITC:
+ * "o técnico deve preferencialmente ir para a UM mais próxima da sua casa".
+ *
+ * Para cada técnico, suas UMs candidatas são ordenadas por custo crescente
+ * (rank 0 = mais próxima, rank 1 normalizado = mais distante). O custo
+ * ajustado na matriz é:
+ *   custo_original * (1 + PESO_PROXIMIDADE * rank_normalizado)
+ *
+ * Com 0.3: a UM mais distante de um técnico fica até 30% mais cara, fazendo
+ * o Húngaro preferir fortemente pares residência-próximos sem eliminar a
+ * otimização global quando necessária.
+ *
+ * Aumente se a operação quiser prioridade ainda mais rígida por proximidade;
+ * diminua se houver muitos casos em que a distância residencial é irrelevante.
+ */
+export const PESO_PROXIMIDADE = 0.3
+
 // ============================================================
 // FUNÇÃO PRINCIPAL
 // ============================================================
@@ -101,6 +119,29 @@ export function resolverAlocacao(
     }
   }
 
+  // 1b. Aplica fator de proximidade residencial (regra de negócio ITC).
+  //     Para cada técnico, rankeia os destinos por custo crescente e penaliza
+  //     os mais distantes: custo_ajustado = custo * (1 + PESO * rank_norm).
+  //     Pares sem rota viável (CUSTO_INFINITO) não recebem penalidade extra.
+  const custoAjustado = new Map<string, number>(custoLookup)
+  for (let i = 0; i < N; i++) {
+    const viáveis: Array<{ j: number; custo: number }> = []
+    for (let j = 0; j < M; j++) {
+      const custo = custoLookup.get(chaveCusto(tecnicoIds[i], destinoIds[j]))
+      if (custo !== undefined && custo < CUSTO_INFINITO) {
+        viáveis.push({ j, custo })
+      }
+    }
+    viáveis.sort((a, b) => a.custo - b.custo)
+    const n = viáveis.length
+    if (n <= 1) continue // rank único → nenhuma penalidade
+    viáveis.forEach(({ j, custo }, rank) => {
+      const rankNorm = rank / (n - 1)
+      const ajustado = custo * (1 + PESO_PROXIMIDADE * rankNorm)
+      custoAjustado.set(chaveCusto(tecnicoIds[i], destinoIds[j]), ajustado)
+    })
+  }
+
   // 2. Constrói matriz quadrada de custo (padding com zero quando não-square)
   //    - Posições reais: custo da matriz, ou CUSTO_INFINITO se par sem rota
   //    - Posições dummy: zero (algoritmo prefere zerar nelas, liberando reais)
@@ -111,7 +152,7 @@ export function resolverAlocacao(
     const linha: number[] = []
     for (let j = 0; j < dim; j++) {
       if (i < N && j < M) {
-        const custo = custoLookup.get(chaveCusto(tecnicoIds[i], destinoIds[j]))
+        const custo = custoAjustado.get(chaveCusto(tecnicoIds[i], destinoIds[j]))
         linha.push(custo ?? CUSTO_INFINITO)
       } else {
         // Padding: dummy row ou dummy column
@@ -133,9 +174,14 @@ export function resolverAlocacao(
     // Pula dummies (índices além das dimensões reais)
     if (rowIdx >= N || colIdx >= M) continue
 
-    const custo = custoMatriz[rowIdx][colIdx]
+    const custoAjust = custoMatriz[rowIdx][colIdx]
     // Pula rotas inviáveis (sem dados na matriz original)
-    if (custo >= CUSTO_INFINITO) continue
+    if (custoAjust >= CUSTO_INFINITO) continue
+
+    // Reporta o custo ORIGINAL (sem fator de proximidade) para métricas corretas
+    const custo =
+      custoLookup.get(chaveCusto(tecnicoIds[rowIdx], destinoIds[colIdx])) ??
+      custoAjust
 
     alocacoes.push({
       tecnicoId: tecnicoIds[rowIdx],
