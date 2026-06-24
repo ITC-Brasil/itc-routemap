@@ -19,6 +19,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { LoteSumario } from "@/lib/firestore/lotes"
 import {
   formatarDataHora,
@@ -106,27 +112,26 @@ export function CardLote({ lote, onCancelar }: Props) {
             valor={formatarDuracao(lote.tempoTotalSegundos)}
             sublabel={formatarDistancia(lote.distanciaTotalMetros)}
           />
-          <Metrica
-            icone={<Users className="h-3.5 w-3.5" />}
-            label="Técnicos"
-            valor={`${lote.tecnicosNomes.length}`}
-            sublabel={nomeAmigavelModo(lote.modoPredominante)}
-          />
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-default">
+                  <Metrica
+                    icone={<Users className="h-3.5 w-3.5" />}
+                    label="Técnicos"
+                    valor={`${lote.tecnicosNomes.length}`}
+                    sublabel={nomeAmigavelModo(lote.modoPredominante)}
+                  />
+                </div>
+              </TooltipTrigger>
+              {lote.tecnicosNomes.length > 0 && (
+                <TooltipContent side="bottom">
+                  {lote.tecnicosNomes.join(", ")}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </div>
-
-        {/* TÉCNICOS — chips */}
-        {lote.tecnicosNomes.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {lote.tecnicosNomes.map((nome) => (
-              <span
-                key={nome}
-                className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-              >
-                {nome}
-              </span>
-            ))}
-          </div>
-        )}
 
         {/* BOTÃO ABRIR DETALHES — navega pra página dedicada */}
         <Button
