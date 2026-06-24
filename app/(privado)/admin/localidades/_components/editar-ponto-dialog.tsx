@@ -14,13 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Badge } from "@/components/ui/badge"
 import { atualizarPonto, type Ponto } from "@/lib/firestore/pontos"
 import type { Projeto } from "@/lib/firestore/projetos"
@@ -180,18 +174,13 @@ function ConteudoFormulario({
         {/* Status */}
         <div className="space-y-2">
           <Label htmlFor="edit-status">Status</Label>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger id="edit-status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {opcoesStatus.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            id="edit-status"
+            value={status}
+            onValueChange={setStatus}
+            options={opcoesStatus.map((s) => ({ value: s, label: s }))}
+            placeholder="Selecione o status..."
+          />
         </div>
 
         {/* RA + UF */}

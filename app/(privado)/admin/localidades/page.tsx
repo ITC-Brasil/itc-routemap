@@ -6,13 +6,7 @@ import { Filter, MapPin, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   listarProjetos,
@@ -457,61 +451,49 @@ function ConteudoPrincipal({
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="filtro-projeto">Projeto</Label>
-              <Select value={filtroProjeto} onValueChange={handleProjetoChange}>
-                <SelectTrigger id="filtro-projeto">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os projetos</SelectItem>
-                  {projetos.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.sigla} — {p.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="filtro-projeto"
+                value={filtroProjeto}
+                onValueChange={handleProjetoChange}
+                options={[
+                  { value: "todos", label: "Todos os projetos" },
+                  ...projetos.map((p) => ({ value: p.id, label: `${p.sigla} — ${p.nome}` })),
+                ]}
+                placeholder="Todos os projetos"
+                searchPlaceholder="Buscar projeto..."
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="filtro-um">UM</Label>
-              <Select
+              <Combobox
+                id="filtro-um"
                 value={filtroUm}
                 onValueChange={handleUmChange}
                 disabled={umsDisponiveis.length === 0}
-              >
-                <SelectTrigger id="filtro-um">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas as UMs</SelectItem>
-                  {umsDisponiveis.map((um) => (
-                    <SelectItem key={um} value={um}>
-                      {um}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: "todas", label: "Todas as UMs" },
+                  ...umsDisponiveis.map((um) => ({ value: um, label: um })),
+                ]}
+                placeholder="Todas as UMs"
+                searchPlaceholder="Buscar UM..."
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="filtro-ra">Região Administrativa</Label>
-              <Select
+              <Combobox
+                id="filtro-ra"
                 value={filtroRa}
                 onValueChange={setFiltroRa}
                 disabled={rasDisponiveis.length === 0}
-              >
-                <SelectTrigger id="filtro-ra">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas as RAs</SelectItem>
-                  {rasDisponiveis.map((ra) => (
-                    <SelectItem key={ra} value={ra}>
-                      {ra}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: "todas", label: "Todas as RAs" },
+                  ...rasDisponiveis.map((ra) => ({ value: ra, label: ra })),
+                ]}
+                placeholder="Todas as RAs"
+                searchPlaceholder="Buscar RA..."
+              />
             </div>
           </div>
 

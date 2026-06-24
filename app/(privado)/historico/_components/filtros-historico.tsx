@@ -13,13 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import type { StatusLote } from "@/lib/firestore/lotes"
 
 export type FiltroStatus = "todos" | StatusLote
@@ -128,23 +122,18 @@ export function FiltrosHistoricoPopover({
           {/* Técnico */}
           <div className="space-y-2">
             <Label htmlFor="filtro-tecnico">Técnico</Label>
-            <Select
+            <Combobox
+              id="filtro-tecnico"
               value={filtros.tecnico}
               onValueChange={(v) => onChange({ ...filtros, tecnico: v })}
               disabled={tecnicosDisponiveis.length === 0}
-            >
-              <SelectTrigger id="filtro-tecnico">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os técnicos</SelectItem>
-                {tecnicosDisponiveis.map((nome) => (
-                  <SelectItem key={nome} value={nome}>
-                    {nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={[
+                { value: "todos", label: "Todos os técnicos" },
+                ...tecnicosDisponiveis.map((nome) => ({ value: nome, label: nome })),
+              ]}
+              placeholder="Todos os técnicos"
+              searchPlaceholder="Buscar técnico..."
+            />
           </div>
 
           {/* Status */}

@@ -20,13 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { ColorPicker } from "@/components/color-picker"
 import { TecnicoAvatar } from "@/components/tecnico-avatar"
 import { MODOS_SELECIONAVEIS, IconeModo } from "@/lib/modos-transporte"
@@ -279,25 +273,23 @@ export function TecnicoFormDialog({
           {/* Modo principal de transporte */}
           <div className="space-y-2">
             <Label htmlFor="modoPrincipal">Modo de transporte principal</Label>
-            <Select
+            <Combobox
+              id="modoPrincipal"
               value={modoPrincipal}
               onValueChange={setModoPrincipal}
               disabled={salvando}
-            >
-              <SelectTrigger id="modoPrincipal">
-                <SelectValue placeholder="Selecione o modo..." />
-              </SelectTrigger>
-              <SelectContent>
-                {MODOS_SELECIONAVEIS.map((modo) => (
-                  <SelectItem key={modo} value={modo}>
-                    <div className="flex items-center gap-2">
-                      <IconeModo modo={modo} className="h-4 w-4" />
-                      {nomeAmigavelModo(modo)}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={MODOS_SELECIONAVEIS.map((modo) => ({
+                value: modo,
+                label: nomeAmigavelModo(modo),
+                render: (
+                  <div className="flex items-center gap-2">
+                    <IconeModo modo={modo} className="h-4 w-4" />
+                    {nomeAmigavelModo(modo)}
+                  </div>
+                ),
+              }))}
+              placeholder="Selecione o modo..."
+            />
             <p className="text-xs text-muted-foreground">
               Opcional. Usado como sugestão padrão no cálculo de rotas.
             </p>

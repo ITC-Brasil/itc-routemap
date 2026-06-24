@@ -21,13 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ColorPicker } from "@/components/color-picker"
 
@@ -144,36 +138,35 @@ export function UMFormDialog({
               </p>
             </div>
 
-            {/* Select de projeto */}
+            {/* Combobox de projeto */}
             <div className="space-y-2">
               <Label htmlFor="projeto">Projeto vinculado</Label>
-              <Select
+              <Combobox
+                id="projeto"
                 value={projetoId}
                 onValueChange={setProjetoId}
                 disabled={salvando}
-              >
-                <SelectTrigger id="projeto">
-                  <SelectValue placeholder="Selecione um projeto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projetos.map((projeto) => (
-                    <SelectItem key={projeto.id} value={projeto.id}>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="inline-flex h-5 items-center rounded px-2 font-mono text-xs font-semibold"
-                          style={{
-                            backgroundColor: projeto.cor,
-                            color: corTextoIdeal(projeto.cor),
-                          }}
-                        >
-                          {projeto.sigla}
-                        </span>
-                        <span>{projeto.nome}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={projetos.map((projeto) => ({
+                  value: projeto.id,
+                  label: `${projeto.sigla} — ${projeto.nome}`,
+                  render: (
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="inline-flex h-5 items-center rounded px-2 font-mono text-xs font-semibold"
+                        style={{
+                          backgroundColor: projeto.cor,
+                          color: corTextoIdeal(projeto.cor),
+                        }}
+                      >
+                        {projeto.sigla}
+                      </span>
+                      <span>{projeto.nome}</span>
+                    </div>
+                  ),
+                }))}
+                placeholder="Selecione um projeto"
+                searchPlaceholder="Buscar projeto..."
+              />
             </div>
 
             {/* Color Picker */}
