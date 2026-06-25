@@ -21,11 +21,13 @@ function extrairEnderecoLegivel(
     components.find((c) => tipos.some((t) => c.types.includes(t)))
 
   // Hierarquia do mais específico ao menos específico
+  // administrative_area_level_4 cobre Regiões Administrativas do DF (ex: Planaltina)
   const bairro =
     get("neighborhood") ??
     get("sublocality_level_1") ??
     get("sublocality_level_2") ??
     get("administrative_area_level_3") ??
+    get("administrative_area_level_4") ??
     get("sublocality")
 
   const cidade = get("administrative_area_level_2") ?? get("locality")
