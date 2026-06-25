@@ -90,6 +90,14 @@ export async function POST(request: Request) {
       )
     }
 
+    const MODOS_VALIDOS: ModoTransporte[] = ["DRIVE", "TWO_WHEELER", "WALK", "BICYCLE", "TRANSIT"]
+    if (!MODOS_VALIDOS.includes(body.modo)) {
+      return NextResponse.json(
+        { sucesso: false, erro: `Modo inválido: "${body.modo}". Use DRIVE, TWO_WHEELER, WALK, BICYCLE ou TRANSIT.` },
+        { status: 400 },
+      )
+    }
+
     const apiKey = process.env.GOOGLE_MAPS_SERVER_API_KEY
     if (!apiKey) {
       return NextResponse.json(
