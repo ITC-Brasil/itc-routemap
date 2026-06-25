@@ -185,7 +185,7 @@ function ItemTecnico({
   return (
     <AccordionItem
       value={tecnico.id}
-      className="border-b-0 px-4 [&[data-state=open]]:bg-muted/40"
+      className="border-b-0 px-4 [&[data-state=open]]:bg-muted/40 relative transition-[background-color] duration-200 hover:bg-muted/20 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0 before:bg-[var(--card-bar)] before:transition-[width] before:ease-out before:duration-[250ms] hover:before:w-[3px]"
     >
       <AccordionTrigger className="hover:no-underline">
         <div className="flex w-full items-center gap-3 pr-4">

@@ -1081,7 +1081,7 @@ function LinhaAlocacao({
   })
 
   return (
-    <Card>
+    <Card className="card-interactive">
       <CardContent className="space-y-4 p-5">
         {/* Header — sempre visível */}
         <div className="grid gap-4 md:grid-cols-[auto_1fr_1fr_auto_auto] md:items-center">

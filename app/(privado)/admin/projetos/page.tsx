@@ -117,7 +117,7 @@ export default function ProjetosPage() {
             </TableHeader>
             <TableBody>
               {projetos.map((projeto) => (
-                <TableRow key={projeto.id}>
+                <TableRow key={projeto.id} className="transition-colors hover:bg-muted/50">
                   <TableCell>
                     <span
                       className="inline-flex items-center rounded-md px-3 py-1 text-xs font-mono font-semibold"

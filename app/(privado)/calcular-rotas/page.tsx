@@ -730,7 +730,7 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
                   return (
                     <li
                       key={t.id}
-                      className="flex items-center gap-3 rounded-md border p-3 transition-colors hover:bg-accent/30"
+                      className="card-interactive flex items-center gap-3 rounded-md border p-3 transition-colors hover:bg-accent/30"
                     >
                       <Checkbox
                         id={id}
@@ -784,7 +784,7 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
                   return (
                     <li
                       key={item.key}
-                      className="flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-accent/30"
+                      className="card-interactive flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-accent/30"
                     >
                       <Checkbox
                         id={id}
