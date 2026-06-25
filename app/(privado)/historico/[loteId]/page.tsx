@@ -890,7 +890,7 @@ function LinhaRotaHistorico({
               </div>
 
               {modo === "TRANSIT" && rotaEntry?.estado === "ok" && (
-                <div className="overflow-y-auto lg:w-1/2 lg:max-h-[400px]">
+                <div className="overflow-y-auto lg:w-1/2 lg:max-h-100">
                   <DetalhesTransit
                     steps={rotaEntry.transitSteps}
                     partidaIso={rotaEntry.partidaIso}
