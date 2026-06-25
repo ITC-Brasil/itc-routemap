@@ -2,6 +2,7 @@
 
 import { AuthGuard } from "@/components/auth/auth-guard"
 import { Navbar } from "@/components/layout/navbar"
+import { PageTransition } from "@/components/page-transition"
 import packageJson from "@/package.json"
 
 export default function PrivadoLayout({
@@ -11,10 +12,10 @@ export default function PrivadoLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="relative z-10 flex min-h-screen flex-col">
+      <div className="relative z-10 flex min-h-screen flex-col overflow-x-hidden">
         <Navbar />
         <main className="container mx-auto flex-1 px-4 py-8 sm:px-6 lg:px-8">
-          {children}
+          <PageTransition>{children}</PageTransition>
         </main>
         <footer className="border-t bg-muted/30">
           <div className="container mx-auto flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
