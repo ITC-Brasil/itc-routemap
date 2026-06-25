@@ -7,6 +7,7 @@ import {
   type ModoMatrix,
 } from "@/lib/google-routes"
 import { resolverAlocacao } from "@/lib/alocacao"
+import type { ModoTransporte } from "@/lib/firestore/rotas"
 import {
   gerarJustificativaAlocacao,
   type ContextoAlocacao,
@@ -23,6 +24,7 @@ type TecnicoInput = {
   endereco: string
   latitude: number
   longitude: number
+  modoPrincipal?: string
 }
 
 type DestinoInput = {
@@ -105,6 +107,22 @@ export async function POST(request: Request) {
     }
 
     // ====== 2. MATRIZ NO GOOGLE ROUTES ======
+
+    // Modos por técnico — usa o modo individual se válido, senão cai no global
+    const MODOS_MATRIX_VALIDOS = new Set(["DRIVE", "TWO_WHEELER", "WALK", "BICYCLE"])
+    const modosPorTecnico = new Map<string, ModoTransporte>()
+    for (const t of tecnicos) {
+      const modo = t.modoPrincipal && MODOS_MATRIX_VALIDOS.has(t.modoPrincipal)
+        ? (t.modoPrincipal as ModoTransporte)
+        : modoPrincipal
+      modosPorTecnico.set(t.id, modo)
+    }
+
+    // Garante que todos os modos individuais entram na matriz
+    const modosExtendidos: ModoMatrix[] = Array.from(
+      new Set([...modos, ...(Array.from(modosPorTecnico.values()) as ModoMatrix[])])
+    )
+
     const resultadoMatriz = await calcularMatrizDeslocamento(
       tecnicos.map((t) => ({
         id: t.id,
@@ -116,7 +134,7 @@ export async function POST(request: Request) {
         latitude: d.latitude,
         longitude: d.longitude,
       })),
-      modos
+      modosExtendidos
     )
 
     if (resultadoMatriz.modosCalculados.length === 0) {
@@ -140,7 +158,7 @@ export async function POST(request: Request) {
       resultadoMatriz.matriz,
       tecnicos.map((t) => t.id),
       destinos.map((d) => d.id),
-      modoPrincipal
+      modosPorTecnico
     )
 
     if (resultadoAlocacao.alocacoes.length === 0) {
@@ -220,6 +238,7 @@ export async function POST(request: Request) {
         },
         metricas,
         custoSegundosPrincipal: a.custo,
+        modoEfetivo: a.modoEfetivo,
       }
     })
 

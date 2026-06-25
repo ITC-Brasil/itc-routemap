@@ -103,6 +103,7 @@ export type AlocacaoRica = {
   }
   metricas: Partial<Record<ModoTransporte, MetricaModo>>
   custoSegundosPrincipal: number
+  modoEfetivo?: ModoTransporte
 }
 
 export type RespostaAlocacao = {
@@ -193,13 +194,13 @@ export function ResultadoAlocacao({
   >(null)
   const foiEditada = alocacoesEditadas !== null
 
-  // Modo escolhido por alocação (começa com o modo principal global)
+  // Modo escolhido por alocação (começa com o modo efetivo do técnico, ou o global)
   const [modosPorAloc, setModosPorAloc] = useState<
     Map<string, ModoTransporte>
   >(() => {
     const m = new Map<string, ModoTransporte>()
     for (const a of resultado.alocacoes) {
-      m.set(chaveAlocacao(a), resultado.modoPrincipal)
+      m.set(chaveAlocacao(a), a.modoEfetivo ?? resultado.modoPrincipal)
     }
     return m
   })
@@ -519,7 +520,7 @@ export function ResultadoAlocacao({
     setExpandida(null)
     const m = new Map<string, ModoTransporte>()
     for (const a of resultado.alocacoes) {
-      m.set(chaveAlocacao(a), resultado.modoPrincipal)
+      m.set(chaveAlocacao(a), a.modoEfetivo ?? resultado.modoPrincipal)
     }
     setModosPorAloc(m)
   }, [resultado.alocacoes, resultado.modoPrincipal])

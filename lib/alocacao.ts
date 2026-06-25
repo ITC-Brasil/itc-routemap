@@ -26,7 +26,8 @@ export type ResultadoAlocacao = {
   alocacoes: Array<{
     tecnicoId: string
     destinoId: string
-    custo: number // duração em segundos no modo principal
+    custo: number // duração em segundos no modo do técnico
+    modoEfetivo: ModoTransporte
   }>
   /** Técnicos que não receberam destino (sobra de N > M ou rotas inviáveis). */
   tecnicosNaoAlocados: string[]
@@ -82,16 +83,16 @@ export const PESO_PROXIMIDADE = 0.3
  *   - Mais técnicos que destinos → alguns técnicos ficam sem alocação
  *   - Mais destinos que técnicos → alguns destinos ficam sem técnico
  *
- * @param matriz         Saída de /api/routes/matrix (todos pares calculados)
- * @param tecnicoIds     IDs dos técnicos a alocar
- * @param destinoIds     IDs dos destinos (pontos)
- * @param modoPrincipal  Modo de transporte usado pra otimizar (default "DRIVE")
+ * @param matriz           Saída de /api/routes/matrix (todos pares calculados)
+ * @param tecnicoIds       IDs dos técnicos a alocar
+ * @param destinoIds       IDs dos destinos (pontos)
+ * @param modosPorTecnico  Modo de transporte de cada técnico (default "DRIVE")
  */
 export function resolverAlocacao(
   matriz: LinhaMatrizDeslocamento[],
   tecnicoIds: string[],
   destinoIds: string[],
-  modoPrincipal: ModoTransporte = "DRIVE"
+  modosPorTecnico: Map<string, ModoTransporte>
 ): ResultadoAlocacao {
   const N = tecnicoIds.length
   const M = destinoIds.length
@@ -107,10 +108,11 @@ export function resolverAlocacao(
     }
   }
 
-  // 1. Lookup rápido (tecnicoId, destinoId) → custo (segundos no modo principal)
+  // 1. Lookup rápido (tecnicoId, destinoId) → custo (segundos no modo do técnico)
   const custoLookup = new Map<string, number>()
   for (const linha of matriz) {
-    const metrica = linha.metricas[modoPrincipal]
+    const modo = modosPorTecnico.get(linha.origemId) ?? "DRIVE"
+    const metrica = linha.metricas[modo]
     if (metrica) {
       custoLookup.set(
         chaveCusto(linha.origemId, linha.destinoId),
@@ -187,6 +189,7 @@ export function resolverAlocacao(
       tecnicoId: tecnicoIds[rowIdx],
       destinoId: destinoIds[colIdx],
       custo,
+      modoEfetivo: modosPorTecnico.get(tecnicoIds[rowIdx]) ?? "DRIVE",
     })
     tecnicosAlocados.add(tecnicoIds[rowIdx])
     destinosAlocados.add(destinoIds[colIdx])

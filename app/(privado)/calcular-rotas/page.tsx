@@ -420,6 +420,7 @@ function FluxoAlocacao({
           endereco: t.endereco,
           latitude: t.latitude!,
           longitude: t.longitude!,
+          modoPrincipal: t.modoPrincipal,
         }))
 
       // 13.12: destinos selecionados (Pendentes) + pontos ativos de técnicos com rota ativa
