@@ -190,7 +190,7 @@ function ConteudoCondicional({
   )
 
   const tecnicosComLocalizacao = tecnicos.filter(
-    (t) => t.latitude !== null && t.longitude !== null
+    (t) => t.latitude !== null && t.longitude !== null && t.ativo !== false
   )
 
   // 13.12: UMs com pontos realocáveis (Pendente + Agendado + Atual)

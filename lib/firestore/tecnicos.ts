@@ -31,6 +31,7 @@ export type Tecnico = {
   latitude: number | null
   longitude: number | null
   modoPrincipal?: string
+  ativo: boolean
   criadoEm: Timestamp | null
 }
 
@@ -78,6 +79,7 @@ export async function listarTecnicos(): Promise<Tecnico[]> {
       latitude: data.latitude ?? null,
       longitude: data.longitude ?? null,
       modoPrincipal: data.modoPrincipal ?? undefined,
+      ativo: data.ativo !== false,
       criadoEm: data.criadoEm ?? null,
     }
   })
@@ -107,6 +109,7 @@ export async function buscarTecnico(id: string): Promise<Tecnico | null> {
     latitude: data.latitude ?? null,
     longitude: data.longitude ?? null,
     modoPrincipal: data.modoPrincipal ?? undefined,
+    ativo: data.ativo !== false,
     criadoEm: data.criadoEm ?? null,
   }
 }
@@ -159,4 +162,21 @@ export async function atualizarTecnico(
 export async function deletarTecnico(id: string): Promise<void> {
   const ref = doc(db, COLECAO, id)
   await deleteDoc(ref)
+}
+
+/**
+ * Pausa um técnico: ele deixa de aparecer na seleção de calcular-rotas.
+ * Rotas já confirmadas não são afetadas.
+ */
+export async function pausarTecnico(id: string): Promise<void> {
+  const ref = doc(db, COLECAO, id)
+  await updateDoc(ref, { ativo: false })
+}
+
+/**
+ * Reativa um técnico pausado.
+ */
+export async function reativarTecnico(id: string): Promise<void> {
+  const ref = doc(db, COLECAO, id)
+  await updateDoc(ref, { ativo: true })
 }

@@ -82,7 +82,7 @@ export default function InicioPage() {
         setPontosPendentes(pontos.filter((p) => p.status === "Pendente").length)
         setPontosAgendados(pontos.filter((p) => p.status === "Agendado").length)
         setTecnicosDisponiveis(
-          tecnicos.filter((t) => t.latitude !== null && t.longitude !== null)
+          tecnicos.filter((t) => t.latitude !== null && t.longitude !== null && t.ativo !== false)
             .length
         )
         setRotasConfirmadas(rotas)

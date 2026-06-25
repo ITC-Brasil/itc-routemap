@@ -2,12 +2,25 @@
 
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { Pencil, Plus, Trash2, Users } from "lucide-react"
+import { PauseCircle, Pencil, PlayCircle, Plus, Trash2, Users } from "lucide-react"
 import {
   listarTecnicos,
   deletarTecnico,
+  pausarTecnico,
+  reativarTecnico,
   type Tecnico,
 } from "@/lib/firestore/tecnicos"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { TecnicoFormDialog } from "@/components/tecnicos/tecnico-form-dialog"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { TecnicoAvatar } from "@/components/tecnico-avatar"
@@ -64,6 +77,26 @@ export default function TecnicosPage() {
     setDeleteAberto(true)
   }
 
+  const handlePausar = async (tecnico: Tecnico) => {
+    try {
+      await pausarTecnico(tecnico.id)
+      toast.success(`${tecnico.nome} pausado.`)
+      recarregar()
+    } catch {
+      toast.error("Erro ao pausar técnico.")
+    }
+  }
+
+  const handleReativar = async (tecnico: Tecnico) => {
+    try {
+      await reativarTecnico(tecnico.id)
+      toast.success(`${tecnico.nome} reativado.`)
+      recarregar()
+    } catch {
+      toast.error("Erro ao reativar técnico.")
+    }
+  }
+
   return (
     <main className="container mx-auto px-4 py-8">
       <div className="mb-8 flex items-end justify-between gap-4">
@@ -95,6 +128,8 @@ export default function TecnicosPage() {
           tecnicos={tecnicos}
           onEditar={handleEditar}
           onDeletar={handleDeletar}
+          onPausar={handlePausar}
+          onReativar={handleReativar}
         />
       )}
 
@@ -149,10 +184,14 @@ function ListaTecnicos({
   tecnicos,
   onEditar,
   onDeletar,
+  onPausar,
+  onReativar,
 }: {
   tecnicos: Tecnico[]
   onEditar: (t: Tecnico) => void
   onDeletar: (t: Tecnico) => void
+  onPausar: (t: Tecnico) => void
+  onReativar: (t: Tecnico) => void
 }) {
   return (
     <div className="rounded-lg border bg-card">
@@ -163,6 +202,8 @@ function ListaTecnicos({
             tecnico={tecnico}
             onEditar={onEditar}
             onDeletar={onDeletar}
+            onPausar={onPausar}
+            onReativar={onReativar}
           />
         ))}
       </Accordion>
@@ -174,18 +215,23 @@ function ItemTecnico({
   tecnico,
   onEditar,
   onDeletar,
+  onPausar,
+  onReativar,
 }: {
   tecnico: Tecnico
   onEditar: (t: Tecnico) => void
   onDeletar: (t: Tecnico) => void
+  onPausar: (t: Tecnico) => void
+  onReativar: (t: Tecnico) => void
 }) {
-  const temCoordenadas =
-    tecnico.latitude !== null && tecnico.longitude !== null
+  const [pausarDialogAberto, setPausarDialogAberto] = useState(false)
+  const temCoordenadas = tecnico.latitude !== null && tecnico.longitude !== null
+  const pausado = tecnico.ativo === false
 
   return (
     <AccordionItem
       value={tecnico.id}
-      className="border-b-0 px-4 [&[data-state=open]]:bg-muted/40 relative transition-[background-color] duration-200 hover:bg-muted/20 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0 before:bg-[var(--card-bar)] before:transition-[width] before:ease-out before:duration-[250ms] hover:before:w-[3px]"
+      className={`border-b-0 px-4 [&[data-state=open]]:bg-muted/40 relative transition-[background-color] duration-200 hover:bg-muted/20 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0 before:bg-[var(--card-bar)] before:transition-[width] before:ease-out before:duration-[250ms] hover:before:w-[3px]${pausado ? " opacity-60" : ""}`}
     >
       <AccordionTrigger className="hover:no-underline">
         <div className="flex w-full items-center gap-3 pr-4">
@@ -195,6 +241,11 @@ function ItemTecnico({
               <p className="truncate font-medium text-foreground" title={tecnico.nome}>
                 {tecnico.nome}
               </p>
+              {pausado && (
+                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                  Pausado
+                </span>
+              )}
               {tecnico.modoPrincipal && (
                 <span className="flex shrink-0 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                   <IconeModo modo={tecnico.modoPrincipal as ModoTransporte} className="h-3 w-3" />
@@ -246,6 +297,49 @@ function ItemTecnico({
                   <Pencil className="h-3.5 w-3.5" />
                   Editar
                 </Button>
+
+                {pausado ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onReativar(tecnico)}
+                    className="gap-2 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950"
+                  >
+                    <PlayCircle className="h-3.5 w-3.5" />
+                    Reativar
+                  </Button>
+                ) : (
+                  <AlertDialog open={pausarDialogAberto} onOpenChange={setPausarDialogAberto}>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-400 dark:hover:bg-amber-950"
+                      >
+                        <PauseCircle className="h-3.5 w-3.5" />
+                        Pausar
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Pausar técnico</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          <strong>{tecnico.nome}</strong> não aparecerá na seleção ao calcular rotas. Rotas já confirmadas não são afetadas.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-amber-600 text-white hover:bg-amber-700"
+                          onClick={() => onPausar(tecnico)}
+                        >
+                          Pausar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+
                 <Button
                   variant="outline"
                   size="sm"
