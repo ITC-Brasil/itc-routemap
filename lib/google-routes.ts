@@ -8,7 +8,7 @@ export type PontoGeo = {
   longitude: number
 }
 
-export type ModoMatrix = "DRIVE" | "TWO_WHEELER" | "WALK" | "BICYCLE"
+export type ModoMatrix = "DRIVE" | "TWO_WHEELER" | "WALK" | "BICYCLE" | "TRANSIT"
 
 export type MetricaModo = {
   distanciaMetros: number
@@ -46,6 +46,9 @@ export const MODOS_DEFAULT: ModoMatrix[] = ["DRIVE", "TWO_WHEELER", "WALK"]
 
 /** Limite oficial da Google: máximo 625 pares (25 origens × 25 destinos). */
 export const MAX_PARES = 625
+
+/** Limite da Google para TRANSIT na Routes Matrix: máximo 100 pares (10×10). */
+export const MAX_PARES_TRANSIT = 100
 
 const URL_GOOGLE =
   "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"

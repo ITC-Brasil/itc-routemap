@@ -2,8 +2,10 @@ import { NextResponse } from "next/server"
 import {
   calcularMatrizDeslocamento,
   MAX_PARES,
+  MAX_PARES_TRANSIT,
   MODOS_DEFAULT,
   validarCoordenadas,
+  type LinhaMatriz,
   type ModoMatrix,
 } from "@/lib/google-routes"
 import { resolverAlocacao } from "@/lib/alocacao"
@@ -108,8 +110,8 @@ export async function POST(request: Request) {
 
     // ====== 2. MATRIZ NO GOOGLE ROUTES ======
 
-    // Modos por técnico — usa o modo individual se válido, senão cai no global
-    const MODOS_MATRIX_VALIDOS = new Set(["DRIVE", "TWO_WHEELER", "WALK", "BICYCLE"])
+    // Modos por técnico — TRANSIT agora é válido na Routes Matrix (limite: 100 pares)
+    const MODOS_MATRIX_VALIDOS = new Set(["DRIVE", "TWO_WHEELER", "WALK", "BICYCLE", "TRANSIT"])
     const modosPorTecnico = new Map<string, ModoTransporte>()
     for (const t of tecnicos) {
       const modo = t.modoPrincipal && MODOS_MATRIX_VALIDOS.has(t.modoPrincipal)
@@ -118,44 +120,85 @@ export async function POST(request: Request) {
       modosPorTecnico.set(t.id, modo)
     }
 
-    // Garante que todos os modos individuais entram na matriz
-    const modosExtendidos: ModoMatrix[] = Array.from(
-      new Set([...modos, ...(Array.from(modosPorTecnico.values()) as ModoMatrix[])])
-    )
+    // Separa técnicos TRANSIT dos demais — TRANSIT usa chamada isolada (limite 100 pares)
+    const tecnicosTransit = tecnicos.filter((t) => modosPorTecnico.get(t.id) === "TRANSIT")
+    const tecnicosNaoTransit = tecnicos.filter((t) => modosPorTecnico.get(t.id) !== "TRANSIT")
 
-    const resultadoMatriz = await calcularMatrizDeslocamento(
-      tecnicos.map((t) => ({
-        id: t.id,
-        latitude: t.latitude,
-        longitude: t.longitude,
-      })),
-      destinos.map((d) => ({
-        id: d.id,
-        latitude: d.latitude,
-        longitude: d.longitude,
-      })),
-      modosExtendidos
-    )
-
-    if (resultadoMatriz.modosCalculados.length === 0) {
+    if (tecnicosTransit.length > 0 && tecnicosTransit.length * destinos.length > MAX_PARES_TRANSIT) {
       return erro(
-        "Falha ao calcular matriz de deslocamento.",
-        502,
-        resultadoMatriz.erros.join(" | ")
+        `Limite TRANSIT excedido: ${tecnicosTransit.length} técnico(s) com TRANSIT × ${destinos.length} UMs = ${tecnicosTransit.length * destinos.length} pares (máximo ${MAX_PARES_TRANSIT}).`,
+        400
       )
     }
 
-    if (!resultadoMatriz.modosCalculados.includes(modoPrincipal)) {
+    // Modos não-TRANSIT: union do global + individuais, excluindo TRANSIT
+    const modosNaoTransit: ModoMatrix[] = Array.from(
+      new Set([
+        ...modos.filter((m) => m !== "TRANSIT"),
+        ...(Array.from(modosPorTecnico.values()).filter((m) => m !== "TRANSIT") as ModoMatrix[]),
+      ])
+    )
+
+    const destinosPontos = destinos.map((d) => ({
+      id: d.id,
+      latitude: d.latitude,
+      longitude: d.longitude,
+    }))
+
+    let linhasMatriz: LinhaMatriz[] = []
+    let modosCalculados: ModoMatrix[] = []
+    let errosMatriz: string[] = []
+
+    // Chamada 1: técnicos não-TRANSIT × todos os destinos
+    if (tecnicosNaoTransit.length > 0) {
+      const res = await calcularMatrizDeslocamento(
+        tecnicosNaoTransit.map((t) => ({ id: t.id, latitude: t.latitude, longitude: t.longitude })),
+        destinosPontos,
+        modosNaoTransit
+      )
+      linhasMatriz = [...linhasMatriz, ...res.matriz]
+      modosCalculados = Array.from(new Set([...modosCalculados, ...res.modosCalculados]))
+      errosMatriz = [...errosMatriz, ...res.erros]
+    }
+
+    // Chamada 2: técnicos TRANSIT × todos os destinos (chamada isolada, limite 100 pares)
+    if (tecnicosTransit.length > 0) {
+      const res = await calcularMatrizDeslocamento(
+        tecnicosTransit.map((t) => ({ id: t.id, latitude: t.latitude, longitude: t.longitude })),
+        destinosPontos,
+        ["TRANSIT"]
+      )
+      linhasMatriz = [...linhasMatriz, ...res.matriz]
+      if (res.modosCalculados.includes("TRANSIT")) {
+        modosCalculados = Array.from(new Set([...modosCalculados, "TRANSIT" as ModoMatrix]))
+      }
+      errosMatriz = [...errosMatriz, ...res.erros]
+    }
+
+    if (modosCalculados.length === 0) {
       return erro(
-        `Modo principal "${modoPrincipal}" falhou no cálculo. Modos disponíveis: ${resultadoMatriz.modosCalculados.join(", ")}`,
+        "Falha ao calcular matriz de deslocamento.",
         502,
-        resultadoMatriz.erros.join(" | ")
+        errosMatriz.join(" | ")
+      )
+    }
+
+    // Verifica modo global — aceita TRANSIT quando todos os técnicos são TRANSIT
+    const modoPrincipalOk =
+      modosCalculados.includes(modoPrincipal) ||
+      (modoPrincipal === "TRANSIT" && modosCalculados.includes("TRANSIT"))
+
+    if (!modoPrincipalOk) {
+      return erro(
+        `Modo principal "${modoPrincipal}" falhou no cálculo. Modos disponíveis: ${modosCalculados.join(", ")}`,
+        502,
+        errosMatriz.join(" | ")
       )
     }
 
     // ====== 3. ALGORITMO HÚNGARO ======
     const resultadoAlocacao = resolverAlocacao(
-      resultadoMatriz.matriz,
+      linhasMatriz,
       tecnicos.map((t) => t.id),
       destinos.map((d) => d.id),
       modosPorTecnico
@@ -199,7 +242,7 @@ export async function POST(request: Request) {
     const tecnicoById = new Map(tecnicos.map((t) => [t.id, t]))
     const destinoById = new Map(destinos.map((d) => [d.id, d]))
     const metricasPorPar = new Map(
-      resultadoMatriz.matriz.map((l) => [
+      linhasMatriz.map((l) => [
         `${l.origemId}|${l.destinoId}`,
         l.metricas,
       ])
@@ -246,7 +289,7 @@ export async function POST(request: Request) {
       sucesso: true,
       loteId: gerarLoteId(),
       modoPrincipal,
-      modosCalculados: resultadoMatriz.modosCalculados,
+      modosCalculados,
       alocacoes: alocacoesRicas,
       tecnicosNaoAlocados: resultadoAlocacao.tecnicosNaoAlocados.map((id) => ({
         id,
@@ -260,7 +303,7 @@ export async function POST(request: Request) {
       custoMedioSegundos: resultadoAlocacao.custoMedio,
       justificativaGemini: justificativa,
       duracaoMs: Date.now() - inicio,
-      avisos: resultadoMatriz.erros,
+      avisos: errosMatriz,
     })
   } catch (err) {
     console.error("Erro em /api/routes/alocar:", err)
