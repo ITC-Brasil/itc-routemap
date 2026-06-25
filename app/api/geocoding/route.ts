@@ -11,37 +11,45 @@ const PLUS_CODE_REGEX = /^[A-Z0-9]{4,}\+[A-Z0-9]{2,}/i
 function extrairEnderecoLegivel(
   components: AddressComponent[],
   formattedAddress: string
-): string {
+): string | null {
   if (!PLUS_CODE_REGEX.test(formattedAddress)) {
-    return formattedAddress.replace(/,\s*(Brazil|Brasil)\s*$/i, "").trim()
+    const limpo = formattedAddress.replace(/,\s*(Brazil|Brasil)\s*$/i, "").trim()
+    return limpo || null
   }
 
-  const buscar = (...tipos: string[]) =>
+  const get = (...tipos: string[]) =>
     components.find((c) => tipos.some((t) => c.types.includes(t)))
 
-  const bairro = buscar("neighborhood", "sublocality_level_2")
-  const sublocal = buscar("sublocality_level_1", "sublocality")
-  const cidade = buscar("administrative_area_level_2", "locality")
-  const estado = buscar("administrative_area_level_1")
+  // Hierarquia do mais específico ao menos específico
+  const bairro =
+    get("neighborhood") ??
+    get("sublocality_level_1") ??
+    get("sublocality_level_2") ??
+    get("administrative_area_level_3") ??
+    get("sublocality")
 
-  const partes: string[] = []
-  if (bairro) partes.push(bairro.long_name)
-  if (sublocal && sublocal.long_name !== bairro?.long_name) {
-    partes.push(sublocal.long_name)
-  }
-  if (cidade && !partes.includes(cidade.long_name)) {
-    partes.push(cidade.long_name)
-  }
-
-  if (partes.length === 0) {
-    return formattedAddress
-      .replace(/^[A-Z0-9]+\+[A-Z0-9]+\s*/i, "")
-      .replace(/,\s*(Brazil|Brasil)\s*$/i, "")
-      .trim()
-  }
+  const cidade = get("administrative_area_level_2") ?? get("locality")
+  const estado = get("administrative_area_level_1")
 
   const sufixoEstado = estado ? ` - ${estado.short_name}` : ""
-  return partes.join(", ") + sufixoEstado
+
+  if (bairro || cidade) {
+    const partes: string[] = []
+    if (bairro) partes.push(bairro.long_name)
+    if (cidade && cidade.long_name !== bairro?.long_name) {
+      partes.push(cidade.long_name)
+    }
+    return partes.join(", ") + sufixoEstado
+  }
+
+  // Último recurso: formatted_address sem Plus Code e país
+  const fallback = formattedAddress
+    .replace(/^[A-Z0-9]+\+[A-Z0-9]+\s*/i, "")
+    .replace(/,\s*(Brazil|Brasil)\s*$/i, "")
+    .trim()
+
+  // Considera inútil se for vazio ou tiver só a sigla do estado ("- DF")
+  return fallback.length > 4 ? fallback : null
 }
 
 export async function GET(request: Request) {
