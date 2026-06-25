@@ -302,8 +302,15 @@ function CardKpi({
   linkLabel?: string
   destaque?: boolean
 }) {
+  const classes = [
+    href ? "card-interactive" : "",
+    destaque ? "border-primary/40 bg-primary/5" : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+
   return (
-    <Card className={destaque ? "border-primary/40 bg-primary/5" : undefined}>
+    <Card className={classes || undefined}>
       <CardContent className="flex flex-col gap-3 p-5">
         <div className="flex items-center gap-3">
           <div className="rounded-full bg-primary/10 p-2.5">{icone}</div>
