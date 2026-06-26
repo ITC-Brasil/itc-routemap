@@ -21,13 +21,28 @@ GitHub (main)
 
 ---
 
+## Domínio de produção
+
+| Ambiente | URL |
+|----------|-----|
+| **Produção** | `https://routemap.grupoitcbrasil.com.br` |
+| Desenvolvimento local | `http://localhost:3000` |
+
+O domínio de produção é gerenciado via DNS do Grupo ITC Brasil apontando para a Vercel. Para adicionar ou renovar o domínio: **Vercel Dashboard > Project > Settings > Domains**.
+
+> A chave `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` deve ter restrição de HTTP referrer configurada no Google Cloud Console para os padrões:
+> - `https://routemap.grupoitcbrasil.com.br/*`
+> - `http://localhost:3000/*` (desenvolvimento)
+
+---
+
 ## Vercel
 
 O projeto é hospedado na Vercel com deploy automático via integração com o repositório GitHub.
 
 ### Deploy automático
 
-- Push para `main` → deploy de produção automático
+- Push para `main` → deploy de produção automático em `https://routemap.grupoitcbrasil.com.br`
 - Pull requests → deploy de preview automático (URL única por PR)
 
 ### Variáveis de ambiente na Vercel
