@@ -49,6 +49,7 @@ import {
   type ModoTransporte,
   type Rota,
 } from "@/lib/firestore/rotas"
+import { listarProjetos } from "@/lib/firestore/projetos"
 import {
   IconeModo,
   MODOS_SELECIONAVEIS,
@@ -96,21 +97,30 @@ function formatarDataPorExtenso(data: Date): string {
   })
 }
 
-function gerarTextoRota(rota: Rota, dataLote: Date, transitSteps?: TransitStep[]): string {
+const EMOJI_MODO: Record<ModoTransporte, string> = {
+  DRIVE: "🚗",
+  TWO_WHEELER: "🏍️",
+  WALK: "🚶",
+  BICYCLE: "🚲",
+  TRANSIT: "🚌",
+}
+
+function gerarTextoRota(
+  rota: Rota,
+  projetoSigla: string,
+  transitSteps?: TransitStep[]
+): string {
   const metrica = rota.metricas[rota.modoPrincipal]
   const tempo = metrica ? formatarDuracao(metrica.duracaoSegundos) : "Não calculado"
   const distancia = metrica ? formatarDistancia(metrica.distanciaMetros) : "Não calculada"
+  const emoji = EMOJI_MODO[rota.modoPrincipal] ?? "🚗"
 
-  let texto = `🗓️ *Alocação ITC RouteMap*
-📅 ${formatarDataPorExtenso(dataLote)}
-
-👤 *Técnico:* ${rota.tecnicoNome}
-🏢 *Projeto:* ${rota.projetoId} — ${rota.umNome}
-📍 *Localização da UM:* ${rota.destino.endereco}
-🗺️ *Ver no Maps:* https://www.google.com/maps?q=${rota.destino.latitude},${rota.destino.longitude}
-
-🚌 *Modo de transporte:* ${nomeAmigavelModo(rota.modoPrincipal)}
-⏱️ *Tempo estimado:* ${tempo}
+  let texto = `👤 *Técnico:* ${rota.tecnicoNome}
+🏢 *Projeto:* ${projetoSigla} — ${rota.umNome}
+📍 *Localização:* ${rota.destino.endereco}
+🗺️ *Maps:* https://www.google.com/maps?q=${rota.destino.latitude},${rota.destino.longitude}
+${emoji} *Transporte:* ${nomeAmigavelModo(rota.modoPrincipal)}
+⏱️ *Tempo:* ${tempo}
 📏 *Distância:* ${distancia}`
 
   if (rota.modoPrincipal === "TRANSIT") {
@@ -120,12 +130,9 @@ function gerarTextoRota(rota: Rota, dataLote: Date, transitSteps?: TransitStep[]
       for (const step of stepsTransit) {
         texto += `\n🚌 Linha ${step.linha ?? "?"} → ${step.rumo ?? "?"}\n   📍 Embarque: ${step.paradaSaida ?? "?"} (${step.saida ?? "?"})\n   📍 Desembarque: ${step.paradaChegada ?? "?"} (${step.chegada ?? "?"})\n   🔢 ${step.numParadas ?? "?"} paradas`
       }
-    } else {
-      texto += `\nℹ️ Para ver o trajeto detalhado, abra o RouteMap.`
     }
   }
 
-  texto += `\n\n_Enviado via ITC RouteMap_`
   return texto
 }
 
@@ -173,6 +180,9 @@ export default function DetalheLotePage() {
   // Modal de cancelamento
   const [mostrarCancelar, setMostrarCancelar] = useState(false)
 
+  // projetoId → sigla (carregado uma vez para uso no compartilhamento)
+  const [projetosSiglas, setProjetosSiglas] = useState<Map<string, string>>(new Map())
+
   // ====== Carregamento inicial ======
   useEffect(() => {
     let cancelado = false
@@ -218,6 +228,13 @@ export default function DetalheLotePage() {
     }
 
     carregar()
+    listarProjetos()
+      .then((lista) => {
+        const m = new Map<string, string>()
+        for (const p of lista) m.set(p.id, p.sigla)
+        setProjetosSiglas(m)
+      })
+      .catch(() => {/* sigla fica vazia, exibe projetoId como fallback */})
     return () => {
       cancelado = true
     }
@@ -446,9 +463,10 @@ export default function DetalheLotePage() {
   }
 
   const handleCompartilharLote = async () => {
-    const data = rotas[0]?.criadoEm ? rotas[0].criadoEm.toDate() : new Date()
-    const textos = rotas.map((r) => gerarTextoRota(r, data))
-    await copiarParaClipboard(textos.join("\n\n"))
+    const textos = rotas.map((r) =>
+      gerarTextoRota(r, projetosSiglas.get(r.projetoId) ?? r.projetoId)
+    )
+    await copiarParaClipboard(textos.join("\n──────────────────\n"))
     toast.success("Copiado! Cole no WhatsApp. 📋")
   }
 
@@ -616,7 +634,7 @@ export default function DetalheLotePage() {
                 // Q1: contexto pra explicação algorítmica + replicar justificativa
                 todasRotasLote={rotas}
                 justificativaLote={justificativaLote}
-                dataLote={dataLote}
+                projetoSigla={projetosSiglas.get(rota.projetoId) ?? rota.projetoId}
               />
             )
           })}
@@ -786,7 +804,7 @@ function LinhaRotaHistorico({
   onTrocarModo,
   todasRotasLote,
   justificativaLote,
-  dataLote,
+  projetoSigla,
 }: {
   rota: Rota
   ordem: number
@@ -800,7 +818,7 @@ function LinhaRotaHistorico({
   // Q1: contexto pra explicação algorítmica + replicar justificativa
   todasRotasLote: Rota[]
   justificativaLote: string
-  dataLote: Date
+  projetoSigla: string
 }) {
   // Q1: calcula explicação algorítmica baseada no modoPrincipal SALVO da rota
   // (que é o modo original do Húngaro, não o que o usuário trocou no seletor).
@@ -949,7 +967,7 @@ function LinhaRotaHistorico({
                 className="gap-2"
                 onClick={() => {
                   const steps = rotaEntry?.estado === "ok" ? rotaEntry.transitSteps : undefined
-                  void copiarParaClipboard(gerarTextoRota(rota, dataLote, steps)).then(() => {
+                  void copiarParaClipboard(gerarTextoRota(rota, projetoSigla, steps)).then(() => {
                     toast.success("Copiado! Cole no WhatsApp. 📋")
                   })
                 }}
