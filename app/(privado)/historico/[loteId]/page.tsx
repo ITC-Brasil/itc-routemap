@@ -26,10 +26,12 @@ import {
   Clock,
   Hand,
   RefreshCw,
+  Share2,
   Sparkles,
   Timer,
   Users,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -81,6 +83,65 @@ type RotaCacheEntry =
   | { estado: "erro"; mensagem: string }
 
 // MODOS_SELECIONAVEIS importado de @/lib/modos-transporte
+
+// ============================================================
+// HELPERS DE COMPARTILHAMENTO
+// ============================================================
+
+function formatarDataPorExtenso(data: Date): string {
+  return data.toLocaleDateString("pt-BR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  })
+}
+
+function gerarTextoRota(rota: Rota, dataLote: Date, transitSteps?: TransitStep[]): string {
+  const metrica = rota.metricas[rota.modoPrincipal]
+  const tempo = metrica ? formatarDuracao(metrica.duracaoSegundos) : "Não calculado"
+  const distancia = metrica ? formatarDistancia(metrica.distanciaMetros) : "Não calculada"
+
+  let texto = `🗓️ *Alocação ITC RouteMap*
+📅 ${formatarDataPorExtenso(dataLote)}
+
+👤 *Técnico:* ${rota.tecnicoNome}
+🏢 *Projeto:* ${rota.projetoId} — ${rota.umNome}
+📍 *Localização da UM:* ${rota.destino.endereco}
+🗺️ *Ver no Maps:* https://www.google.com/maps?q=${rota.destino.latitude},${rota.destino.longitude}
+
+🚌 *Modo de transporte:* ${nomeAmigavelModo(rota.modoPrincipal)}
+⏱️ *Tempo estimado:* ${tempo}
+📏 *Distância:* ${distancia}`
+
+  if (rota.modoPrincipal === "TRANSIT") {
+    const stepsTransit = (transitSteps ?? []).filter((s) => s.tipo === "transit")
+    if (stepsTransit.length > 0) {
+      texto += `\n\n🚏 *Trajeto de transporte público:*`
+      for (const step of stepsTransit) {
+        texto += `\n🚌 Linha ${step.linha ?? "?"} → ${step.rumo ?? "?"}\n   📍 Embarque: ${step.paradaSaida ?? "?"} (${step.saida ?? "?"})\n   📍 Desembarque: ${step.paradaChegada ?? "?"} (${step.chegada ?? "?"})\n   🔢 ${step.numParadas ?? "?"} paradas`
+      }
+    } else {
+      texto += `\nℹ️ Para ver o trajeto detalhado, abra o RouteMap.`
+    }
+  }
+
+  texto += `\n\n_Enviado via ITC RouteMap_`
+  return texto
+}
+
+async function copiarParaClipboard(texto: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(texto)
+  } catch {
+    const el = document.createElement("textarea")
+    el.value = texto
+    el.style.cssText = "position:fixed;opacity:0"
+    document.body.appendChild(el)
+    el.select()
+    document.execCommand("copy")
+    document.body.removeChild(el)
+  }
+}
 
 // ============================================================
 // PÁGINA
@@ -384,6 +445,13 @@ export default function DetalheLotePage() {
     if (rota) void carregarRotaDetalhada(rota, novoModo)
   }
 
+  const handleCompartilharLote = async () => {
+    const data = rotas[0]?.criadoEm ? rotas[0].criadoEm.toDate() : new Date()
+    const textos = rotas.map((r) => gerarTextoRota(r, data))
+    await copiarParaClipboard(textos.join("\n\n"))
+    toast.success("Copiado! Cole no WhatsApp. 📋")
+  }
+
   const recarregarAposCancelamento = async () => {
     try {
       const lista = await listarRotasPorLote(loteId)
@@ -488,15 +556,25 @@ export default function DetalheLotePage() {
             </p>
           </div>
 
-          {podeCancelar && (
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
-              onClick={() => setMostrarCancelar(true)}
-              className="gap-2 text-destructive hover:text-destructive"
+              onClick={() => void handleCompartilharLote()}
+              className="gap-2"
             >
-              Cancelar lote
+              <Share2 className="h-4 w-4" />
+              Compartilhar
             </Button>
-          )}
+            {podeCancelar && (
+              <Button
+                variant="outline"
+                onClick={() => setMostrarCancelar(true)}
+                className="gap-2 text-destructive hover:text-destructive"
+              >
+                Cancelar lote
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -538,6 +616,7 @@ export default function DetalheLotePage() {
                 // Q1: contexto pra explicação algorítmica + replicar justificativa
                 todasRotasLote={rotas}
                 justificativaLote={justificativaLote}
+                dataLote={dataLote}
               />
             )
           })}
@@ -707,6 +786,7 @@ function LinhaRotaHistorico({
   onTrocarModo,
   todasRotasLote,
   justificativaLote,
+  dataLote,
 }: {
   rota: Rota
   ordem: number
@@ -720,6 +800,7 @@ function LinhaRotaHistorico({
   // Q1: contexto pra explicação algorítmica + replicar justificativa
   todasRotasLote: Rota[]
   justificativaLote: string
+  dataLote: Date
 }) {
   // Q1: calcula explicação algorítmica baseada no modoPrincipal SALVO da rota
   // (que é o modo original do Húngaro, não o que o usuário trocou no seletor).
@@ -859,6 +940,23 @@ function LinhaRotaHistorico({
                   </span>
                 </div>
               )}
+            </div>
+
+            <div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  const steps = rotaEntry?.estado === "ok" ? rotaEntry.transitSteps : undefined
+                  void copiarParaClipboard(gerarTextoRota(rota, dataLote, steps)).then(() => {
+                    toast.success("Copiado! Cole no WhatsApp. 📋")
+                  })
+                }}
+              >
+                <Share2 className="h-4 w-4" />
+                Compartilhar esta rota
+              </Button>
             </div>
 
             <div className="flex flex-col gap-4 lg:flex-row">
