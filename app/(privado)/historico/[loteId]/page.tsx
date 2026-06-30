@@ -25,6 +25,7 @@ import {
   ChevronUp,
   Clock,
   Hand,
+  Loader2,
   RefreshCw,
   Share2,
   Sparkles,
@@ -50,6 +51,7 @@ import {
   type Rota,
 } from "@/lib/firestore/rotas"
 import { listarProjetos } from "@/lib/firestore/projetos"
+import { buscarPonto } from "@/lib/firestore/pontos"
 import {
   IconeModo,
   MODOS_SELECIONAVEIS,
@@ -97,6 +99,19 @@ function formatarDataPorExtenso(data: Date): string {
   })
 }
 
+async function buscarReferenciaPontos(
+  rotas: Rota[]
+): Promise<Map<string, string>> {
+  const resultados = await Promise.all(
+    rotas.map((r) => buscarPonto(r.pontoId).catch(() => null))
+  )
+  const mapa = new Map<string, string>()
+  for (let i = 0; i < rotas.length; i++) {
+    mapa.set(rotas[i].pontoId, resultados[i]?.referencia ?? "")
+  }
+  return mapa
+}
+
 const EMOJI_MODO: Record<ModoTransporte, string> = {
   DRIVE: "🚗",
   TWO_WHEELER: "🏍️",
@@ -108,16 +123,18 @@ const EMOJI_MODO: Record<ModoTransporte, string> = {
 function gerarTextoRota(
   rota: Rota,
   projetoSigla: string,
+  referencia?: string,
   transitSteps?: TransitStep[]
 ): string {
   const metrica = rota.metricas[rota.modoPrincipal]
   const tempo = metrica ? formatarDuracao(metrica.duracaoSegundos) : "Não calculado"
   const distancia = metrica ? formatarDistancia(metrica.distanciaMetros) : "Não calculada"
   const emoji = EMOJI_MODO[rota.modoPrincipal] ?? "🚗"
+  const linhaReferencia = referencia?.trim() ? `\n🏷️ *Referência:* ${referencia.trim()}` : ""
 
   let texto = `👤 *Técnico:* ${rota.tecnicoNome}
 🏢 *Projeto:* ${projetoSigla} — ${rota.umNome}
-📍 *Localização:* ${rota.destino.endereco}
+📍 *Localização:* ${rota.destino.endereco}${linhaReferencia}
 🗺️ *Maps:* https://www.google.com/maps?q=${rota.destino.latitude},${rota.destino.longitude}
 ${emoji} *Transporte:* ${nomeAmigavelModo(rota.modoPrincipal)}
 ⏱️ *Tempo:* ${tempo}
@@ -182,6 +199,9 @@ export default function DetalheLotePage() {
 
   // projetoId → sigla (carregado uma vez para uso no compartilhamento)
   const [projetosSiglas, setProjetosSiglas] = useState<Map<string, string>>(new Map())
+
+  // loading do botão "Compartilhar lote inteiro"
+  const [compartilhandoLote, setCompartilhandoLote] = useState(false)
 
   // ====== Carregamento inicial ======
   useEffect(() => {
@@ -463,11 +483,21 @@ export default function DetalheLotePage() {
   }
 
   const handleCompartilharLote = async () => {
-    const textos = rotas.map((r) =>
-      gerarTextoRota(r, projetosSiglas.get(r.projetoId) ?? r.projetoId)
-    )
-    await copiarParaClipboard(textos.join("\n──────────────────\n"))
-    toast.success("Copiado! Cole no WhatsApp. 📋")
+    setCompartilhandoLote(true)
+    try {
+      const referencias = await buscarReferenciaPontos(rotas)
+      const textos = rotas.map((r) =>
+        gerarTextoRota(
+          r,
+          projetosSiglas.get(r.projetoId) ?? r.projetoId,
+          referencias.get(r.pontoId)
+        )
+      )
+      await copiarParaClipboard(textos.join("\n──────────────────\n"))
+      toast.success("Copiado! Cole no WhatsApp. 📋")
+    } finally {
+      setCompartilhandoLote(false)
+    }
   }
 
   const recarregarAposCancelamento = async () => {
@@ -578,9 +608,14 @@ export default function DetalheLotePage() {
             <Button
               variant="outline"
               onClick={() => void handleCompartilharLote()}
+              disabled={compartilhandoLote}
               className="gap-2"
             >
-              <Share2 className="h-4 w-4" />
+              {compartilhandoLote ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Share2 className="h-4 w-4" />
+              )}
               Compartilhar
             </Button>
             {podeCancelar && (
@@ -820,6 +855,8 @@ function LinhaRotaHistorico({
   justificativaLote: string
   projetoSigla: string
 }) {
+  const [compartilhando, setCompartilhando] = useState(false)
+
   // Q1: calcula explicação algorítmica baseada no modoPrincipal SALVO da rota
   // (que é o modo original do Húngaro, não o que o usuário trocou no seletor).
   // Pra cada rota do lote, pega o tempo no MESMO modoPrincipal pra comparar.
@@ -964,15 +1001,27 @@ function LinhaRotaHistorico({
               <Button
                 variant="outline"
                 size="sm"
+                disabled={compartilhando}
                 className="gap-2"
                 onClick={() => {
-                  const steps = rotaEntry?.estado === "ok" ? rotaEntry.transitSteps : undefined
-                  void copiarParaClipboard(gerarTextoRota(rota, projetoSigla, steps)).then(() => {
-                    toast.success("Copiado! Cole no WhatsApp. 📋")
-                  })
+                  setCompartilhando(true)
+                  buscarPonto(rota.pontoId)
+                    .then((ponto) => {
+                      const steps = rotaEntry?.estado === "ok" ? rotaEntry.transitSteps : undefined
+                      return copiarParaClipboard(
+                        gerarTextoRota(rota, projetoSigla, ponto?.referencia, steps)
+                      )
+                    })
+                    .then(() => toast.success("Copiado! Cole no WhatsApp. 📋"))
+                    .catch(() => toast.error("Erro ao copiar."))
+                    .finally(() => setCompartilhando(false))
                 }}
               >
-                <Share2 className="h-4 w-4" />
+                {compartilhando ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Share2 className="h-4 w-4" />
+                )}
                 Compartilhar esta rota
               </Button>
             </div>
