@@ -58,7 +58,7 @@ export function Combobox({
   )
 
   return (
-    <Popover open={aberto} onOpenChange={setAberto}>
+    <Popover open={aberto} onOpenChange={setAberto} modal={false}>
       <PopoverTrigger asChild>
         <Button
           id={id}
