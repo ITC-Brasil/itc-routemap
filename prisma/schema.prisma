@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id           String   @id @default(cuid())
+  nome         String
+  email        String   @unique
+  senhaHash    String
+  papel        String   @default("operador")
+  ativo        Boolean  @default(true)
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  @@map("usuarios")
+}
+
+model Projeto {
+  id        String   @id @default(cuid())
+  nome      String
+  sigla     String   @unique
+  cor       String   @default("#008F95")
+  ativo     Boolean  @default(true)
+  pontos    Ponto[]
+  rotas     Rota[]
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  @@map("projetos")
+}
+
+model Ra {
+  id     String  @id @default(cuid())
+  nome   String  @unique
+  cor    String  @default("#008F95")
+  pontos Ponto[]
+  @@map("ras")
+}
+
+model Tecnico {
+  id              String   @id @default(cuid())
+  nome            String
+  cor             String   @default("#008F95")
+  endereco        String
+  pontoReferencia String?
+  plusCode        String?
+  latitude        Float?
+  longitude       Float?
+  modoPrincipal   String?
+  ativo           Boolean  @default(true)
+  rotas           Rota[]
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  @@map("tecnicos")
+}
+
+model Ponto {
+  id         String  @id @default(cuid())
+  projetoId  String
+  raId       String?
+  umNome     String
+  raNome     String
+  ciclo      Int
+  etapa      Int
+  endereco   String
+  referencia String?
+  plusCode   String?
+  latitude   Float?
+  longitude  Float?
+  status     String  @default("Pendente")
+  tecnicoId  String?
+  rotaId     String?
+  projeto    Projeto  @relation(fields: [projetoId], references: [id])
+  ra         Ra?      @relation(fields: [raId], references: [id])
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  @@map("pontos")
+}
+
+model Rota {
+  id               String  @id @default(cuid())
+  loteId           String
+  loteOrdem        Int
+  loteJustificativa String  @default("")
+  origemDecisao    String  @default("auto")
+  tecnicoId        String
+  tecnicoNome      String
+  pontoId          String
+  umNome           String
+  projetoId        String
+  projetoSigla     String  @default("")
+  origemEndereco   String
+  origemLatitude   Float
+  origemLongitude  Float
+  destinoEndereco  String
+  destinoLatitude  Float
+  destinoLongitude Float
+  metricas         Json    @default("{}")
+  modoPrincipal    String
+  status           String  @default("Sugerida")
+  realocadaDe      String?
+  tecnico          Tecnico @relation(fields: [tecnicoId], references: [id])
+  projeto          Projeto @relation(fields: [projetoId], references: [id])
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  @@index([loteId, loteOrdem])
+  @@index([status, criadoEm])
+  @@map("rotas")
+}

@@ -47,3 +47,13 @@ playwright-report/
 test-results/
 
 graphify-out/
+
+/lib/generated/prisma
+
+# docker
+.env.docker
+!.env.docker.example
+nginx/certs/
+
+# graphify
+.graphify/
