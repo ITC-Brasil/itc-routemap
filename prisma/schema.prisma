@@ -31,8 +31,6 @@ model Projeto {
   sheetUrl            String    @default("")
   sheetAbas           String[]  @default([])
   ultimaSincronizacao DateTime?
-  pontos              Ponto[]
-  rotas               Rota[]
   criadoEm            DateTime  @default(now())
   atualizadoEm        DateTime  @updatedAt
 
@@ -43,7 +41,6 @@ model Ra {
   id       String   @id @default(cuid())
   nome     String   @unique
   cor      String   @default("#008F95")
-  pontos   Ponto[]
   criadoEm DateTime @default(now())
 
   @@map("ras")
@@ -60,7 +57,6 @@ model Tecnico {
   longitude       Float?
   modoPrincipal   String?
   ativo           Boolean  @default(true)
-  rotas           Rota[]
   criadoEm        DateTime @default(now())
   atualizadoEm    DateTime @updatedAt
 
@@ -88,8 +84,6 @@ model Ponto {
   hashMd5              String   @default("")
   tecnicoId            String?
   rotaId               String?
-  projeto              Projeto  @relation(fields: [projetoId], references: [id])
-  ra                   Ra?      @relation(fields: [raId], references: [id])
   criadoEm             DateTime @default(now())
   atualizadoEm         DateTime @updatedAt
 
@@ -120,8 +114,6 @@ model Rota {
   modoPrincipal     String
   status            String   @default("Sugerida")
   realocadaDe       String?
-  tecnico           Tecnico  @relation(fields: [tecnicoId], references: [id])
-  projeto           Projeto  @relation(fields: [projetoId], references: [id])
   criadoEm          DateTime @default(now())
   atualizadoEm      DateTime @updatedAt
 
