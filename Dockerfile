@@ -7,6 +7,11 @@ COPY package*.json ./
 RUN npm ci
 
 FROM base AS builder
+# NEXT_PUBLIC_*: o Next embute no bundle do browser em BUILD-time,
+# por isso chega como build arg (compose: build.args), não como
+# environment de runtime.
+ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
