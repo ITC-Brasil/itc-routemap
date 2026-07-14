@@ -22,24 +22,29 @@ model Usuario {
 }
 
 model Projeto {
-  id           String   @id @default(cuid())
-  nome         String
-  sigla        String   @unique
-  cor          String   @default("#008F95")
-  ativo        Boolean  @default(true)
-  pontos       Ponto[]
-  rotas        Rota[]
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  nome                String
+  sigla               String    @unique
+  cor                 String    @default("#008F95")
+  ativo               Boolean   @default(true)
+  sheetId             String    @default("")
+  sheetUrl            String    @default("")
+  sheetAbas           String[]  @default([])
+  ultimaSincronizacao DateTime?
+  pontos              Ponto[]
+  rotas               Rota[]
+  criadoEm            DateTime  @default(now())
+  atualizadoEm        DateTime  @updatedAt
 
   @@map("projetos")
 }
 
 model Ra {
-  id     String  @id @default(cuid())
-  nome   String  @unique
-  cor    String  @default("#008F95")
-  pontos Ponto[]
+  id       String   @id @default(cuid())
+  nome     String   @unique
+  cor      String   @default("#008F95")
+  pontos   Ponto[]
+  criadoEm DateTime @default(now())
 
   @@map("ras")
 }
@@ -63,26 +68,33 @@ model Tecnico {
 }
 
 model Ponto {
-  id           String   @id @default(cuid())
-  projetoId    String
-  raId         String?
-  umNome       String
-  raNome       String
-  ciclo        Int
-  etapa        Int
-  endereco     String
-  referencia   String?
-  plusCode     String?
-  latitude     Float?
-  longitude    Float?
-  status       String   @default("Pendente")
-  tecnicoId    String?
-  rotaId       String?
-  projeto      Projeto  @relation(fields: [projetoId], references: [id])
-  ra           Ra?      @relation(fields: [raId], references: [id])
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  projetoId            String
+  raId                 String?
+  linhaOrigem          Int      @default(0)
+  umNome               String
+  raNome               String
+  ciclo                Int
+  etapa                Int
+  tecnicoNomeHistorico String   @default("")
+  uf                   String   @default("")
+  endereco             String
+  referencia           String?
+  plusCode             String?
+  linkMaps             String   @default("")
+  latitude             Float?
+  longitude            Float?
+  status               String   @default("Pendente")
+  hashMd5              String   @default("")
+  tecnicoId            String?
+  rotaId               String?
+  projeto              Projeto  @relation(fields: [projetoId], references: [id])
+  ra                   Ra?      @relation(fields: [raId], references: [id])
+  criadoEm             DateTime @default(now())
+  atualizadoEm         DateTime @updatedAt
 
+  @@index([projetoId])
+  @@index([raNome])
   @@map("pontos")
 }
 
