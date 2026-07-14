@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { signInWithPopup } from "firebase/auth"
-import { auth, googleProvider } from "@/lib/firebase"
-import { logout, verificarConvite } from "@/lib/auth"
+import { useEffect, useState, type FormEvent } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { signIn, signUp } from "@/lib/auth-client"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Card,
   CardContent,
@@ -16,23 +16,39 @@ import {
 } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
-const ERRO_STORAGE_KEY = "itc_login_erro"
+const MSG_SEM_CONVITE =
+  "Você não tem um convite válido. Solicite ao administrador."
+
+/**
+ * Mapeia códigos de erro que o Better Auth devolve via query string
+ * (fluxo social/Google) para mensagens amigáveis.
+ */
+function mensagemDoErroQuery(codigo: string): string {
+  if (codigo === "unable_to_create_user") return MSG_SEM_CONVITE
+  if (codigo === "access_denied") return "Login cancelado. Tente novamente."
+  return "Erro ao fazer login. Tente novamente."
+}
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
+
   const [loading, setLoading] = useState(false)
-  // Lazy initial state: lê o erro persistido do sessionStorage UMA VEZ no
-// mount. Evita o anti-pattern "useEffect + setState" que o React 19 alerta.
-const [error, setError] = useState<string | null>(() => {
-  if (typeof window === "undefined") return null
-  const erroSalvo = sessionStorage.getItem(ERRO_STORAGE_KEY)
-  if (erroSalvo) {
-    sessionStorage.removeItem(ERRO_STORAGE_KEY)
-    return erroSalvo
-  }
-  return null
-})
+  // Modo do formulário: login normal ou primeiro acesso (cria a conta e
+  // consome o convite no servidor)
+  const [primeiroAcesso, setPrimeiroAcesso] = useState(false)
+
+  const [nome, setNome] = useState("")
+  const [email, setEmail] = useState("")
+  const [senha, setSenha] = useState("")
+
+  // Erro vindo do redirect do fluxo Google (ex.: convite inválido) é lido
+  // da query string uma única vez no mount.
+  const [error, setError] = useState<string | null>(() => {
+    const codigo = searchParams.get("error")
+    return codigo ? mensagemDoErroQuery(codigo) : null
+  })
 
   // Redireciona pra home APENAS se logado E sem erro ativo
   useEffect(() => {
@@ -44,41 +60,50 @@ const [error, setError] = useState<string | null>(() => {
   const handleGoogleLogin = async () => {
     setLoading(true)
     setError(null)
+    // Fluxo por redirect: se o servidor recusar a criação da conta
+    // (sem convite), o Better Auth volta pra /login?error=...
+    const { error: erro } = await signIn.social({
+      provider: "google",
+      callbackURL: "/",
+      errorCallbackURL: "/login",
+    })
+    if (erro) {
+      setError(erro.message ?? "Erro ao fazer login. Tente novamente.")
+      setLoading(false)
+    }
+  }
+
+  const handleSubmitEmail = async (e: FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
 
     try {
-      const result = await signInWithPopup(auth, googleProvider)
-      const usuario = result.user
-
-      const resultadoConvite = await verificarConvite(usuario)
-
-      if (!resultadoConvite.autorizado) {
-        const mensagem = resultadoConvite.mensagem ?? "Acesso não autorizado."
-
-        // Salva o erro no sessionStorage ANTES do logout
-        // Assim sobrevive à remontagem do componente
-        sessionStorage.setItem(ERRO_STORAGE_KEY, mensagem)
-
-        await logout()
-
-        // Força reload da própria página pra ler o erro do sessionStorage
-        window.location.href = "/login"
-        return
+      if (primeiroAcesso) {
+        const { error: erro } = await signUp.email({
+          name: nome.trim(),
+          email: email.trim(),
+          password: senha,
+        })
+        if (erro) {
+          setError(erro.message ?? MSG_SEM_CONVITE)
+          return
+        }
+      } else {
+        const { error: erro } = await signIn.email({
+          email: email.trim(),
+          password: senha,
+        })
+        if (erro) {
+          setError(
+            erro.status === 401
+              ? "Email ou senha incorretos."
+              : erro.message ?? "Erro ao fazer login. Tente novamente."
+          )
+          return
+        }
       }
-
       router.push("/")
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err)
-
-      let mensagem = "Erro ao fazer login. Tente novamente."
-      if (errorMessage.includes("popup-closed-by-user")) {
-        mensagem = "Login cancelado. Tente novamente."
-      } else if (errorMessage.includes("unauthorized-domain")) {
-        mensagem = "Este domínio não está autorizado. Contate o administrador."
-      } else if (errorMessage.includes("network-request-failed")) {
-        mensagem = "Erro de conexão. Verifique sua internet."
-      }
-
-      setError(mensagem)
     } finally {
       setLoading(false)
     }
@@ -134,38 +159,108 @@ const [error, setError] = useState<string | null>(() => {
           <Button
             onClick={handleGoogleLogin}
             disabled={loading}
+            variant="outline"
             className="w-full gap-3"
             size="lg"
           >
-            {loading ? (
-              <span>Entrando...</span>
-            ) : (
-              <>
-                <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09 0-.73.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-                Entrar com Google
-              </>
-            )}
+            <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="currentColor"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="currentColor"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09 0-.73.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+              />
+              <path
+                fill="currentColor"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              />
+            </svg>
+            Entrar com Google
           </Button>
 
+          {/* Separador */}
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+              ou
+            </span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          {/* Formulário email/senha */}
+          <form onSubmit={handleSubmitEmail} className="space-y-4">
+            {primeiroAcesso && (
+              <div className="space-y-2">
+                <Label htmlFor="nome">Nome</Label>
+                <Input
+                  id="nome"
+                  type="text"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  placeholder="Seu nome completo"
+                  required
+                  autoComplete="name"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="voce@grupoitcbrasil.com.br"
+                required
+                autoComplete="email"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="senha">Senha</Label>
+              <Input
+                id="senha"
+                type="password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={8}
+                autoComplete={primeiroAcesso ? "new-password" : "current-password"}
+              />
+            </div>
+
+            <Button type="submit" disabled={loading} className="w-full" size="lg">
+              {loading
+                ? "Entrando..."
+                : primeiroAcesso
+                  ? "Criar conta com convite"
+                  : "Entrar"}
+            </Button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => {
+              setPrimeiroAcesso((v) => !v)
+              setError(null)
+            }}
+            className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
+          >
+            {primeiroAcesso
+              ? "Já tem conta? Entrar"
+              : "Primeiro acesso? Criar conta com convite"}
+          </button>
+
           <p className="text-center text-xs text-muted-foreground">
-            Acesso restrito a administradores autorizados.
+            Acesso restrito a usuários autorizados.
             <br />
             Solicite um convite ao administrador do sistema.
           </p>

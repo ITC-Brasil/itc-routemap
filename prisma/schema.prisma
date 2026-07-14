@@ -8,17 +8,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Usuario {
-  id           String   @id @default(cuid())
-  nome         String
-  email        String   @unique
-  senhaHash    String
-  papel        String   @default("operador")
-  ativo        Boolean  @default(true)
-  criadoEm     DateTime @default(now())
-  atualizadoEm DateTime @updatedAt
+model Convite {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  status       String    @default("ativo") // "ativo" | "consumido" | "revogado"
+  expiraEm     DateTime
+  consumidoEm  DateTime?
+  consumidoPor String?
+  criadoEm     DateTime  @default(now())
+  criadoPor    String?
 
-  @@map("usuarios")
+  @@map("convites")
 }
 
 model Projeto {
@@ -142,6 +142,7 @@ model User {
   email         String
   emailVerified Boolean   @default(false)
   image         String?
+  papel         String    @default("operador") // "admin" | "operador"
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      Session[]

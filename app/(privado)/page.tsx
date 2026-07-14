@@ -136,7 +136,7 @@ export default function InicioPage() {
           {saudacao}
         </p>
         <h1 className="mt-1 font-heading text-4xl">
-          {user?.displayName ?? "Administrador"}
+          {user?.name ?? "Administrador"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {new Date().toLocaleDateString("pt-BR", {
