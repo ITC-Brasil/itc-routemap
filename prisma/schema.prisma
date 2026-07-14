@@ -46,6 +46,20 @@ model Ra {
   @@map("ras")
 }
 
+model Um {
+  id             String   @id @default(cuid())
+  nome           String
+  cor            String   @default("#008F95")
+  projetoId      String
+  tecnicoAtualId String?
+  raAtualId      String?
+  criadoEm       DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+
+  @@index([projetoId])
+  @@map("ums")
+}
+
 model Tecnico {
   id              String   @id @default(cuid())
   nome            String
