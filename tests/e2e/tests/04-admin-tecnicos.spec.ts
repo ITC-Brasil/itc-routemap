@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test"
 
 test.describe("Admin — Técnicos", () => {
-  test.use({ storageState: "e2e/.auth/user.json" })
+  test.use({ storageState: "tests/e2e/.auth/user.json" })
   test.skip(!!process.env.CI, "Requer auth e Firebase real")
 
   test.beforeEach(async ({ page }) => {

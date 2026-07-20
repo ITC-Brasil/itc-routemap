@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test"
 
 test.describe("Regressão — Features Críticas", () => {
-  test.use({ storageState: "e2e/.auth/user.json" })
+  test.use({ storageState: "tests/e2e/.auth/user.json" })
 
   test("RG-03: tema dark/light persiste após reload", async ({ page }) => {
     test.skip(!!process.env.CI)

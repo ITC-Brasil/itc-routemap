@@ -22,6 +22,6 @@ export async function loginComoAdmin(page: Page) {
 
 /**
  * Salva o estado de autenticação para reuso entre testes.
- * Rodar uma vez manualmente: npx playwright test e2e/setup/auth.setup.ts --headed
+ * Rodar uma vez manualmente: npx playwright test tests/e2e/setup/auth.setup.ts --headed
  */
-export const STORAGE_STATE = "e2e/.auth/user.json"
+export const STORAGE_STATE = "tests/e2e/.auth/user.json"

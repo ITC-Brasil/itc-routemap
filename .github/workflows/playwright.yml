@@ -40,8 +40,8 @@ jobs:
 
       - name: Criar storage state vazio para CI
         run: |
-          mkdir -p e2e/.auth
-          echo '{"cookies":[],"origins":[]}' > e2e/.auth/user.json
+          mkdir -p tests/e2e/.auth
+          echo '{"cookies":[],"origins":[]}' > tests/e2e/.auth/user.json
 
       - name: Executar testes E2E
         run: npx playwright test

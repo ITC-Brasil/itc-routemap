@@ -42,7 +42,7 @@ yarn-error.log*
 next-env.d.ts
 
 # playwright
-e2e/.auth/
+tests/e2e/.auth/
 playwright-report/
 test-results/
 

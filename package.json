@@ -11,9 +11,9 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
-    "test:e2e:api": "playwright test e2e/tests/api/",
-    "test:e2e:seguranca": "playwright test e2e/tests/07-seguranca.spec.ts",
-    "test:e2e:regressao": "playwright test e2e/tests/08-regressao.spec.ts",
+    "test:e2e:api": "playwright test tests/e2e/tests/api/",
+    "test:e2e:seguranca": "playwright test tests/e2e/tests/07-seguranca.spec.ts",
+    "test:e2e:regressao": "playwright test tests/e2e/tests/08-regressao.spec.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "prisma": {

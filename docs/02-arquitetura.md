@@ -67,9 +67,10 @@ itc-routemap/
 │   └── text-utils.ts            # titleCase e utilitários de texto
 ├── contexts/
 │   └── auth-context.tsx         # AuthContext (Firebase Auth)
-├── e2e/
-│   ├── tests/                   # Specs Playwright
-│   └── helpers/                 # Setup de autenticação
+├── tests/
+│   └── e2e/
+│       ├── tests/                # Specs Playwright
+│       └── helpers/              # Setup de autenticação
 ├── docs/                        # Esta documentação
 ├── firestore.indexes.json       # Índices compostos do Firestore
 ├── firestore.rules              # Regras de segurança

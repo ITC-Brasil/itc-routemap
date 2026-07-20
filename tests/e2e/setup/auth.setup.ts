@@ -8,7 +8,7 @@ setup("autenticar usuario de teste", async ({ page }) => {
   // este arquivo instrui o desenvolvedor a gerar o storage state
   // manualmente na primeira vez.
 
-  const authDir = "e2e/.auth"
+  const authDir = "tests/e2e/.auth"
   if (!fs.existsSync(authDir)) {
     fs.mkdirSync(authDir, { recursive: true })
   }
@@ -27,9 +27,9 @@ setup("autenticar usuario de teste", async ({ page }) => {
   1. Inicie o servidor: npm run dev
   2. Acesse: http://localhost:3000/login
   3. Faça login com a conta de teste Google
-  4. Execute: npx playwright test e2e/setup/auth.setup.ts --headed
+  4. Execute: npx playwright test tests/e2e/setup/auth.setup.ts --headed
 
-  Isso salvará a sessão em e2e/.auth/user.json
+  Isso salvará a sessão em tests/e2e/.auth/user.json
   ===================================================
   `)
 

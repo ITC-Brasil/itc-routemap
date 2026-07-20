@@ -12,8 +12,8 @@ Os testes que acessam Firebase precisam de um storage state de autenticação.
 
 1. Inicie o servidor: `npm run dev`
 2. Acesse `http://localhost:3000/login` e faça login com a conta de teste Google
-3. Execute: `npx playwright test e2e/setup/auth.setup.ts --headed`
-4. O arquivo `e2e/.auth/user.json` será criado automaticamente
+3. Execute: `npx playwright test tests/e2e/setup/auth.setup.ts --headed`
+4. O arquivo `tests/e2e/.auth/user.json` será criado automaticamente
 
 ## Rodar testes
 
@@ -76,7 +76,7 @@ necessárias em CI porque os testes de API que as usam fazem `test.skip` em CI.
 ## Estrutura
 
 ```
-e2e/
+tests/e2e/
 ├── helpers/
 │   ├── auth.ts          — loginComoAdmin(), STORAGE_STATE
 │   └── navigation.ts    — irPara(), esperarToast(), esperarSkeleton()
