@@ -89,14 +89,6 @@ type RotaCacheEntry =
 // HELPERS DE COMPARTILHAMENTO
 // ============================================================
 
-function formatarDataPorExtenso(data: Date): string {
-  return data.toLocaleDateString("pt-BR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
-}
-
 async function buscarReferenciaPontos(
   rotas: Rota[]
 ): Promise<Map<string, string>> {

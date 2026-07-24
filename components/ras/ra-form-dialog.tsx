@@ -42,6 +42,8 @@ export function RAFormDialog({
 
   useEffect(() => {
     if (open) {
+      // Reset intencional do form ao abrir o modal (sincroniza com a prop `ra`).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNomeCidade(ra?.nomeCidade ?? "")
       setCor(ra?.cor ?? COR_INICIAL)
     }

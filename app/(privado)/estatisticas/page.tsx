@@ -66,6 +66,8 @@ export default function EstatisticasPage() {
   }
 
   useEffect(() => {
+    // Carga inicial via server action: o setState ocorre dentro do async.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     carregar()
   }, [])
 

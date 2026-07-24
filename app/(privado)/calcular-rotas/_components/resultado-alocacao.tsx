@@ -28,8 +28,6 @@ import { useCallback, useMemo, useState } from "react"
 import {
   AlertCircle,
   ArrowLeft,
-  Bike,
-  Car,
   Check,
   ChevronDown,
   ChevronUp,

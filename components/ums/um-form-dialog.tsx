@@ -49,6 +49,8 @@ export function UMFormDialog({
 
   useEffect(() => {
     if (open) {
+      // Reset intencional do form ao abrir o modal (sincroniza com a prop `um`).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNome(um?.nome ?? "")
       setCor(um?.cor ?? COR_INICIAL)
       setProjetoId(um?.projetoId ?? "")

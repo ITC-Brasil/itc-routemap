@@ -333,11 +333,12 @@ function FluxoAlocacao({
   useEffect(() => {
     const restaurado = restaurarCalculoStorage()
     if (restaurado) {
+      // Restauracao intencional do calculo pendente no mount (lido do storage).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setResultado(restaurado)
       setEtapa("resultado")
       setBannerRestaurado(true)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 13.12: map tecnicoId → rotaAtiva (Confirmada)

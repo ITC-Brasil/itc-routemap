@@ -58,6 +58,8 @@ export function TecnicoFormDialog({
   // Reseta formulário quando o modal abre
   useEffect(() => {
     if (open) {
+      // Reset intencional do form ao abrir o modal (sincroniza com a prop `tecnico`).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNome(tecnico?.nome ?? "")
       setCor(tecnico?.cor ?? COR_PADRAO_TECNICO)
       setEndereco(tecnico?.endereco ?? "")
