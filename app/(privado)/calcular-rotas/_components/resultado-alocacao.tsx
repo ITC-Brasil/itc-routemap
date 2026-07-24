@@ -59,7 +59,7 @@ import {
 import type {
   ModoTransporte,
   OrigemDecisao,
-} from "@/lib/firestore/rotas"
+} from "@/lib/rotas-utils"
 import { MapaAlocacao, type RotaData } from "./mapa-alocacao"
 import {
   IconeModo,

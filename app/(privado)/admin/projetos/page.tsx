@@ -1,14 +1,11 @@
 "use client"
 
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import { corTextoIdeal } from "@/lib/cores"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Pencil, Plus, Trash2 } from "lucide-react"
-import {
-  listarProjetos,
-  deletarProjeto,
-  type Projeto,
-} from "@/lib/firestore/projetos"
+import { listarProjetos, deletarProjeto } from "@/lib/actions/projetos"
+import type { Projeto } from "@/lib/db/projetos"
 import { ProjetoFormDialog } from "@/components/projetos/projeto-form-dialog"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"

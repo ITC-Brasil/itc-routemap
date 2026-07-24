@@ -3,13 +3,10 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Truck, AlertCircle } from "lucide-react"
-import {
-  criarUM,
-  atualizarUM,
-  type UM,
-} from "@/lib/firestore/ums"
-import { type Projeto } from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import { criarUM, atualizarUM } from "@/lib/actions/ums"
+import type { UM } from "@/lib/db/ums"
+import type { Projeto } from "@/lib/db/projetos"
+import { corTextoIdeal } from "@/lib/cores"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,

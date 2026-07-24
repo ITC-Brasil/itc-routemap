@@ -3,14 +3,10 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { ExternalLink, FileSpreadsheet, Info } from "lucide-react"
-import {
-  criarProjeto,
-  atualizarProjeto,
-  isUrlSheetsValida,
-  ABA_PADRAO_SUGERIDA,
-  type Projeto,
-} from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import { criarProjeto, atualizarProjeto } from "@/lib/actions/projetos"
+import { isUrlSheetsValida, ABA_PADRAO_SUGERIDA } from "@/lib/sheets-utils"
+import type { Projeto } from "@/lib/db/projetos"
+import { corTextoIdeal } from "@/lib/cores"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,

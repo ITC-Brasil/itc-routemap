@@ -3,17 +3,11 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Pencil, Plus, Trash2, Truck } from "lucide-react"
-import {
-  listarUMsComProjeto,
-  deletarUM,
-  type UM,
-  type UMComProjeto,
-} from "@/lib/firestore/ums"
-import {
-  listarProjetos,
-  type Projeto,
-} from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import { listarUMsComProjeto, deletarUM } from "@/lib/actions/ums"
+import type { UM, UMComProjeto } from "@/lib/db/ums"
+import { listarProjetos } from "@/lib/actions/projetos"
+import type { Projeto } from "@/lib/db/projetos"
+import { corTextoIdeal } from "@/lib/cores"
 import { UMFormDialog } from "@/components/ums/um-form-dialog"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"

@@ -8,7 +8,7 @@
  */
 
 import { Bike, Bus, Car, PersonStanding } from "lucide-react"
-import type { ModoTransporte } from "@/lib/firestore/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
 
 /** Modos exibidos no seletor de modo (TRANSIT incluso, calculado sob demanda). */
 export const MODOS_SELECIONAVEIS: ModoTransporte[] = [

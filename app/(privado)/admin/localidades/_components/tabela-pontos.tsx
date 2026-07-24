@@ -21,9 +21,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import type { Ponto } from "@/lib/firestore/pontos"
-import type { Projeto } from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import type { Ponto } from "@/lib/db/pontos"
+import type { Projeto } from "@/lib/db/projetos"
+import { corTextoIdeal } from "@/lib/cores"
 
 const ITENS_POR_PAGINA = 20
 

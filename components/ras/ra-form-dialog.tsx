@@ -3,12 +3,9 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { MapPin } from "lucide-react"
-import {
-  criarRA,
-  atualizarRA,
-  corTextoIdeal,
-  type RA,
-} from "@/lib/firestore/ras"
+import { criarRA, atualizarRA } from "@/lib/actions/ras"
+import { corTextoIdeal } from "@/lib/cores"
+import type { RA } from "@/lib/db/ras"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,

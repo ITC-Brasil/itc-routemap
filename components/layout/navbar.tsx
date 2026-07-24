@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import Link from "next/link"
 import Image from "next/image"
@@ -31,23 +31,23 @@ import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 /**
- * Itens de menu principais (visÃ­veis na barra)
+ * Itens de menu principais (visíveis na barra)
  */
 const menusPrincipais = [
-  { href: "/", label: "InÃ­cio" },
-  { href: "/historico", label: "HistÃ³rico" },
-  { href: "/estatisticas", label: "EstatÃ­sticas" },
+  { href: "/", label: "Início" },
+  { href: "/historico", label: "Histórico" },
+  { href: "/estatisticas", label: "Estatísticas" },
   { href: "/calcular-rotas", label: "Calcular Rotas" },
 ]
 
 /**
- * Itens do dropdown "AdministraÃ§Ã£o"
+ * Itens do dropdown "Administração"
  */
 const menusAdmin = [
   { href: "/admin/projetos", label: "Projetos" },
   { href: "/admin/ums", label: "UMs" },
   { href: "/admin/localidades", label: "Localidades" },
-  { href: "/admin/tecnicos", label: "TÃ©cnicos" },
+  { href: "/admin/tecnicos", label: "Técnicos" },
 ]
 
 export function Navbar() {
@@ -60,7 +60,7 @@ export function Navbar() {
     router.replace("/login")
   }
 
-  // Iniciais do nome do usuÃ¡rio para o avatar fallback (ex: "Dev ITCBrasil" â†’ "DI")
+  // Iniciais do nome do usuário para o avatar fallback (ex: "Dev ITCBrasil" → "DI")
   const userInitials =
     user?.name
       ?.split(" ")
@@ -69,7 +69,7 @@ export function Navbar() {
       .join("")
       .toUpperCase() ?? "U"
 
-  // FunÃ§Ã£o auxiliar: a rota atual bate com o link?
+  // Função auxiliar: a rota atual bate com o link?
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href)
 
@@ -80,9 +80,9 @@ export function Navbar() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* === LADO ESQUERDO: Logo + Menus desktop === */}
         <div className="flex items-center gap-8">
-          {/* Logo institucional â€” troca light/dark via classe do next-themes */}
-          <Link href="/" className="flex items-center" aria-label="ITC RouteMap â€” InÃ­cio">
-            {/* VersÃ£o clara (fundo branco) â€” visÃ­vel no tema light */}
+          {/* Logo institucional — troca light/dark via classe do next-themes */}
+          <Link href="/" className="flex items-center" aria-label="ITC RouteMap — Início">
+            {/* Versão clara (fundo branco) — visível no tema light */}
             <Image
               src="/logos/itc_routemap-logo-white.png"
               alt="ITC RouteMap"
@@ -91,7 +91,7 @@ export function Navbar() {
               priority
               className="block h-8 w-auto dark:hidden sm:h-9"
             />
-            {/* VersÃ£o escura (fundo escuro) â€” visÃ­vel no tema dark */}
+            {/* Versão escura (fundo escuro) — visível no tema dark */}
             <Image
               src="/logos/itc_routemap-logo-dark.png"
               alt="ITC RouteMap"
@@ -118,7 +118,7 @@ export function Navbar() {
               </Link>
             ))}
 
-            {/* Dropdown AdministraÃ§Ã£o */}
+            {/* Dropdown Administração */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -130,7 +130,7 @@ export function Navbar() {
                       : "text-muted-foreground"
                   }`}
                 >
-                  AdministraÃ§Ã£o
+                  Administração
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -148,12 +148,12 @@ export function Navbar() {
           </nav>
         </div>
 
-        {/* === LADO DIREITO: Tema + UsuÃ¡rio + Mobile === */}
+        {/* === LADO DIREITO: Tema + Usuário + Mobile === */}
         <div className="flex items-center gap-2">
           {/* Toggle de tema */}
           <ThemeToggle />
 
-          {/* Menu do usuÃ¡rio (desktop) */}
+          {/* Menu do usuário (desktop) */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -194,7 +194,7 @@ export function Navbar() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Menu hambÃºrguer (mobile) */}
+          {/* Menu hambúrguer (mobile) */}
           <Sheet>
             <SheetTrigger asChild>
               <Button
@@ -213,7 +213,7 @@ export function Navbar() {
                 </SheetTitle>
               </SheetHeader>
 
-              {/* Info do usuÃ¡rio no mobile */}
+              {/* Info do usuário no mobile */}
               <div className="flex items-center gap-3 px-4 py-4">
                 <Avatar className="h-10 w-10">
                   <AvatarImage
@@ -259,7 +259,7 @@ export function Navbar() {
               <div className="flex flex-col gap-1 px-2 py-4">
                 <p className="px-3 pb-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">
                   <Settings className="mr-2 inline h-3 w-3" />
-                  AdministraÃ§Ã£o
+                  Administração
                 </p>
                 {menusAdmin.map((item) => (
                   <Link
@@ -278,7 +278,7 @@ export function Navbar() {
 
               <Separator />
 
-              {/* BotÃ£o Sair no mobile */}
+              {/* Botão Sair no mobile */}
               <div className="px-2 py-4">
                 <Button
                   onClick={handleLogout}

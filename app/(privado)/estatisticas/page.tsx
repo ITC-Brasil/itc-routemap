@@ -13,7 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { listarRotas, type Rota, type ModoTransporte } from "@/lib/firestore/rotas"
+import { listarRotas } from "@/lib/actions/rotas"
+import type { Rota } from "@/lib/db/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
 import { IconeModo } from "@/lib/modos-transporte"
 import { formatarDuracao, nomeAmigavelModo } from "@/app/(privado)/historico/_components/historico-formatters"
 
@@ -131,7 +133,7 @@ export default function EstatisticasPage() {
 
     for (const r of rotas) {
       if (!r.umNome) continue
-      const data = r.criadoEm?.toDate() ?? null
+      const data = r.criadoEm ?? null
       const existing = mapa.get(r.umNome)
       if (!existing) {
         mapa.set(r.umNome, { raNome: r.destino?.endereco?.split(",")[0] ?? "", visitas: 1, ultima: data })

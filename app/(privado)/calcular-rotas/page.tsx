@@ -19,18 +19,23 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { listarProjetos, type Projeto } from "@/lib/firestore/projetos"
-import { listarTodosPontos, type Ponto } from "@/lib/firestore/pontos"
-import { listarTecnicos, type Tecnico } from "@/lib/firestore/tecnicos"
+import { listarProjetos } from "@/lib/actions/projetos"
+import type { Projeto } from "@/lib/db/projetos"
+import { listarTodosPontos } from "@/lib/actions/pontos"
+import type { Ponto } from "@/lib/db/pontos"
+import { listarTecnicos } from "@/lib/actions/tecnicos"
+import type { Tecnico } from "@/lib/db/tecnicos"
 import {
   aplicarReotimizacao,
   confirmarAlocacao,
   listarRotasPorStatus,
+} from "@/lib/actions/rotas"
+import {
   obterDestinosPorUM,
   obterDestinosRealocaveisPorUM,
-  type Rota,
-} from "@/lib/firestore/rotas"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+} from "@/lib/rotas-utils"
+import type { Rota } from "@/lib/db/rotas"
+import { corTextoIdeal } from "@/lib/cores"
 import { useRouter } from "next/navigation"
 import {
   ResultadoAlocacao,

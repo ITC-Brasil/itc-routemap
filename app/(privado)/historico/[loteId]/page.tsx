@@ -45,19 +45,17 @@ import {
   type TransitStep,
   DetalhesTransit,
 } from "../../calcular-rotas/_components/alocacao-helpers"
-import {
-  listarRotasPorLote,
-  type ModoTransporte,
-  type Rota,
-} from "@/lib/firestore/rotas"
-import { listarProjetos } from "@/lib/firestore/projetos"
-import { buscarPonto } from "@/lib/firestore/pontos"
+import { listarRotasPorLote } from "@/lib/actions/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
+import type { Rota } from "@/lib/db/rotas"
+import { listarProjetos } from "@/lib/actions/projetos"
+import { buscarPonto } from "@/lib/actions/pontos"
 import {
   IconeModo,
   MODOS_SELECIONAVEIS,
   gerarExplicacaoAlgoritmica,
 } from "@/lib/modos-transporte"
-import type { LoteSumario, StatusLote } from "@/lib/firestore/lotes"
+import type { LoteSumario, StatusLote } from "@/lib/db/lotes"
 import { CancelarLoteDialog } from "../_components/cancelar-lote-dialog"
 import {
   formatarDataHora,
@@ -420,7 +418,7 @@ export default function DetalheLotePage() {
     else statusLote = "Mista"
 
     const datas = relevantes
-      .map((r) => (r.criadoEm ? r.criadoEm.toDate() : null))
+      .map((r) => r.criadoEm)
       .filter((d): d is Date => d !== null)
       .sort((a, b) => a.getTime() - b.getTime())
 
@@ -557,9 +555,7 @@ export default function DetalheLotePage() {
   if (canceladas.length > 0 && confirmadas.length === 0) statusLote = "Cancelada"
   else if (canceladas.length > 0) statusLote = "Mista"
 
-  const dataLote = primeiraRota.criadoEm
-    ? primeiraRota.criadoEm.toDate()
-    : new Date()
+  const dataLote = primeiraRota.criadoEm ?? new Date()
   const loteIdCurto = loteId.slice(0, 8)
   const podeCancelar = confirmadas.length > 0
   const totalTecnicosUnicos = new Set(rotas.map((r) => r.tecnicoNome)).size

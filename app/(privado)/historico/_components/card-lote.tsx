@@ -25,9 +25,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { LoteSumario } from "@/lib/firestore/lotes"
-import type { Projeto } from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import type { LoteSumario } from "@/lib/db/lotes"
+import type { Projeto } from "@/lib/db/projetos"
+import { corTextoIdeal } from "@/lib/cores"
 import {
   formatarDataHora,
   formatarDistancia,

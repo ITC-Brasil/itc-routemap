@@ -8,8 +8,8 @@ import {
   deletarTecnico,
   pausarTecnico,
   reativarTecnico,
-  type Tecnico,
-} from "@/lib/firestore/tecnicos"
+} from "@/lib/actions/tecnicos"
+import type { Tecnico } from "@/lib/db/tecnicos"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +27,7 @@ import { TecnicoAvatar } from "@/components/tecnico-avatar"
 import { Button } from "@/components/ui/button"
 import { IconeModo } from "@/lib/modos-transporte"
 import { nomeAmigavelModo } from "@/app/(privado)/historico/_components/historico-formatters"
-import type { ModoTransporte } from "@/lib/firestore/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
 import {
   Accordion,
   AccordionContent,

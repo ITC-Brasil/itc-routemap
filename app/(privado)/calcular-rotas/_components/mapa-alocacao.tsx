@@ -16,7 +16,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { loadGoogleMaps } from "@/lib/google-maps-loader"
-import type { ModoTransporte } from "@/lib/firestore/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
 
 type LatLng = { latitude: number; longitude: number }
 

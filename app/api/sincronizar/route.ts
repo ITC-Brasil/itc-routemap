@@ -13,8 +13,8 @@ import {
   deletarPontosEmBatchAdmin,
   marcarSincronizacaoAdmin,
   calcularHashPonto,
-} from "@/lib/firestore/pontos-admin"
-import type { Ponto, PontoInput } from "@/lib/firestore/pontos"
+} from "@/lib/db/pontos"
+import type { Ponto, PontoInput } from "@/lib/db/pontos"
 
 // ============================================================
 // TIPOS DE RESPOSTA

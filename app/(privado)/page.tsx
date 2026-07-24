@@ -24,9 +24,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useAuth } from "@/contexts/auth-context"
-import { listarTodosPontos } from "@/lib/firestore/pontos"
-import { listarTecnicos } from "@/lib/firestore/tecnicos"
-import { listarRotasPorStatus, type Rota } from "@/lib/firestore/rotas"
+import { listarTodosPontos } from "@/lib/actions/pontos"
+import { listarTecnicos } from "@/lib/actions/tecnicos"
+import { listarRotasPorStatus } from "@/lib/actions/rotas"
+import type { Rota } from "@/lib/db/rotas"
 import { IconeModo } from "@/lib/modos-transporte"
 import { formatarDuracao, nomeAmigavelModo } from "@/app/(privado)/historico/_components/historico-formatters"
 
@@ -36,7 +37,7 @@ import { formatarDuracao, nomeAmigavelModo } from "@/app/(privado)/historico/_co
 
 function isHoje(ts: Rota["criadoEm"]): boolean {
   if (!ts) return false
-  const d = ts.toDate()
+  const d = ts
   const hoje = new Date()
   return (
     d.getFullYear() === hoje.getFullYear() &&
@@ -47,7 +48,7 @@ function isHoje(ts: Rota["criadoEm"]): boolean {
 
 function isNestesMes(ts: Rota["criadoEm"]): boolean {
   if (!ts) return false
-  const d = ts.toDate()
+  const d = ts
   const hoje = new Date()
   return (
     d.getFullYear() === hoje.getFullYear() && d.getMonth() === hoje.getMonth()

@@ -1,5 +1,5 @@
 import munkres from "munkres-js"
-import type { ModoTransporte } from "@/lib/firestore/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
 
 // ============================================================
 // TIPOS

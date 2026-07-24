@@ -3,12 +3,8 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { MapPin, Loader2 } from "lucide-react"
-import {
-  criarTecnico,
-  atualizarTecnico,
-  COR_PADRAO_TECNICO,
-  type Tecnico,
-} from "@/lib/firestore/tecnicos"
+import { criarTecnico, atualizarTecnico } from "@/lib/actions/tecnicos"
+import type { Tecnico } from "@/lib/db/tecnicos"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,6 +21,10 @@ import { ColorPicker } from "@/components/color-picker"
 import { TecnicoAvatar } from "@/components/tecnico-avatar"
 import { MODOS_SELECIONAVEIS, IconeModo } from "@/lib/modos-transporte"
 import { nomeAmigavelModo } from "@/app/(privado)/historico/_components/historico-formatters"
+
+/** Cor padrão de um técnico sem cor definida (client-safe; espelha a
+ * constante server-side de lib/db/tecnicos). */
+const COR_PADRAO_TECNICO = "#008F95"
 
 type TecnicoFormDialogProps = {
   open: boolean

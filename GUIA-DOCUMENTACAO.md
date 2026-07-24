@@ -13,17 +13,29 @@ projeto/
 ├── documentacao-[projeto].md     ← documento técnico principal
 ├── CLAUDE.md                     ← contexto permanente para o Claude Code
 ├── PROMPT_CLAUDE_CODE.md         ← prompt de inicialização do desenvolvimento
-└── docs/
-    ├── ARCHITECTURE.md           ← arquitetura e decisões estruturais
-    ├── PROGRESS.md               ← log cronológico de módulos concluídos
-    ├── DECISIONS.md              ← decisões técnicas com contexto e justificativa
-    ├── API.md                    ← todas as rotas documentadas
-    └── modules/
-        ├── 00-foundation.md
-        ├── 01-auth.md
-        ├── 02-layout.md
-        └── ...
+├── docs/
+│   ├── ARCHITECTURE.md           ← arquitetura e decisões estruturais
+│   ├── PROGRESS.md               ← log cronológico de módulos concluídos
+│   ├── DECISIONS.md              ← decisões técnicas com contexto e justificativa
+│   ├── API.md                    ← todas as rotas documentadas
+│   └── modules/
+│       ├── 00-foundation.md
+│       ├── 01-auth.md
+│       ├── 02-layout.md
+│       └── ...
+└── tests/                        ← tudo relacionado a testes, numa única pasta
+    ├── PLANO-DE-TESTES.md        ← plano de testes: casos, critérios, status
+    ├── unit/                     ← testes unitários (Vitest) — lógica pura
+    ├── integration/              ← testes de integração (Vitest + banco de teste)
+    └── e2e/                      ← testes E2E (Playwright)
+        ├── tests/
+        ├── helpers/
+        └── setup/
 ```
+
+Todo projeto deve manter uma única pasta `tests/` na raiz reunindo planos de
+teste e specs (unitários, integração, E2E). Evita testes e documentação de
+teste espalhados pela raiz do repositório.
 
 ---
 
@@ -250,6 +262,17 @@ saber. Comportamentos não óbvios, pendências, compromissos de arquitetura.
 ---
 
 ## 9. Testes
+
+### Organização
+
+Todos os testes e a documentação de testes ficam dentro de uma única pasta
+`tests/` na raiz do projeto — nunca soltos na raiz ou em pastas próprias
+(`e2e/`, `PLANO-DE-TESTES.md` na raiz, etc.):
+
+- `tests/PLANO-DE-TESTES.md` — plano de testes completo
+- `tests/unit/` — specs Vitest de lógica pura
+- `tests/integration/` — specs Vitest com banco de teste
+- `tests/e2e/` — specs Playwright (`tests/`, `helpers/`, `setup/`)
 
 ### Tipos de teste e o que cobrem
 

@@ -8,15 +8,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Combobox } from "@/components/ui/combobox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import {
-  listarProjetos,
-  type Projeto,
-} from "@/lib/firestore/projetos"
-import {
-  listarTodosPontos,
-  type Ponto,
-} from "@/lib/firestore/pontos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import { listarProjetos } from "@/lib/actions/projetos"
+import type { Projeto } from "@/lib/db/projetos"
+import { listarTodosPontos } from "@/lib/actions/pontos"
+import type { Ponto } from "@/lib/db/pontos"
+import { corTextoIdeal } from "@/lib/cores"
 import { TabelaPontos } from "./_components/tabela-pontos"
 import { EditarPontoDialog } from "./_components/editar-ponto-dialog"
 

@@ -13,7 +13,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { cancelarLote, type LoteSumario } from "@/lib/firestore/lotes"
+import { cancelarLote } from "@/lib/actions/lotes"
+import type { LoteSumario } from "@/lib/db/lotes"
 
 type Props = {
   lote: LoteSumario | null

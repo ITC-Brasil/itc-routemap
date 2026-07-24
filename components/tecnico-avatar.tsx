@@ -1,7 +1,7 @@
 "use client"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import { corTextoIdeal } from "@/lib/cores"
 
 type TecnicoAvatarProps = {
   /** Nome completo do técnico (para extração de iniciais) */

@@ -6,7 +6,7 @@
  * substituir importações nos componentes existentes.
  */
 
-import type { ModoTransporte } from "@/lib/firestore/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
 
 export function formatarDuracao(segundos: number): string {
   if (!segundos || segundos < 0) return "0min"

@@ -5,11 +5,10 @@ import { History, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  listarLotes,
-  type LoteSumario,
-} from "@/lib/firestore/lotes"
-import { listarProjetos, type Projeto } from "@/lib/firestore/projetos"
+import { listarLotes } from "@/lib/actions/lotes"
+import type { LoteSumario } from "@/lib/db/lotes"
+import { listarProjetos } from "@/lib/actions/projetos"
+import type { Projeto } from "@/lib/db/projetos"
 import { CardLote } from "./_components/card-lote"
 import { CancelarLoteDialog } from "./_components/cancelar-lote-dialog"
 import {

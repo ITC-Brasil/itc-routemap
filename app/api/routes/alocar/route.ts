@@ -9,12 +9,12 @@ import {
   type ModoMatrix,
 } from "@/lib/google-routes"
 import { resolverAlocacao } from "@/lib/alocacao"
-import type { ModoTransporte } from "@/lib/firestore/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
 import {
   gerarJustificativaAlocacao,
   type ContextoAlocacao,
 } from "@/lib/gemini"
-import { gerarLoteId } from "@/lib/firestore/rotas"
+import { gerarLoteId } from "@/lib/rotas-utils"
 
 // ============================================================
 // TIPOS DO BODY
