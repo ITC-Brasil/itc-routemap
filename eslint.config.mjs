@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Assets gerados/minificados da skill graphify (nao sao codigo do projeto).
+    ".graphify/**",
   ]),
 ]);
 
