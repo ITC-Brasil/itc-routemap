@@ -278,6 +278,51 @@ export async function deletarPontosEmBatch(ids: string[]): Promise<void> {
 }
 
 // ============================================================
+// GEOCODING — suporte ao batch de /api/geocode-pontos
+// ============================================================
+
+/**
+ * Lista pontos candidatos a geocoding: status "Pendente" e SEM
+ * latitude/longitude (uma das duas nula). Opcionalmente restrito a um
+ * projeto.
+ *
+ * O filtro de endereço vazio NÃO é aplicado aqui — fica no chamador, com
+ * `trim()`, para paridade byte a byte com a versão Firestore (que filtrava
+ * client-side por não conseguir expressar isso na query).
+ */
+export async function listarPontosPendentesSemCoordenadas(
+  projetoId?: string
+): Promise<Ponto[]> {
+  const rows = await prisma.ponto.findMany({
+    where: {
+      status: "Pendente",
+      ...(projetoId ? { projetoId } : {}),
+      OR: [{ latitude: null }, { longitude: null }],
+    },
+  })
+  return rows.map(mapPonto)
+}
+
+/**
+ * Grava latitude/longitude de vários pontos numa única transação atômica
+ * — equivalente ao `batch.commit()` (tudo-ou-nada) do Firestore.
+ * `atualizadoEm` é atualizado automaticamente pelo `@updatedAt` do schema.
+ */
+export async function atualizarCoordenadasPontosEmLote(
+  updates: { id: string; latitude: number; longitude: number }[]
+): Promise<void> {
+  if (updates.length === 0) return
+  await prisma.$transaction(
+    updates.map((u) =>
+      prisma.ponto.update({
+        where: { id: u.id },
+        data: { latitude: u.latitude, longitude: u.longitude },
+      })
+    )
+  )
+}
+
+// ============================================================
 // ALIASES *Admin — paridade com lib/firestore/pontos-admin.ts
 // ============================================================
 // Com Prisma não existe a distinção SDK client vs Admin SDK; os aliases
