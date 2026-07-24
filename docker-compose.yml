@@ -39,6 +39,11 @@ services:
       GOOGLE_SERVICE_ACCOUNT_BASE64: ${GOOGLE_SERVICE_ACCOUNT_BASE64}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_ENABLED: ${GEMINI_ENABLED:-true}
+      # Credenciais do primeiro admin — usadas SOMENTE pelo seed manual
+      # (npx tsx prisma/seed.ts), nunca em runtime. Interpoladas do .env.docker.
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_NOME: ${ADMIN_NOME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     ports:
       - "3000:3000"
 

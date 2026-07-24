@@ -88,6 +88,9 @@ export default function InicioPage() {
         )
         setRotasConfirmadas(rotas)
       } catch (err) {
+        // Navegar antes do fetch terminar aborta a server action ("Failed to
+        // fetch"). Após o unmount é ruído benigno — ignora sem logar.
+        if (cancelado) return
         console.error("Erro ao carregar dashboard:", err)
       } finally {
         if (!cancelado) setCarregando(false)
