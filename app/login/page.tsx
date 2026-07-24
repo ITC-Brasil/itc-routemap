@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type FormEvent } from "react"
+import { Suspense, useEffect, useState, type FormEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { signIn, signUp } from "@/lib/auth-client"
 import { useAuth } from "@/contexts/auth-context"
@@ -29,7 +29,7 @@ function mensagemDoErroQuery(codigo: string): string {
   return "Erro ao fazer login. Tente novamente."
 }
 
-export default function LoginPage() {
+function LoginConteudo() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
@@ -267,5 +267,23 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </main>
+  )
+}
+
+/**
+ * useSearchParams() exige um limite de <Suspense> para o Next conseguir
+ * pré-renderizar a página estaticamente (senão o build falha com CSR bailout).
+ */
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
+        </div>
+      }
+    >
+      <LoginConteudo />
+    </Suspense>
   )
 }
