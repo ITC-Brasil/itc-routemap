@@ -35,7 +35,9 @@ test.describe("Admin — Técnicos", () => {
     await page.getByRole("button", { name: /Cadastrar/i }).first().click()
     await expect(page.getByRole("dialog")).toBeVisible()
 
-    const plusCodeInput = page.getByPlaceholder(/Plus Code/i)
+    // #plusCode e não getByPlaceholder(/Plus Code/i): o placeholder real é
+    // "Ex: 3Q69+77 Brasília" e nunca casou com essa regex.
+    const plusCodeInput = page.locator("#plusCode")
     await plusCodeInput.fill("INVALIDO")
 
     await page.getByRole("button", { name: /Obter Coordenadas/i }).click()
@@ -50,7 +52,9 @@ test.describe("Admin — Técnicos", () => {
     await page.getByRole("button", { name: /Cadastrar/i }).first().click()
     await expect(page.getByRole("dialog")).toBeVisible()
 
-    const plusCodeInput = page.getByPlaceholder(/Plus Code/i)
+    // #plusCode e não getByPlaceholder(/Plus Code/i): o placeholder real é
+    // "Ex: 3Q69+77 Brasília" e nunca casou com essa regex.
+    const plusCodeInput = page.locator("#plusCode")
     await plusCodeInput.fill("85QW+RFW SOBRADINHO, BRASÍLIA - DF")
 
     await page.getByRole("button", { name: /Obter Coordenadas/i }).click()

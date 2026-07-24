@@ -70,9 +70,11 @@ test.describe("UI — Histórico", () => {
     await page.goto("/historico/lote-que-nao-existe-abc123xyz")
     await page.waitForLoadState("networkidle")
 
-    // Deve mostrar mensagem amigável
+    // Deve mostrar mensagem amigável. O heading é o alvo específico: a página
+    // tem "Lote não encontrado" (h2) E "Lote não encontrado." (p), e um
+    // getByText genérico dispara strict mode violation.
     await expect(
-      page.getByText(/não encontrado/i)
+      page.getByRole("heading", { name: /não encontrado/i })
     ).toBeVisible({ timeout: 10000 })
 
     // Não deve mostrar stack trace ou detalhes internos

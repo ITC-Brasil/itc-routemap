@@ -1,43 +1,50 @@
-import { test as setup } from "@playwright/test"
+import { test as setup, expect } from "@playwright/test"
 import { STORAGE_STATE } from "../helpers/auth"
 import * as fs from "fs"
+import * as path from "path"
 
+/**
+ * Setup de autenticação — roda UMA VEZ antes dos testes (project "setup").
+ *
+ * Faz login de verdade pela UI com email/senha (Better Auth) usando as
+ * credenciais do ambiente e salva a sessão em `tests/e2e/.auth/user.json`.
+ * Os specs que precisam de sessão usam `test.use({ storageState: STORAGE_STATE })`.
+ *
+ * Substituiu a versão legada de Firebase Auth (popup do Google), que não
+ * funcionava headless e exigia gerar o storage state à mão.
+ *
+ * Requer ADMIN_EMAIL e ADMIN_PASSWORD no ambiente (vêm do `.env`, carregado
+ * pelo playwright.config.ts).
+ */
 setup("autenticar usuario de teste", async ({ page }) => {
-  // Este setup roda UMA VEZ antes de todos os testes.
-  // Como Firebase Auth usa Google Popup (impossível em headless),
-  // este arquivo instrui o desenvolvedor a gerar o storage state
-  // manualmente na primeira vez.
+  const email = (process.env.ADMIN_EMAIL ?? "").toLowerCase().trim()
+  const senha = process.env.ADMIN_PASSWORD ?? ""
 
-  const authDir = "tests/e2e/.auth"
-  if (!fs.existsSync(authDir)) {
-    fs.mkdirSync(authDir, { recursive: true })
+  if (!email || !senha) {
+    throw new Error(
+      "Defina ADMIN_EMAIL e ADMIN_PASSWORD no ambiente (.env) para o setup de auth."
+    )
   }
 
-  // Verifica se já existe storage state válido
-  if (fs.existsSync(STORAGE_STATE)) {
-    console.log("Storage state existente encontrado — reutilizando.")
-    return
-  }
+  await page.goto("/login")
 
-  console.log(`
-  ===================================================
-  ATENÇÃO: Storage state não encontrado.
+  await page.locator("#email").fill(email)
+  await page.locator("#senha").fill(senha)
+  await page.getByRole("button", { name: "Entrar", exact: true }).click()
 
-  Para gerar o storage state de autenticação:
-  1. Inicie o servidor: npm run dev
-  2. Acesse: http://localhost:3000/login
-  3. Faça login com a conta de teste Google
-  4. Execute: npx playwright test tests/e2e/setup/auth.setup.ts --headed
+  // O AuthGuard libera as rotas privadas só depois que a sessão resolve.
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+    timeout: 30000,
+  })
+  // Confirma a sessão pelo cookie do Better Auth — mais estável que casar
+  // texto da UI, que varia por página.
+  const cookies = await page.context().cookies()
+  expect(
+    cookies.some((c) => c.name.includes("session_token")),
+    "cookie de sessão do Better Auth não foi definido após o login"
+  ).toBe(true)
 
-  Isso salvará a sessão em tests/e2e/.auth/user.json
-  ===================================================
-  `)
-
-  // Em CI: cria storage state vazio (testes com auth fazem skip)
-  if (process.env.CI) {
-    fs.writeFileSync(STORAGE_STATE, JSON.stringify({ cookies: [], origins: [] }))
-    return
-  }
-
-  throw new Error("Storage state não encontrado. Siga as instruções acima.")
+  const dir = path.dirname(STORAGE_STATE)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  await page.context().storageState({ path: STORAGE_STATE })
 })

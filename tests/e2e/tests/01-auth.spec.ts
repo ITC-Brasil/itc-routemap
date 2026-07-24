@@ -23,7 +23,6 @@ test.describe("Autenticação e Autorização", () => {
 
   test("AU-06: rota privada com login carrega normalmente", async ({ page }) => {
     test.skip(!!process.env.CI, "Requer auth manual em CI")
-    page.context().storageState
     await page.goto("/")
     await expect(page).not.toHaveURL(/\/login/)
   })
