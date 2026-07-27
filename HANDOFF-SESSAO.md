@@ -370,6 +370,83 @@ Verificado: **`npm run lint` = 0** e **`npm run build` = pass** (heap 6144).
 
 ---
 
+## 9.2 RODADA DE QUITAÇÃO DE DÍVIDAS (2026-07-27)
+
+### ✅ Combobox — era BUG FUNCIONAL, não falta de ARIA
+
+A hipótese registrada antes (itens sem `role="option"`) **estava errada**: o
+cmdk 1.1.1 **já expõe** `role="option"`, `role="listbox"`, `role="combobox"` e
+`aria-selected` — medido no DOM. O defeito real era **CSS**: a classe do
+`CommandItem` usava `data-[disabled]:pointer-events-none`, seletor que casa pela
+**presença** do atributo, e o cmdk 1.x renderiza `data-disabled="false"` nos
+itens habilitados. Resultado: `pointer-events: none` em **todos** os itens —
+nenhuma opção era clicável com mouse (só por teclado, `ArrowDown`+`Enter`).
+Corrigido para `data-[disabled=true]:` (mesma forma já usada em
+`components/ui/label.tsx`). Varredura confirmou que era a única ocorrência do
+padrão sem valor no repo. Validado por clique nos 3 comboboxes de formulário.
+
+⚠️ **O bug está em PRODUÇÃO** (`main` = `818dc71` tem a linha idêntica), afetando
+os 5 pontos de uso do Combobox: UM→projeto, técnico→modo, ponto→status, filtros
+de Localidades e filtros do Histórico. Branch de hotfix criada a partir da
+`main`: **`hotfix/combobox-pointer-events`** (1 commit, build pass) — aguardando
+push/merge do usuário.
+
+### ✅ 09-crud — 10 testes destravados (dívida quitada)
+
+Suíte foi de 51 para **61 passed / 5 skipped / 0 failed** (os 5 skips restantes
+são só os do `GEMINI_BLOQUEADO_403`). O que cada bloco exigiu:
+- **UMs (3):** passaram de graça após o fix do combobox — a causa era o clique
+  bloqueado, não o `getByRole`.
+- **Projetos/Técnicos (6):** prefixo do spec passou a ser `"Zz Teste Crud"` (já
+  em Title Case, idempotente sob `titleCase`), então `exact: true` volta a
+  casar. Em **Técnicos** houve uma segunda causa: a lista é um `Accordion`
+  (`type="single"`), então os botões de ação só existem depois de expandir o
+  item — e ali eles têm **texto visível** "Editar"/"Deletar", não `aria-label`
+  com o nome como em Projetos/UMs. Helper `expandirTecnico` cobre isso.
+- **Confirmação de alocação (1):** o spec agora passa pela etapa condicional de
+  re-otimização (13.12) via "Ignorar e ver resultado" — aplicar a re-otimização
+  cancelaria rotas e deixaria o teste dependente de estado. Persistência
+  confirmada no Postgres: lote novo com 2 rotas `Confirmada` e pontos Agendados
+  de 4 → 6.
+
+### ⬜ DECISÃO DE PRODUTO PENDENTE — siglas no Title Case
+
+`titleCase` (`lib/text-utils.ts`) é **intencional** e preserva maiúsculas apenas
+em palavras **que contêm dígito** (`BSBIA04`, `UM-1`). Siglas **puras** viram
+capitalizadas: `SQN` → `Sqn`, `QNL` → `Qnl`, `CLN` → `Cln`, `QDFM` → `Qdfm`,
+`CCSW` → `Ccsw`.
+
+**Por que importa neste domínio:** em Brasília os endereços *são* siglas puras, e
+o sistema é de roteirização no DF — o próprio seed usa "SQN 410". (Note que
+`"SQN 410"` sobrevive porque a palavra seguinte tem dígito, mas a sigla isolada
+num nome de projeto/técnico não.)
+
+**Alcance:** todo **nome de Projeto** e de **Técnico**, em criação e edição
+(`lib/db/projetos.ts`, `lib/db/tecnicos.ts`). Não afeta UMs, RAs nem endereços
+de pontos (que vêm da planilha).
+
+**Opções (não implementadas — decisão do usuário/produto):**
+1. **Lista de siglas conhecidas** — allowlist do DF (SQN, SQS, SHN, SHS, CLN,
+   CLS, QNL, QNM, QNP, QNN, QSA, QDFM, CCSW, SCS, SCN…). Previsível, mas exige
+   manutenção da lista.
+2. **Heurística de palavra toda-maiúscula curta** — preservar palavra que já
+   veio 100% em maiúsculas e tem ≤5 letras. Genérico e sem manutenção, mas
+   depende de o usuário digitar em maiúsculas, e "DE"/"DA" digitados assim também
+   seriam preservados.
+3. **Não normalizar** nomes de Projeto/Técnico — devolve o controle ao usuário e
+   elimina a classe de problema, ao custo de perder a padronização visual.
+
+### ⬜ MELHORIA FUTURA DE A11Y — `aria-controls` / `aria-activedescendant`
+
+Os roles estão corretos, mas o **Radix não liga automaticamente** o trigger
+(`role="combobox"` no `PopoverTrigger`) ao `listbox` do cmdk: faltam
+`aria-controls` apontando para o id da lista e `aria-activedescendant` apontando
+para o item em foco. Leitores de tela anunciam as opções (já têm role), mas não
+a relação trigger↔lista nem o item ativo durante a navegação por teclado.
+Fora do escopo desta rodada.
+
+---
+
 ## 9.1 FRENTE 4 — blindagem de auth (passos 1-3 CONCLUÍDOS, não commitados)
 
 Escopo reduzido após descobrir que as server actions já validam sessão.
