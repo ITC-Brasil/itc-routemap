@@ -251,21 +251,57 @@ Verificado: **`npm run lint` = 0** e **`npm run build` = pass** (heap 6144).
   `confirmarAlocacao` criou `Rota` **Confirmada** + moveu `teste-ponto-05` para
   **Agendado com `rotaId`** correspondente (transação), seguido de rollback.
   Editar Ponto também foi provado **pela UI** (spec 09-crud, bloco Localidades).
-- **PENDÊNCIA — Gemini 403 (Fase 4, ação do usuário):** a Gemini API responde
-  **403 PERMISSION_DENIED**. O fallback é **intencional e documentado**
-  (`lib/gemini.ts`): em qualquer erro (rede, billing, modelo) cai no template
-  procedural e "o usuário nunca vê indisponível". **Única perda funcional:** a
-  justificativa em linguagem natural da alocação (banner "Análise da alocação"
-  e o texto salvo em `Rota.loteJustificativa`, que passa a ser template). NÃO
-  afeta o algoritmo Húngaro, a Routes API, a confirmação, o histórico ou as
-  estatísticas. 5 testes de `02-calcular-rotas` ficaram `test.skip` com
-  `GEMINI_BLOQUEADO_403` — não devem ser reescritos para aceitar o fallback.
-- **PENDÊNCIA — dívida de teste de UI:** em `tests/e2e/tests/09-crud.spec.ts`
-  os blocos Projetos/UMs/Técnicos/Confirmação estão em `describe.skip`. As
-  falhas eram dos asserts, não da app: o app **normaliza nomes para title
-  case** (quebra `getByText(exact)`), os itens do Combobox **não expõem
-  `role="option"`**, e o fluxo de alocação tem uma **etapa de re-otimização
-  (13.12)** antes de "Confirmar alocação".
+- **PENDÊNCIA — GEMINI 403 PERMISSION_DENIED (ação do usuário no Google Cloud):**
+  mensagem exata da API: *"Your project has been denied access. Please contact
+  support."* É **acesso/billing do projeto no Google Cloud** — não é código, e o
+  assistente **não deve tocar em credencial nem contornar**.
+  - **Onde está o fallback:** `lib/gemini.ts`, em
+    `gerarJustificativaAlocacao()`. A degradação é **intencional e documentada
+    no cabeçalho do arquivo**: cai em `gerarJustificativaTemplate()` (template
+    procedural local) quando `GEMINI_ENABLED=false`, quando não há
+    `GEMINI_API_KEY`, ou em **qualquer erro** da chamada (rede, billing, modelo)
+    — "o usuário nunca vê indisponível". Modelo configurado: `gemini-2.5-flash`.
+  - **O que degrada:** **somente** a justificativa em linguagem natural da
+    alocação — o banner "Análise da alocação" na tela de resultado e o texto
+    gravado em `Rota.loteJustificativa` (que aparece como "JUSTIFICATIVA DA IA"
+    no detalhe do lote). Passa a ser o texto do template.
+  - **O que NÃO é afetado:** algoritmo Húngaro de alocação, Google Routes API
+    (matriz/rotas), confirmação da alocação, Histórico, Estatísticas e todos os
+    cadastros. `POST /api/routes/alocar` continua respondendo **200**.
+  - **Testes:** 5 casos de `02-calcular-rotas` que dependem do banner ficaram
+    `test.skip` com a constante `GEMINI_BLOQUEADO_403` e comentário apontando o
+    403. **Não reescrever para aceitar o fallback** — isso mascararia a ausência
+    do Gemini. Para desbloquear: liberar o acesso e remover a constante.
+- **PENDÊNCIA — DÍVIDA DE TESTE DE UI (o que retomar na próxima sessão):** em
+  `tests/e2e/tests/09-crud.spec.ts`, 4 blocos estão em `describe.skip` — **10
+  testes**. O que falha em cada um, e o conserto correspondente:
+  1. **CRUD — Projetos** e **CRUD — Técnicos** (3+3 testes): o registro **É
+     criado** (confirmado por screenshot e por leitura do Postgres), mas o app
+     **normaliza o nome para title case** ("ZZ Teste CRUD" → "Zz Teste Crud"),
+     então `getByText(nome, { exact: true })` nunca casa. Conserto: comparar
+     case-insensitive, ou usar o nome já normalizado. Atenção: os forms têm
+     **validações obrigatórias** que o spec precisa preencher — Projeto exige
+     URL da planilha + ao menos uma aba; Técnico exige Plus Code **com
+     coordenadas obtidas** antes de salvar.
+  2. **CRUD — UMs** (3 testes): o combobox **abre e lista os projetos**, mas os
+     itens (CommandItem) **não expõem `role="option"`**, então
+     `getByRole("option")` estoura timeout.
+     ⚠️ **CANDIDATO A FIX DE APP, NÃO DE TESTE (acessibilidade):** um combobox
+     cujos itens não têm `role="option"` (e cujo container não tem
+     `role="listbox"`) também **prejudica leitor de tela** — o padrão ARIA de
+     combobox espera esses roles para anunciar as opções e a seleção. Ou seja, o
+     teste está apenas revelando um problema real de a11y em
+     `components/ui/combobox.tsx`. O conserto correto é **expor os roles no
+     componente** (beneficia usuários de leitor de tela e, de graça, torna
+     `getByRole("option")` válido); contornar no spec selecionando por texto
+     esconderia o problema. **Não corrigido nesta sessão** — decisão do usuário.
+     Afeta todos os comboboxes do app (UM→projeto, técnico→modo, ponto→status).
+  3. **Confirmação de alocação** (1 teste): o fluxo tem uma **etapa
+     intermediária de re-otimização** (feature 13.12 — "Aplicar re-otimização" /
+     "Ignorar e ver resultado") **antes** de "Confirmar alocação"; o spec pulava
+     essa tela. Conserto: tratar as duas telas.
+  Nada disso é bug de aplicação — o write-path das 4 entidades e a transação de
+  `confirmarAlocacao` estão provados na camada `lib/db` (17/17 passos).
 - **VEREDITO AD-02/AD-03 (Plus Code): TESTE DESATUALIZADO, não regressão.** O
   campo renderiza normal (`Label "Plus Code da residência"`, `Input
   id="plusCode"`, botão "Obter Coordenadas"); o teste usava
@@ -334,19 +370,134 @@ Verificado: **`npm run lint` = 0** e **`npm run build` = pass** (heap 6144).
 
 ---
 
-## 10. PRONTIDÃO PARA DEPLOY (Fase 4) — apenas anotado, não executar
+## 9.1 FRENTE 4 — blindagem de auth (passos 1-3 CONCLUÍDOS, não commitados)
 
-Passos (resumo): DNS → host Docker → clone/pull `docker-server` → `.env.docker`
-no servidor (todos os segredos, incl. `ADMIN_PASSWORD` de prod pelo usuário) →
-OAuth Google redirect URI → TLS em `./nginx/certs` (não está no repo) → build →
-subir postgres → **`prisma migrate deploy`** (NÃO reset) → **seed manual** →
-subir app+nginx → smoke test.
-Lacunas conhecidas: seed/migration são passos **manuais** (Dockerfile só faz
-`node server.js`); e a paridade dev(`.env`)/servidor(`.env.docker`) do carregamento
-de env do seed deve ser revalidada no caminho Docker.
-Item de migração Fase 4+: `geocode-pontos` (sendo resolvido na Frente 1).
-Prisma avisou: `package.json#prisma` (config do seed) deprecado no Prisma 7 →
-migrar p/ `prisma.config.ts` no futuro.
+Escopo reduzido após descobrir que as server actions já validam sessão.
+
+- **Passo 1 ✅ — guard nas rotas de API.** `exigirSessaoApi()` novo em
+  `lib/session-server.ts` (401 JSON `{sucesso:false,erro}`, não `throw`),
+  aplicado como PRIMEIRA instrução de `sincronizar`, `geocode-pontos`,
+  `routes/alocar`, `routes/single`, `routes/matrix` e `geocoding` — antes de
+  parse, escrita ou chamada paga. Smoke sem cookie: **6/6 = 401**;
+  `/api/auth/get-session` segue **200** (pública). Prova de que barra antes de
+  escrever: o `POST /api/geocode-pontos` que antes gravou sem sessão agora dá
+  401 e o `teste-ponto-09` continua com lat/lng **NULL**.
+- **Passo 2 ✅ — AU-06 movido.** Saiu de `01-auth.spec.ts` (project `anonimo`,
+  sem sessão) para `01b-auth-logado.spec.ts` (project `chromium`). Confirmado
+  **empiricamente** que o fixture `request` do Playwright **herda o
+  storageState**: os 14 testes de `api/alocar`+`api/single` seguem recebendo 400
+  de validação, não 401.
+- **Passo 3 ✅ — `proxy.ts`.** **No Next 16 `middleware.ts` não existe mais:
+  virou `proxy.ts`** na raiz (docs em
+  `node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md`). Roda em
+  **Node.js runtime por padrão** e a config `runtime` é proibida (lança erro) —
+  isso derruba a limitação clássica do Better Auth em edge.
+  Matcher: `/`, `/admin/:path*`, `/calcular-rotas`, `/estatisticas`,
+  `/historico/:path*` — **sem `/api`** (API responde 401 JSON, não redirect).
+  Verificado por HTTP: `/login`, `/api/auth/*`, `_next/static`, `_next/image` e
+  favicon **não** são bloqueados (200); as 7 rotas privadas dão **307 → /login**
+  sem cookie e **200** com cookie válido. Suíte: **51 passed / 15 skipped /
+  0 failed**, idêntica ao baseline pré-proxy.
+  **LIMITAÇÃO DECLARADA (está no cabeçalho do `proxy.ts`):** é *optimistic
+  check*, **não fronteira de segurança** — `getSessionCookie` apenas LÊ o
+  cookie, sem verificar assinatura HMAC nem consultar o banco, então cookie
+  expirado/forjado passa. Quem barra de fato é `requireSession()` nas server
+  actions e `exigirSessaoApi()` nas rotas de API. Validação forte no proxy
+  (`auth.api.getSession`) foi avaliada e **recusada**: custaria uma query ao
+  Postgres por request de página, e o doc do Next diz que Proxy "should not be
+  used as a full session management or authorization solution".
+- **`redirectTo` — DECIDIDO: fica sem o parâmetro.** A página `/login` **não
+  consome** `redirectTo` (lê só `error` do querystring e faz `router.push("/")`
+  fixo), então anexá-lo criaria parâmetro decorativo na URL. O proxy redireciona
+  para `/login` puro.
+  **MELHORIA FUTURA OPCIONAL:** voltar para a página de origem após o login.
+  Exige os dois lados — o proxy anexar `?redirectTo=<pathname>` e o `/login` ler
+  esse param e usá-lo no lugar do `push("/")` fixo (validando que é um caminho
+  interno, para não virar open redirect).
+- **Passo 4 ✅ — `/api/routes/matrix` REMOVIDA.** Grep em todo o repo (app, lib,
+  components, tests, scripts, docs), incluindo URL em string: **zero chamadores
+  reais**. As ocorrências restantes de "matrix" são o tipo `ModoMatrix`
+  (`lib/google-routes.ts`, sem relação com a rota), `munkres(matrix)` e a
+  documentação — e `docs/06-apis-externas.md` descreve a **função**
+  `calcularMatrizDeslocamento` e o endpoint REST **do Google**, não a nossa
+  rota, então a remoção **não deixa doc obsoleta**. Nenhum teste a exercitava.
+  Junto com a remoção, dois comentários em `lib/alocacao.ts` que apontavam para
+  a rota inexistente passaram a referenciar `calcularMatrizDeslocamento`.
+  Observação de build: o Next mantém tipos gerados em `.next/types` para cada
+  rota — após remover uma rota é preciso **limpar `.next`**, senão o type-check
+  falha com "Cannot find module '.../matrix/route.js'".
+
+---
+
+## 10. CHECKLIST DE DEPLOY — servidor definitivo (não executar daqui)
+
+Roteiro consolidado. Nada disto foi executado nesta sessão; o ambiente atual é
+o Docker de **teste**.
+
+### 10.1 Infra e host
+1. **DNS** do domínio de produção apontando para o host.
+2. **Host Docker** provisionado (Docker + Compose v2).
+3. `git clone`/`pull` da branch `docker-server` no servidor.
+
+### 10.2 Segredos no `.env.docker` do servidor
+Nunca commitados; preenchidos pelo dono do projeto, fora do chat.
+4. **`ADMIN_PASSWORD` de produção** — gerada pelo usuário. Recomendação:
+   **só letras e números, ≥16 caracteres, SEM `#`** (nem outros símbolos), para
+   não depender de quote-handling do dotenv. A senha de dev **não** vale para
+   produção. O assistente não gera nem sugere senha.
+5. **`BETTER_AUTH_SECRET` NOVO** para produção (não reaproveitar o de dev — ele
+   assina os cookies de sessão).
+6. `DATABASE_URL` apontando para o Postgres do compose, `ADMIN_EMAIL`,
+   `ADMIN_NOME`, `GOOGLE_MAPS_SERVER_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`,
+   `GEMINI_API_KEY`, `BETTER_AUTH_URL` (URL pública), `GOOGLE_CLIENT_ID`/
+   `GOOGLE_CLIENT_SECRET` se o login Google for usado.
+   Lembrete validado empiricamente: Compose v2 com `--env-file` **consome as
+   aspas e preserva o `#`** — mas veja o item 4 e evite `#`.
+
+### 10.3 Google Cloud
+7. **Redirect URI de produção** no console OAuth:
+   `https://<dominio>/api/auth/callback/google` (o de dev não serve).
+8. **Gemini**: liberar acesso/billing (hoje retorna 403 PERMISSION_DENIED —
+   ver §7). Sem isso o app funciona, mas a justificativa da alocação sai do
+   template.
+9. Conferir cotas/billing de Routes API e Geocoding API.
+
+### 10.4 TLS e nginx
+10. Certificados em **`./nginx/certs`** — **não estão no repositório**, precisam
+    ser colocados no servidor.
+
+### 10.5 Build e banco
+11. **Build**: nesta máquina de dev o type-check dá OOM sem heap maior —
+    `$env:NODE_OPTIONS="--max-old-space-size=6144"; npm run build`. **Verificar
+    se o host de produção tem RAM suficiente**; se der OOM no build da imagem,
+    passar `NODE_OPTIONS=--max-old-space-size=6144` no Dockerfile/compose.
+12. Subir só o `postgres` primeiro.
+13. **`prisma migrate deploy`** — **NUNCA `migrate reset`** em produção.
+14. **Seed manual do admin**: `npm run db:seed` (o Dockerfile só roda
+    `node server.js`, então migration e seed são passos **manuais**).
+    O seed é **idempotente por early-return**: se o usuário já existe, ele
+    **não atualiza a senha** — trocar `ADMIN_PASSWORD` depois não tem efeito.
+15. Subir `app` + `nginx`.
+
+### 10.6 Validação pós-deploy
+16. Smoke test: login com a senha de produção, navegar pelas 8 páginas, abrir um
+    lote no Histórico, rodar um cálculo de rotas.
+17. Conferir que as rotas de API respondem **401 sem sessão** (blindagem da
+    Frente 4) e que `/api/auth/*` segue pública.
+18. Conferir acentuação (UTF-8) e ausência de erro no log do container.
+
+### 10.7 Pendências conhecidas para o deploy
+- **`x-api-key` para cron externo**: hoje **não existe nenhum cron/job** — os
+  scripts do `package.json` são dev/build/start/lint/test/db:seed, o
+  `docker-compose.yml` tem só `postgres`/`app`/`nginx` e o `Dockerfile` roda
+  `node server.js`. As rotas blindadas exigem **cookie de sessão**, então se um
+  dia um agendador externo precisar chamar `/api/sincronizar` ou
+  `/api/geocode-pontos`, será necessário aceitar um segredo em header como
+  alternativa ao cookie. Registrado como necessidade **futura**.
+- Paridade de env dev(`.env`)/servidor(`.env.docker`) no carregamento do seed
+  deve ser revalidada no caminho Docker.
+- Prisma avisou: `package.json#prisma` (config do seed) está deprecado no
+  Prisma 7 → migrar para `prisma.config.ts` no futuro.
 
 ---
 
