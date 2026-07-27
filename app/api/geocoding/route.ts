@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { exigirSessaoApi } from "@/lib/session-server"
 
 type AddressComponent = {
   long_name: string
@@ -55,6 +56,11 @@ function extrairEnderecoLegivel(
 }
 
 export async function GET(request: Request) {
+  // Blindagem: sessao obrigatoria ANTES de qualquer escrita no banco ou
+  // chamada paga a API externa.
+  const { erro: erroSessao } = await exigirSessaoApi()
+  if (erroSessao) return erroSessao
+
   const { searchParams } = new URL(request.url)
   const plusCode = searchParams.get("plusCode")
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { exigirSessaoApi } from "@/lib/session-server"
 import {
   calcularMatrizDeslocamento,
   MAX_PARES,
@@ -64,6 +65,11 @@ type RequestBody = {
  *   5. Devolve resposta rica pronta pra UI / persistência
  */
 export async function POST(request: Request) {
+  // Blindagem: sessao obrigatoria ANTES de qualquer escrita no banco ou
+  // chamada paga a API externa.
+  const { erro: erroSessao } = await exigirSessaoApi()
+  if (erroSessao) return erroSessao
+
   const inicio = Date.now()
 
   try {
