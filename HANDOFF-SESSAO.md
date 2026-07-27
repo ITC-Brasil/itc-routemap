@@ -343,20 +343,44 @@ Verificado: **`npm run lint` = 0** e **`npm run build` = pass** (heap 6144).
 
 ## 9. FATOS DO PROJETO (contexto acumulado)
 
-- **Senha admin consolidada em `ADMIN_PASSWORD`** (fonte única, via seed). O
-  valor tem `#`; o bug histórico era o dotenv truncar no `#` sem aspas — corrigido
-  colocando **aspas** em `.env`/`.env.docker`. Validado: login com a senha
-  completa → 200. `ADMIN_PASSWORD_RESET` e `prisma/reset-admin-password.ts` foram
-  removidos. **Seed é idempotente por early-return se o user já existe** (NÃO
-  atualiza senha de admin existente → reaplicar exige banco limpo).
+- **Senha admin consolidada em `ADMIN_PASSWORD`** (fonte única, via seed).
+  **⚠️ ATENÇÃO — o que segue vale para o `.env` (dev), NÃO para o
+  `.env.docker`.** No **`.env`** o valor tem `#`; o bug histórico era o dotenv
+  truncar no `#` sem aspas, corrigido colocando **aspas** ali. Validado: login
+  com a senha completa → 200. `ADMIN_PASSWORD_RESET` e
+  `prisma/reset-admin-password.ts` foram removidos. **Seed é idempotente por
+  early-return se o user já existe** (NÃO atualiza senha de admin existente →
+  reaplicar exige banco limpo, ou recriar o usuário).
+- **🔴 Os dois arquivos têm senhas DIFERENTES** (medido em 2026-07-27, sem expor
+  valores):
+
+  | arquivo | len do valor | tem `#` | entre aspas |
+  |---|---|---|---|
+  | `.env` (dev) | 16 | sim | sim |
+  | `.env.docker` | **6** | **não** | sim |
+
+  Consequência: o `.env.docker` **reprova na validação do seed** (`>= 8`) quando
+  executado via Compose. Ele só "passou" no ensaio de deploy porque foi rodado
+  com `docker run --env-file`, que **não remove as aspas** — o valor chegou com
+  8 caracteres (6 + 2 aspas) e o admin foi criado com **as aspas fazendo parte
+  da senha**. Trocar antes do deploy (ver §10.2, item 4).
+- **🔴 REGRA GERAL MEDIDA — escreva os valores do `.env.docker` SEM aspas e SEM
+  `#`.** `docker run --env-file` **preserva as aspas** como parte do valor,
+  enquanto `docker compose --env-file` **as remove**. Qualquer valor citado no
+  arquivo é corrompido silenciosamente em um dos dois caminhos — e o seed é
+  justamente executado por um deles. Isso **invalida** a conclusão antiga de que
+  "aspas protegem o `#`": aspas resolvem o truncamento do **dotenv** (Node, no
+  `.env` de dev), mas criam um problema novo no caminho `docker run`.
 - **Senha de PRODUÇÃO ≠ senha de dev.** A de dev foi exposta em chat (inclusive
   por acidente nesta sessão). O usuário gera/seta a de prod manualmente no
   servidor, fora do chat. **Não gerar nem sugerir senha.** Recomendado: sem `#`/
   símbolos (só letras+números, ≥16) para não depender de quote-handling.
-- **`docker-compose.yml`:** serviço `app` agora recebe `ADMIN_EMAIL/ADMIN_NOME/
-  ADMIN_PASSWORD` no `environment:` (commit `264e078`, para o seed rodar no
-  container). Validado empiricamente: Compose v2 com `--env-file` **consome as
-  aspas e preserva o `#`** (não trunca).
+- **`docker-compose.yml`:** serviço `app` recebe `ADMIN_EMAIL/ADMIN_NOME/
+  ADMIN_PASSWORD` no `environment:` (commit `264e078`). Sobre o parsing: o
+  Compose v2 com `--env-file` **remove as aspas** e não trunca no `#` — mas essa
+  validação foi feita **com o `.env` de dev**, cujo valor tem `#`. Ela **não**
+  descreve o `.env.docker` atual (senha de 6 chars, sem `#`), e **não vale para
+  `docker run --env-file`**, que preserva as aspas. Ver os dois itens acima.
 - **Encoding:** navbar renderiza acentos corretos ("Início/Histórico/
   Administração/Técnicos"); Postgres `server_encoding=UTF8`, `client_encoding=UTF8`.
   Sem mojibake. Não precisa `client_encoding` na DATABASE_URL.
