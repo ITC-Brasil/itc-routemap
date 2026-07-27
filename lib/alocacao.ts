@@ -6,8 +6,8 @@ import type { ModoTransporte } from "@/lib/rotas-utils"
 // ============================================================
 
 /**
- * Linha de uma matriz de deslocamento (formato retornado pela
- * API /api/routes/matrix).
+ * Linha de uma matriz de deslocamento (formato retornado por
+ * `calcularMatrizDeslocamento` em lib/google-routes.ts).
  */
 export type LinhaMatrizDeslocamento = {
   origemId: string
@@ -83,7 +83,7 @@ export const PESO_PROXIMIDADE = 0.3
  *   - Mais técnicos que destinos → alguns técnicos ficam sem alocação
  *   - Mais destinos que técnicos → alguns destinos ficam sem técnico
  *
- * @param matriz           Saída de /api/routes/matrix (todos pares calculados)
+ * @param matriz           Saída de calcularMatrizDeslocamento (todos os pares)
  * @param tecnicoIds       IDs dos técnicos a alocar
  * @param destinoIds       IDs dos destinos (pontos)
  * @param modosPorTecnico  Modo de transporte de cada técnico (default "DRIVE")
