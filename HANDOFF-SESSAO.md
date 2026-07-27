@@ -409,21 +409,44 @@ são só os do `GEMINI_BLOQUEADO_403`). O que cada bloco exigiu:
   confirmada no Postgres: lote novo com 2 rotas `Confirmada` e pontos Agendados
   de 4 → 6.
 
-### ⬜ DECISÃO DE PRODUTO PENDENTE — siglas no Title Case
+### ⬜ DECISÃO DE PRODUTO PENDENTE — Title Case tem DOIS efeitos
 
-`titleCase` (`lib/text-utils.ts`) é **intencional** e preserva maiúsculas apenas
-em palavras **que contêm dígito** (`BSBIA04`, `UM-1`). Siglas **puras** viram
-capitalizadas: `SQN` → `Sqn`, `QNL` → `Qnl`, `CLN` → `Cln`, `QDFM` → `Qdfm`,
-`CCSW` → `Ccsw`.
+`titleCase` (`lib/text-utils.ts`) é **intencional**. A heurística é
+**estritamente por palavra** — cada palavra é avaliada isoladamente, sem olhar
+as vizinhas. Saída **medida** (não inferida), rodando a função:
 
-**Por que importa neste domínio:** em Brasília os endereços *são* siglas puras, e
-o sistema é de roteirização no DF — o próprio seed usa "SQN 410". (Note que
-`"SQN 410"` sobrevive porque a palavra seguinte tem dígito, mas a sigla isolada
-num nome de projeto/técnico não.)
+```
+"SQN 410"             ->  "Sqn 410"
+"QDFM 26 Conjunto A"  ->  "Qdfm 26 Conjunto a"
+"SQN"                 ->  "Sqn"
+"QNL 12"              ->  "Qnl 12"
+```
 
-**Alcance:** todo **nome de Projeto** e de **Técnico**, em criação e edição
-(`lib/db/projetos.ts`, `lib/db/tecnicos.ts`). Não afeta UMs, RAs nem endereços
-de pontos (que vêm da planilha).
+São **dois efeitos distintos**, não um:
+
+1. **Siglas puras são capitalizadas.** Só palavras **que contêm dígito** são
+   preservadas como digitadas (`BSBIA04`, `UM-1`, `410`). Uma sigla sem dígito
+   não é: `SQN` → `Sqn`, `QNL` → `Qnl`, `CLN` → `Cln`, `QDFM` → `Qdfm`,
+   `CCSW` → `Ccsw`. **Atenção:** `"SQN 410"` **não** sobrevive — vira
+   `"Sqn 410"`. O fato de a palavra seguinte ter dígito é irrelevante (uma
+   versão anterior deste handoff afirmava o contrário; estava errado).
+2. **Palavras de uma letra e artigos/preposições são rebaixados** quando não são
+   a primeira palavra, porque estão em `PALAVRAS_MINUSCULAS` (`a`, `o`, `e`,
+   `de`, `do`, `da`, `os`, `as`…): `"Conjunto A"` → `"Conjunto a"`, e o mesmo
+   para `"Bloco A"`, `"Quadra A"`, `"Lote E"`. Este efeito **não estava mapeado**
+   antes.
+
+**Alcance real (verificado — para não inflar a prioridade):** `titleCase` tem
+**4 chamadas** no repo, todas sobre o campo `nome`:
+`criarProjeto`/`atualizarProjeto` (`lib/db/projetos.ts:111,136`) e
+`criarTecnico`/`atualizarTecnico` (`lib/db/tecnicos.ts:116,140`).
+`lib/db/ums.ts`, `lib/db/ras.ts` e `lib/db/pontos.ts` têm **zero** ocorrências.
+
+Portanto o problema aparece **somente quando alguém digita uma sigla (ou uma
+palavra de uma letra) dentro do NOME de um projeto ou de um técnico**. Os
+**endereços dos pontos** — onde as siglas do DF realmente aparecem o tempo todo
+na tela — **vêm da planilha e não passam por `titleCase`**, assim como nomes de
+UM e de RA. O escopo é bem mais estreito do que "aparece o tempo todo em tela".
 
 **Opções (não implementadas — decisão do usuário/produto):**
 1. **Lista de siglas conhecidas** — allowlist do DF (SQN, SQS, SHN, SHS, CLN,
