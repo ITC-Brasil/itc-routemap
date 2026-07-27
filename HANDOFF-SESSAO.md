@@ -529,10 +529,109 @@ Escopo reduzido após descobrir que as server actions já validam sessão.
 
 ---
 
-## 10. CHECKLIST DE DEPLOY — servidor definitivo (não executar daqui)
+## 10. CHECKLIST DE DEPLOY — servidor definitivo
 
-Roteiro consolidado. Nada disto foi executado nesta sessão; o ambiente atual é
-o Docker de **teste**.
+> **Status: ENSAIADO LOCALMENTE em 2026-07-27.** O stack completo
+> (postgres → app → nginx) subiu de fato, com a imagem do Dockerfile, e o
+> roteiro abaixo foi **corrigido com o que o ensaio revelou**. O que está
+> marcado ⚠️ falhou na primeira tentativa e exigiu mudança.
+
+### 10.0 O QUE O ENSAIO REVELOU (leia isto antes de seguir o roteiro)
+
+**Funcionou de primeira:** `output: "standalone"` + `node server.js`; o
+`depends_on: service_healthy` do postgres; o app subindo (`Ready in 0ms`); o
+`proxy.ts` em produção (307 sem cookie / 200 com cookie); as rotas de API em
+**401 sem sessão** e `/api/auth/*` pública em 200; login **200** direto na 3000
+**e** através do nginx (com `Set-Cookie session_token`); assets `.js`/`.css`
+servidos via nginx; e a `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` **corretamente
+embutida no bundle** pelo build arg (encontrada em 2 chunks de `.next/static`,
+zero placeholders não substituídos, e `len=0` em runtime — que é o esperado,
+pois não precisa ser env de runtime).
+
+**⚠️ Falhou e precisou de correção (já aplicada no repo):**
+
+1. **Build estourou o heap dentro do container.** `npm run build` compilou em
+   ~44s e morreu no type-check com `FATAL ERROR: Ineffective mark-compacts near
+   heap limit — JavaScript heap out of memory`. **Correção:** `ENV
+   NODE_OPTIONS="--max-old-space-size=6144"` no stage `builder` do Dockerfile.
+   Com isso o build passa (TypeScript em ~67s). O daemon local tinha ~7,7 GB —
+   **conferir a RAM do host de produção**; se for menor, o build não passa.
+2. **Não existia `.dockerignore`.** O `COPY . .` levava para a imagem:
+   `tests/e2e/.auth/user.json` (**token de sessão válido**), todos os `.env*`,
+   `.git/`, `node_modules/`, `.next/`, `test-results/`. **Correção:**
+   `.dockerignore` criado, com o storage state e os `.env*` no topo.
+
+**⚠️ Descobertas que mudam o procedimento (nenhum código a mudar, mas o
+roteiro antigo estava errado):**
+
+3. **`prisma migrate deploy` e o seed NÃO rodam no container de produção.** O
+   runner recebe apenas `.next/standalone`, `.next/static`, `public`, `prisma/`
+   e `node_modules/.prisma` — **não** tem o CLI do Prisma (não é importado pelo
+   código, então o standalone não o empacota) nem o `tsx` (é devDependency, e o
+   `db:seed` é `tsx prisma/seed.ts`). **Procedimento correto: one-off com a
+   imagem do stage `builder`**, que tem o `node_modules` completo:
+
+   ```bash
+   docker build --target builder -t itc-routemap-migrate:latest \
+     --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=dummy .
+
+   docker run --rm --network itc-routemap_default --env-file .env.docker \
+     -e DATABASE_URL="postgresql://itc_user:<senha>@postgres:5432/itc_routemap" \
+     itc-routemap-migrate:latest npx prisma migrate deploy
+
+   docker run --rm --network itc-routemap_default --env-file .env.docker \
+     -e DATABASE_URL="postgresql://itc_user:<senha>@postgres:5432/itc_routemap" \
+     itc-routemap-migrate:latest npm run db:seed
+   ```
+   Note o `-e DATABASE_URL` sobrescrito: dentro da rede do compose o host é
+   **`postgres`**, não `localhost`. Ambos foram **provados** no ensaio, num
+   banco descartável: `Applying migration 20260723211652_init` → 12 tabelas, e
+   `Admin ... criado com papel=admin` com `providerId=credential` e o convite
+   consumido pelo hook.
+
+4. **🔴 `docker run --env-file` e `docker compose --env-file` tratam aspas de
+   forma DIFERENTE.** Medido no ensaio, para o mesmo `.env.docker`:
+   `docker run` entregou `ADMIN_PASSWORD` com **8 caracteres e aspas
+   literais**; o container do compose recebeu **6 caracteres** (aspas
+   removidas). Consequência prática: **semear via `docker run --env-file` cria o
+   admin com as aspas fazendo parte da senha** — e ninguém conseguiria logar
+   depois. Isto é a mesma família de armadilha do `#` que já morde este projeto.
+   **Regra para o `.env.docker` de produção: SEM aspas e SEM `#` no valor**
+   (ver 10.2, item 4). Alternativa: semear com `docker compose run`, que
+   normaliza as aspas.
+
+5. **🔴 O `ADMIN_PASSWORD` do `.env.docker` atual tem 6 caracteres** — o seed
+   valida `>= 8` e **abortaria** se rodado via compose. Só "funcionou" no ensaio
+   porque o `docker run` somou as aspas. Precisa ser trocado antes do deploy
+   (ação do usuário).
+
+6. **`GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` estão VAZIOS no `.env.docker`**
+   (`len=0`). O app sobe, mas loga
+   `WARN [Better Auth]: Social provider google is missing clientId or
+   clientSecret` e **o login com Google não funciona**. Se esse método for
+   usado em produção, preencher.
+
+7. **O `nginx.conf` não faz TLS** — ver 10.4, que deixou de ser "só colocar os
+   certificados" e virou tarefa de trabalho.
+
+8. **Ruído no build:** o prerender emite várias linhas
+   `BetterAuthError: You are using the default secret`, porque
+   `BETTER_AUTH_SECRET` é env de runtime e não build arg. **Não** quebra o build
+   e em runtime o secret chega correto (`len=44`, idêntico ao do `.env`).
+   Ignorar.
+
+9. **Sem healthcheck no `app`**, e o `nginx` usa `depends_on: app` **sem**
+   `condition` — só garante ordem de início, não prontidão. Se o nginx subir
+   antes do Next servir, as primeiras requisições podem dar 502. Não aconteceu
+   no ensaio (o app sobe em ~1s), mas em produção vale um healthcheck.
+
+10. **`nginx/certs/` não existe no repo** (está no `.gitignore`), e o bind mount
+    faz o Docker **criar o diretório vazio automaticamente** — então o nginx
+    sobe normalmente mesmo sem certificados. Isso mascara a ausência de TLS.
+
+---
+
+Roteiro corrigido abaixo.
 
 ### 10.1 Infra e host
 1. **DNS** do domínio de produção apontando para o host.
@@ -541,10 +640,15 @@ o Docker de **teste**.
 
 ### 10.2 Segredos no `.env.docker` do servidor
 Nunca commitados; preenchidos pelo dono do projeto, fora do chat.
-4. **`ADMIN_PASSWORD` de produção** — gerada pelo usuário. Recomendação:
-   **só letras e números, ≥16 caracteres, SEM `#`** (nem outros símbolos), para
-   não depender de quote-handling do dotenv. A senha de dev **não** vale para
-   produção. O assistente não gera nem sugere senha.
+4. **`ADMIN_PASSWORD` de produção** — gerada pelo usuário. Recomendação, agora
+   reforçada pelo ensaio: **só letras e números, ≥16 caracteres, SEM `#` e
+   escrita SEM ASPAS no arquivo**. Motivo medido: `docker run --env-file`
+   **preserva as aspas** como parte do valor, enquanto o Compose as remove — com
+   aspas, o seed grava um hash da senha *com* as aspas e o login depois falha
+   (ver 10.0, item 4). A senha de dev **não** vale para produção. O assistente
+   não gera nem sugere senha.
+   ⚠️ O valor hoje no `.env.docker` tem **6 caracteres** e reprovaria na
+   validação do seed (`>= 8`).
 5. **`BETTER_AUTH_SECRET` NOVO** para produção (não reaproveitar o de dev — ele
    assina os cookies de sessão).
 6. `DATABASE_URL` apontando para o Postgres do compose, `ADMIN_EMAIL`,
@@ -562,29 +666,56 @@ Nunca commitados; preenchidos pelo dono do projeto, fora do chat.
    template.
 9. Conferir cotas/billing de Routes API e Geocoding API.
 
-### 10.4 TLS e nginx
-10. Certificados em **`./nginx/certs`** — **não estão no repositório**, precisam
-    ser colocados no servidor.
+### 10.4 TLS e nginx — ⚠️ TAREFA DE TRABALHO, não só "colocar os certs"
+10. `nginx/nginx.conf` hoje tem **apenas `listen 80`**. Não há `listen 443 ssl`,
+    nem `ssl_certificate`/`ssl_certificate_key`, nem redirect 80→443 — embora o
+    compose publique a porta **443** e monte `./nginx/certs`. Ou seja: **443 é
+    publicada sem listener e o volume de certificados nunca é lido**. Colocar os
+    arquivos em `./nginx/certs` **não** habilita HTTPS.
+    Trabalho necessário antes do deploy:
+    - obter os certificados (Let's Encrypt ou os do Grupo) e colocá-los em
+      `./nginx/certs` (o diretório **não** está no repo — `.gitignore:56` — e o
+      bind mount cria um vazio automaticamente, o que **mascara** a ausência);
+    - acrescentar ao `nginx.conf` um `server { listen 443 ssl; ... }` com
+      `ssl_certificate`/`ssl_certificate_key` e o mesmo bloco de `proxy_pass`
+      já existente;
+    - transformar o server da 80 em redirect permanente para HTTPS;
+    - garantir que `BETTER_AUTH_URL=https://routemap.grupoitcbrasil.com.br` bate
+      com a origem servida pelo nginx (em produção bate; no ensaio local havia
+      divergência benigna, `http://localhost:3000` vs origem `http://localhost`,
+      e mesmo assim o login funcionou pelos dois caminhos).
 
 ### 10.5 Build e banco
-11. **Build**: nesta máquina de dev o type-check dá OOM sem heap maior —
-    `$env:NODE_OPTIONS="--max-old-space-size=6144"; npm run build`. **Verificar
-    se o host de produção tem RAM suficiente**; se der OOM no build da imagem,
-    passar `NODE_OPTIONS=--max-old-space-size=6144` no Dockerfile/compose.
-12. Subir só o `postgres` primeiro.
-13. **`prisma migrate deploy`** — **NUNCA `migrate reset`** em produção.
-14. **Seed manual do admin**: `npm run db:seed` (o Dockerfile só roda
-    `node server.js`, então migration e seed são passos **manuais**).
+11. **Build**: o heap maior é **obrigatório** e já está no Dockerfile
+    (`ENV NODE_OPTIONS="--max-old-space-size=6144"` no stage `builder`) —
+    sem ele o build **falha** dentro do container (comprovado). **Conferir a RAM
+    do host**: o daemon do ensaio tinha ~7,7 GB.
+    `docker compose --env-file .env.docker build`
+12. Subir só o `postgres` primeiro e esperar `healthy`.
+13. **`prisma migrate deploy`** — **NUNCA `migrate reset`** em produção — via
+    **one-off da imagem `builder`**, com `DATABASE_URL` apontando para o host
+    interno `postgres`. Comando exato em 10.0, item 3. **Não** tente rodar isso
+    no container do app: ele não tem o CLI do Prisma.
+14. **Seed do admin** também por **one-off da imagem `builder`** (o runner não
+    tem `tsx`). Comando exato em 10.0, item 3.
     O seed é **idempotente por early-return**: se o usuário já existe, ele
     **não atualiza a senha** — trocar `ADMIN_PASSWORD` depois não tem efeito.
-15. Subir `app` + `nginx`.
+    Cuidado com aspas (10.0, item 4).
+15. Subir `app` e depois `nginx`. Considerar adicionar um **healthcheck** ao
+    `app` e `condition: service_healthy` no `depends_on` do nginx (hoje é só
+    ordem de início — risco de 502 nas primeiras requisições).
 
 ### 10.6 Validação pós-deploy
 16. Smoke test: login com a senha de produção, navegar pelas 8 páginas, abrir um
     lote no Histórico, rodar um cálculo de rotas.
 17. Conferir que as rotas de API respondem **401 sem sessão** (blindagem da
-    Frente 4) e que `/api/auth/*` segue pública.
+    Frente 4) e que `/api/auth/*` segue pública. **Todas validadas no ensaio,
+    através do nginx:** `geocode-pontos`, `sincronizar`, `routes/alocar`,
+    `routes/single` e `geocoding` → 401; `auth/get-session` → 200.
 18. Conferir acentuação (UTF-8) e ausência de erro no log do container.
+19. Conferir que o **mapa carrega** (é o teste de que a
+    `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` foi passada como **build arg**; se o build
+    rodar sem ela, o bundle sai sem a chave e só se descobre no browser).
 
 ### 10.7 Pendências conhecidas para o deploy
 - **`x-api-key` para cron externo**: hoje **não existe nenhum cron/job** — os
