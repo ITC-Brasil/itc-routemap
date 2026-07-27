@@ -21,9 +21,7 @@ test.describe("Autenticação e Autorização", () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
-  test("AU-06: rota privada com login carrega normalmente", async ({ page }) => {
-    test.skip(!!process.env.CI, "Requer auth manual em CI")
-    await page.goto("/")
-    await expect(page).not.toHaveURL(/\/login/)
-  })
+  // AU-06 ("rota privada COM login") vive em 01b-auth-logado.spec.ts: este
+  // arquivo roda no project "anonimo", sem sessão, então um teste que exige
+  // login estava no lugar errado.
 })
