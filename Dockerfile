@@ -12,6 +12,11 @@ FROM base AS builder
 # environment de runtime.
 ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+# Heap maior para o type-check do `next build`. Sem isso o build FALHA dentro do
+# container com "FATAL ERROR: Ineffective mark-compacts near heap limit -
+# JavaScript heap out of memory" (verificado no ensaio de deploy de 2026-07-27:
+# compila em ~44s e estoura no TypeScript). Mesmo valor usado no host.
+ENV NODE_OPTIONS="--max-old-space-size=6144"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate

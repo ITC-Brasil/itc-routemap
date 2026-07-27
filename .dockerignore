@@ -1,0 +1,41 @@
+# Contexto de build do Docker.
+#
+# O Dockerfile faz `COPY . .` no stage builder, então tudo que não estiver aqui
+# entra na imagem. Além de peso e lentidão, isso é questão de segurança:
+# NUNCA levar credenciais para dentro da imagem.
+
+# CRÍTICO — storage state do Playwright contém TOKEN DE SESSÃO válido
+tests/e2e/.auth/
+
+# Segredos: as vars de runtime chegam por `environment` do compose, e as
+# NEXT_PUBLIC_* por build arg. Nenhum .env precisa entrar na imagem.
+.env
+.env.*
+!.env.example
+
+# Dependências e artefatos de build (o stage deps roda `npm ci` do zero e o
+# builder gera o .next dentro da imagem)
+node_modules/
+.next/
+
+# Histórico do git
+.git/
+.gitignore
+
+# Artefatos de teste
+test-results/
+playwright-report/
+tests/e2e/.auth/user.json
+
+# Ferramentas e saídas locais
+.graphify/
+graphify-out/
+.vscode/
+.claude/
+
+# Documentação e artefatos de sessão (não afetam o runtime)
+docs/
+*.md
+
+# Certificados do nginx: montados como volume no compose, não copiados
+nginx/certs/
