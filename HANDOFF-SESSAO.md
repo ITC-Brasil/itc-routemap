@@ -756,6 +756,78 @@ Nunca commitados; preenchidos pelo dono do projeto, fora do chat.
 
 ---
 
+## 10.8 MIGRAÇÃO DE DADOS Firestore → Postgres (`scripts/migrar-firestore.ts`)
+
+O código já roda em Postgres, mas os dados de produção seguem no Firestore. O
+script traz projetos, RAs, técnicos, UMs, pontos e rotas. **Dry-run é o default**
+(`--gravar` para persistir), só-leitura no Firestore, idempotente por `upsert`
+com os IDs originais.
+
+### ⚠️ PRESSUPOSTO CRÍTICO: planilha e app ALINHADOS
+
+A migração assume que o ciclo operacional está fechado, ou seja, que **cada ponto
+`Agendado` (era `Atual` na planilha) é exatamente um dos pontos referenciados por
+uma rota `Confirmada`**. O ciclo é:
+
+```
+confirma a rota no app → app grava "Agendado" → marca-se "Atual" na planilha
+                                              → a linha anterior vira "Histórico"
+```
+
+Quando o **passo manual da planilha está pendente**, os dois conjuntos divergem —
+e é isso que o `analisarVinculo` detecta. **O dry-run é a checagem desse
+alinhamento**, e vale re-executá-lo perto da virada, porque o alinhamento muda
+com a operação do dia a dia:
+
+- **Alinhados** → o script reconstrói `Ponto.rotaId`/`tecnicoId` pela rota
+  `Confirmada` mais recente de cada ponto ("Agendado" sem rota seria incoerente).
+- **Divergentes** → registra a diferença como **CONFLITO**, que **bloqueia a
+  gravação**, e lista ponto por ponto os dois lados. A saída é alinhar a fonte
+  (marcar a planilha) e rodar de novo — não forçar.
+
+Estado em 2026-07-29: **desalinhado**. 7 pontos `Atual` × 7 pontos com rota
+`Confirmada`, apenas 3 em comum: nas 4 UMs BSBIA a rota da etapa 7 já foi
+confirmada no app, mas a planilha ainda marca a etapa 6 como `Atual`. O usuário
+vai completar esse passo na planilha e avisar.
+
+### Consolidação 7 documentos → 3 projetos
+
+O Firestore tem um "projeto" **por aba** (artefato de modelagem), não duplicatas.
+Canônico = `criadoEm` mais antigo; recebe a **união** dos `sheetAbas`;
+`Ponto/Rota/Um.projetoId` são remapeados. Verificado: `sheetId`/`sheetUrl`
+idênticos dentro de cada sigla, batendo com as 3 planilhas reais, e os
+`sheetAbas` do Firestore contêm **só abas de UM** (`LEIA-ME`/`GERAL` nunca
+entraram).
+
+| sigla | id canônico | sheetAbas | pontos | rotas | ums |
+|---|---|---|---|---|---|
+| BSBIA | `KMPN6GsZS9VumMjPGTLG` | BSBIA01..04 | 64 | 64 | 4 |
+| SPV | `J44DXkY1jNE9Z1oZ31eu` | SPV01, SPV02 | 35 | 8 | 2 |
+| CODHAB | `nfv4FP9dPwS4JsaRffVT` | CODHAB01 | 32 | 4 | 1 |
+
+**IDs preservados** (o `@default(cuid())` só vale quando o valor não é
+fornecido), o que mantém os vínculos cruzados sem remapeamento. **`hashMd5` é
+recalculado** nos pontos que mudaram de `projetoId` **ou** de `status` — ambos
+participam do hash (`projetoId` é o 1º campo, `status` o 13º).
+
+### Não migra
+
+- **`convites`**: o único é do admin, que o seed já cria.
+- **15 pontos órfãos** (projeto deletado no Firestore): todos da aba `BSBIA03`,
+  que segue na planilha — a sincronização repovoa. 14 dos 15 duplicam pontos
+  existentes. `--incluir-orfaos` migra, se um dia fizer sentido.
+- **Usuários**: o auth antigo era Firebase Auth com popup Google — não há senha
+  para migrar. O acesso se resolve por convite + primeiro acesso.
+
+### Divergência de nomenclatura conhecida (não bloqueia)
+
+A UM do CODHAB está cadastrada como `CODHAB` e a aba/`Ponto.umNome` é
+`CODHAB01`. Não afeta a roteirização: `obterDestinosPorUM` monta a lista a partir
+de `Ponto.umNome`, não da tabela `Um`. Afeta só o cadastro exibido em
+Admin → UMs.
+
+---
+
 ## 11. PRÓXIMA AÇÃO IMEDIATA
 
 Aguardando **OK do usuário no grupo B da Frente 2** (§6). Com o OK: aplicar os 10
