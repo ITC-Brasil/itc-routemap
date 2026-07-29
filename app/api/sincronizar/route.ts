@@ -31,6 +31,13 @@ type ResumoAba = {
   erro: string | null
 }
 
+/** Linha cujo Status não foi reconhecido — entrou como "Pendente". */
+type AvisoStatus = {
+  aba: string
+  linha: number
+  statusCru: string
+}
+
 type RelatorioSync = {
   sucesso: true
   totalLinhasPlanilha: number
@@ -39,6 +46,8 @@ type RelatorioSync = {
   deletados: number
   ignorados: number
   abas: ResumoAba[]
+  /** Status desconhecidos encontrados (não bloqueiam a sincronização). */
+  avisosStatus: AvisoStatus[]
   duracao: number  // milissegundos
 }
 
@@ -141,10 +150,11 @@ export async function POST(request: Request) {
     let novos = 0
     let atualizados = 0
     let ignorados = 0
+    const avisosStatus: AvisoStatus[] = []
     const chavesPresentes = new Set<string>()
 
     for (const linha of todasLinhas) {
-      const inputCompleto = converterLinhaParaPontoInput(linha, projetoId)
+      const inputCompleto = converterLinhaParaPontoInput(linha, projetoId, avisosStatus)
       if (!inputCompleto) {
         ignorados++
         continue
@@ -200,7 +210,15 @@ export async function POST(request: Request) {
       deletados: idsParaDeletar.length,
       ignorados,
       abas: abasResumo,
+      avisosStatus,
       duracao: Date.now() - inicio,
+    }
+
+    if (avisosStatus.length > 0) {
+      console.warn(
+        `Sincronizacao: ${avisosStatus.length} linha(s) com Status desconhecido (entraram como "Pendente"):`,
+        avisosStatus.map((a) => `${a.aba}!L${a.linha}="${a.statusCru}"`).join(", ")
+      )
     }
 
     return NextResponse.json(relatorio)
@@ -231,9 +249,63 @@ function criarChaveComposta(umNome: string, numeroLinha: number): string {
  * Converte uma linha bruta consolidada (com aba origem) em PontoInput.
  * Retorna null se a linha estiver com dados essenciais faltando.
  */
+/**
+ * Vocabulário de status: planilha → app. Mapeamento 1:1, três estados de cada
+ * lado (confirmado com o cliente em 2026-07-28):
+ *
+ *   Pendente   → Pendente    aguardando nova alocação
+ *   Atual      → Agendado    em andamento, técnico atribuído
+ *   Histórico  → Histórico    ciclo encerrado
+ *
+ * O ciclo operacional é: confirma a rota no app → o app grava "Agendado" → a
+ * planilha é marcada como "Atual" e a linha anterior vira "Histórico".
+ *
+ * Antes desta normalização o valor da planilha era gravado CRU, então "Atual"
+ * entrava literalmente em `Ponto.status` — um estado que nenhuma query do app
+ * reconhece (`obterDestinoDaUM` e `listarPontosPendentesSemCoordenadas` filtram
+ * "Pendente"; `cancelarLote` filtra "Agendado"). Eram pontos invisíveis.
+ */
+const STATUS_POR_VALOR_DA_PLANILHA: Record<string, string> = {
+  pendente: "Pendente",
+  atual: "Agendado",
+  historico: "Histórico",
+}
+
+/** Remove acentos e caixa para casar "Histórico", "historico", "HISTÓRICO". */
+function chaveStatus(valor: string): string {
+  return valor
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase()
+}
+
+/**
+ * Traduz o Status da planilha para o vocabulário do app.
+ *
+ * Valor desconhecido cai em "Pendente" (o mesmo default de célula vazia) e gera
+ * aviso no relatório: "Pendente" é o estado seguro — o ponto continua visível
+ * para roteirização e alguém percebe. Mandar para "Histórico" faria o ponto
+ * desaparecer em silêncio, e abortar a sincronização seria severo demais para
+ * um erro de digitação numa célula.
+ */
+function normalizarStatus(
+  cru: string,
+  aba: string,
+  numeroLinha: number,
+  avisos: AvisoStatus[]
+): string {
+  if (!cru.trim()) return "Pendente"
+  const conhecido = STATUS_POR_VALOR_DA_PLANILHA[chaveStatus(cru)]
+  if (conhecido) return conhecido
+  avisos.push({ aba, linha: numeroLinha, statusCru: cru })
+  return "Pendente"
+}
+
 function converterLinhaParaPontoInput(
   linha: LinhaComAba,
-  projetoId: string
+  projetoId: string,
+  avisosStatus: AvisoStatus[]
 ): PontoInput | null {
   // Validação mínima: precisa ter cidade ou plus code ou endereço
   if (!linha.cidade && !linha.plusCode && !linha.endereco) {
@@ -243,6 +315,10 @@ function converterLinhaParaPontoInput(
   const ciclo = parseInt(linha.ciclo) || 0
   const etapa = parseInt(linha.etapa) || 0
   const latitude = linha.latitude ? parseFloat(linha.latitude) : null
+  // Coluna N. Antes era `longitude: null` fixo (esquecimento, não decisão — ver
+  // lib/google-sheets.ts): a latitude vinha da planilha e a longitude não, então
+  // todo ponto sincronizado ficava "sem coordenadas" para o batch de geocoding.
+  const longitude = linha.longitude ? parseFloat(linha.longitude) : null
 
   // umNome vem da ABA ORIGEM (ex: "BSBIA01"), não do campo F da planilha.
   // Isso é importante: a aba é a fonte de verdade pra identificação da UM.
@@ -260,8 +336,11 @@ function converterLinhaParaPontoInput(
     referencia: linha.referencia,
     linkMaps: linha.link,
     latitude: !isNaN(latitude ?? NaN) ? latitude : null,
-    longitude: null,
-    status: linha.status || "Pendente",
+    longitude: !isNaN(longitude ?? NaN) ? longitude : null,
+    // Normalizado ANTES do calcularHashPonto (logo abaixo): o status é o 13º
+    // campo do hash, então normalizar depois faria a sync ver divergência a cada
+    // execução e reescrever o ponto indefinidamente.
+    status: normalizarStatus(linha.status, linha.abaOrigem, linha.numeroLinha, avisosStatus),
   }
 
   const hashMd5 = calcularHashPonto(inputSemHash)
