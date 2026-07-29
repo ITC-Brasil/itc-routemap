@@ -21,8 +21,10 @@ import { JWT } from "google-auth-library"
  *   I: Endereço
  *   J: Referência
  *   K: Link Google Maps
- *   L: Status (Histórico | Pendente)
- *   M: Latitude (geralmente vazio — preenchemos via Geocoding)
+ *   L: Status (Pendente | Atual | Histórico — ver normalizarStatus na sync)
+ *   M: Latitude (pode vir vazio — preenchemos via Geocoding)
+ *   N: Longitude (idem)
+ *   O: aviso livre ("Esta aba é gerada automaticamente…") — não é dado
  */
 export type LinhaPlanilha = {
   numeroLinha: number          // posição na planilha (>= 2, pois linha 1 é cabeçalho)
@@ -39,6 +41,7 @@ export type LinhaPlanilha = {
   link: string
   status: string
   latitude: string
+  longitude: string
 }
 
 // ============================================================
@@ -240,6 +243,11 @@ function mapearLinha(linha: string[], numeroLinha: number): LinhaPlanilha {
     link: (linha[10] ?? "").trim(),
     status: (linha[11] ?? "").trim(),
     latitude: (linha[12] ?? "").trim(),
+    // Coluna N. Era ignorada desde o commit inicial da sync (8dbb36c), sem
+    // justificativa, enquanto o cabeçalho da planilha já a tinha — o resultado
+    // era gravar latitude e deixar longitude nula, tornando TODO ponto
+    // sincronizado candidato eterno ao batch de geocoding.
+    longitude: (linha[13] ?? "").trim(),
   }
 }
 
