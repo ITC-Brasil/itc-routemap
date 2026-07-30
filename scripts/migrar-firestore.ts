@@ -13,8 +13,8 @@
  * o valor não é fornecido. Isso mantém todos os vínculos cruzados
  * (Um.projetoId, Um.tecnicoAtualId, Um.raAtualId, Ponto.projetoId,
  * Rota.tecnicoId, Rota.pontoId, Rota.projetoId, Rota.realocadaDe) sem tabela de
- * remapeamento — e mantém os `hashMd5` dos pontos válidos, já que `projetoId`
- * é o primeiro campo do hash.
+ * remapeamento. Os `hashMd5`, porém, são todos recalculados: `linhaOrigem` saiu
+ * do hash, então os valores gravados no Firestore têm um campo a mais.
  *
  * Uso:
  *   npx tsx scripts/migrar-firestore.ts                  # dry-run (default)
@@ -155,18 +155,15 @@ function booleano(v: unknown, padrao: boolean): boolean {
 }
 
 /**
- * Cópia fiel de `calcularHashPonto` (lib/db/pontos.ts) — 13 campos, separador
+ * Cópia fiel de `calcularHashPonto` (lib/db/pontos.ts) — 12 campos, separador
  * "|", md5. Replicada porque `lib/db/*` tem `import "server-only"` e não pode
  * ser carregado por script Node.
  *
- * Usada SÓ nos pontos remapeados pela consolidação: `projetoId` é o 1º campo do
- * hash, então trocar de projeto invalida o hash original e a sincronização
- * seguinte veria a linha como "alterada". Pontos que permanecem no projeto
- * canônico mantêm o hash do Firestore.
+ * Aplicada a TODOS os pontos: nenhum hash do Firestore serve mais, porque foram
+ * calculados com `linhaOrigem` incluído (13 campos) e esse campo saiu do hash.
  */
 function calcularHashPonto(p: {
   projetoId: string
-  linhaOrigem: number
   ciclo: number
   etapa: number
   tecnicoNomeHistorico: string
@@ -181,7 +178,6 @@ function calcularHashPonto(p: {
 }): string {
   const chave = [
     p.projetoId,
-    p.linhaOrigem,
     p.ciclo,
     p.etapa,
     p.tecnicoNomeHistorico,
@@ -316,11 +312,9 @@ function mapPonto(d: Record<string, unknown> & { id: string }) {
     longitude: numeroOuNulo(d.longitude),
     // Traduz o vocabulário da planilha/Firestore para o do app:
     // Atual → Agendado, Pendente e Histórico inalterados (ver TRADUCAO_STATUS).
-    // Como `status` é o 13º campo do hash, os pontos traduzidos têm o hashMd5
-    // recalculado.
     status: traduzirStatus(texto(d.status, "Pendente")),
-    // hashMd5 COPIADO: `projetoId` é o 1o campo do hash e é preservado, então o
-    // hash antigo continua válido (decisão revisada em 2026-07-27).
+    // Placeholder: sobrescrito para todos os pontos mais adiante, porque nenhum
+    // hash do Firestore é válido depois de `linhaOrigem` sair do hash.
     hashMd5: texto(d.hashMd5),
     // tecnicoId/rotaId não existem no Firestore — reconstruídos depois, a partir
     // das rotas Confirmadas (ver reconstruirVinculoPontoRota)
@@ -577,10 +571,6 @@ async function main() {
   let hashesRecalculados = 0
   let orfaosDescartados = 0
 
-  // status como estava no Firestore, para saber quais foram traduzidos
-  const statusOriginalPorPonto = new Map(
-    pontosRaw.map((p) => [p.id, texto(p.status, "Pendente")])
-  )
   const statusTraduzidos = pontosRaw.filter(
     (p) => traduzirStatus(texto(p.status, "Pendente")) !== texto(p.status, "Pendente")
   ).length
@@ -596,13 +586,13 @@ async function main() {
       return true
     })
     .map((p) => {
-      const novoProjetoId = remapear(p.projetoId)
-      const statusTraduzido = statusOriginalPorPonto.get(p.id) !== p.status
-      // O hash cobre projetoId (1º campo) e status (13º). Se qualquer um dos
-      // dois mudou, o hash do Firestore não corresponde mais ao dado.
-      if (novoProjetoId === p.projetoId && !statusTraduzido) return p
+      // Hash recalculado SEMPRE: `linhaOrigem` saiu do hash em 2026-07-30 (junto
+      // com a troca da identidade por posição de linha pela chave natural), então
+      // TODO hash vindo do Firestore está obsoleto — inclui um campo a mais.
+      // Antes desta mudança só os pontos remapeados ou com status traduzido
+      // precisavam recalcular.
       hashesRecalculados++
-      const atualizado = { ...p, projetoId: novoProjetoId }
+      const atualizado = { ...p, projetoId: remapear(p.projetoId) }
       return { ...atualizado, hashMd5: calcularHashPonto(atualizado) }
     })
 
@@ -624,7 +614,7 @@ async function main() {
     )
   }
   avisos.push(
-    `hashMd5 recalculados: ${hashesRecalculados} (pontos que mudaram de projetoId e/ou tiveram o status traduzido)`
+    `hashMd5 recalculados: ${hashesRecalculados} (todos — linhaOrigem saiu do hash)`
   )
   avisos.push(
     `Status traduzido (Atual→Agendado): ${statusTraduzidos} ponto(s) no Firestore`

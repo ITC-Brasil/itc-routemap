@@ -80,16 +80,16 @@ export type PontoInput = Omit<Ponto, "id" | "criadoEm" | "atualizadoEm">
  * Use isso para comparar o conteúdo da planilha com o banco
  * sem precisar comparar campo a campo.
  *
- * CRÍTICO: a ordem dos campos e o separador "|" são IDÊNTICOS aos de
- * lib/firestore/pontos.ts — preservação byte a byte. Alterar qualquer
- * detalhe faria a sincronização reprocessar todas as linhas como
- * "alteradas".
+ * `linhaOrigem` NÃO participa do hash. Participava até 2026-07-30, junto com o
+ * uso da posição da linha como identidade do ponto — então inserir uma etapa no
+ * meio da aba deslocava todas as linhas seguintes e a sincronização via a aba
+ * inteira como alterada. A identidade passou a ser a chave natural
+ * (projetoId + umNome + ciclo + etapa + plusCode); a posição virou dado
+ * informativo e sai do hash pelo mesmo motivo.
  *
- * MIGRAÇÃO DE DADOS (decisão registrada — Opção A): `projetoId` participa
- * do hash, e na migração Firestore→Postgres os projetos ganham IDs novos
- * (cuid). Os hashMd5 vindos do Firestore ficam, portanto, inválidos.
- * A fase de importação de dados DEVE recalcular o hash de cada ponto com
- * o novo projetoId (via esta função) — NÃO copiar o hash antigo.
+ * MIGRAÇÃO DE DADOS: qualquer hash gravado antes dessa mudança inclui
+ * `linhaOrigem` e não corresponde mais ao dado. scripts/migrar-firestore.ts
+ * recalcula o hash de TODOS os pontos por isso.
  */
 export function calcularHashPonto(
   input: Omit<PontoInput, "hashMd5">
@@ -97,7 +97,6 @@ export function calcularHashPonto(
   // Concatena todos os campos relevantes com separador
   const chave = [
     input.projetoId,
-    input.linhaOrigem,
     input.ciclo,
     input.etapa,
     input.tecnicoNomeHistorico,
@@ -277,6 +276,50 @@ export async function deletarPontosEmBatch(ids: string[]): Promise<void> {
   }
 }
 
+/**
+ * Deleta pontos em lote PRESERVANDO os que estão em uso.
+ *
+ * Usado pela sincronização no lugar de `deletarPontosEmBatch`: a linha sumiu da
+ * planilha, mas deletar um ponto que já tem rota atribuída perderia o vínculo
+ * (`Rota.pontoId`) e a atribuição corrente do técnico — dano irreversível e
+ * invisível. Um ponto é preservado se tiver `rotaId` ou status "Agendado", e
+ * nesse caso passa a "Histórico": some da roteirização sem sumir do banco.
+ *
+ * O `hashMd5` do preservado fica desatualizado em relação ao novo status. É
+ * inofensivo: o hash só é comparado contra uma linha da planilha, e essa linha
+ * não existe mais.
+ *
+ * @returns quantos foram deletados e quais foram preservados
+ */
+export async function deletarPontosEmBatchPreservandoEmUso(
+  ids: string[]
+): Promise<{ deletados: number; preservados: string[] }> {
+  if (ids.length === 0) return { deletados: 0, preservados: [] }
+
+  const candidatos = await prisma.ponto.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, rotaId: true, status: true },
+  })
+
+  const preservados = candidatos
+    .filter((p) => p.rotaId !== null || p.status === "Agendado")
+    .map((p) => p.id)
+
+  const preservadosSet = new Set(preservados)
+  const deletaveis = ids.filter((id) => !preservadosSet.has(id))
+
+  if (preservados.length > 0) {
+    await prisma.ponto.updateMany({
+      where: { id: { in: preservados } },
+      data: { status: "Histórico" },
+    })
+  }
+
+  await deletarPontosEmBatch(deletaveis)
+
+  return { deletados: deletaveis.length, preservados }
+}
+
 // ============================================================
 // GEOCODING — suporte ao batch de /api/geocode-pontos
 // ============================================================
@@ -332,6 +375,8 @@ export const listarPontosPorProjetoAdmin = listarPontosPorProjeto
 export const criarPontoAdmin = criarPonto
 export const atualizarPontoAdmin = atualizarPonto
 export const deletarPontosEmBatchAdmin = deletarPontosEmBatch
+export const deletarPontosEmBatchPreservandoEmUsoAdmin =
+  deletarPontosEmBatchPreservandoEmUso
 
 /**
  * Atualiza apenas o timestamp de última sincronização do projeto.

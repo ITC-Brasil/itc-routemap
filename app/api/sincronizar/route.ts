@@ -11,7 +11,7 @@ import {
   listarPontosPorProjetoAdmin,
   criarPontoAdmin,
   atualizarPontoAdmin,
-  deletarPontosEmBatchAdmin,
+  deletarPontosEmBatchPreservandoEmUsoAdmin,
   marcarSincronizacaoAdmin,
   calcularHashPonto,
 } from "@/lib/db/pontos"
@@ -38,16 +38,27 @@ type AvisoStatus = {
   statusCru: string
 }
 
+/** Linha sem Plus Code — não pôde ser identificada e foi pulada. */
+type AvisoSemPlusCode = {
+  aba: string
+  linha: number
+  cidade: string
+}
+
 type RelatorioSync = {
   sucesso: true
   totalLinhasPlanilha: number
   novos: number
   atualizados: number
   deletados: number
+  /** Pontos que sumiram da planilha mas estavam em uso: viraram "Histórico". */
+  preservados: number
   ignorados: number
   abas: ResumoAba[]
   /** Status desconhecidos encontrados (não bloqueiam a sincronização). */
   avisosStatus: AvisoStatus[]
+  /** Linhas puladas por não terem Plus Code (sem ele não há identidade). */
+  avisosSemPlusCode: AvisoSemPlusCode[]
   duracao: number  // milissegundos
 }
 
@@ -138,12 +149,10 @@ export async function POST(request: Request) {
     // 4. BUSCAR PONTOS EXISTENTES NO FIRESTORE
     const pontosExistentes = await listarPontosPorProjetoAdmin(projetoId)
 
-    // 5. INDEXAR POR (abaOrigem + linhaOrigem) — chave composta única
-    // Por que composta? Várias abas podem ter o mesmo numeroLinha (linha 2, 3...)
-    // — só ficam distintos quando combinados com o nome da aba.
+    // 5. INDEXAR PELA CHAVE NATURAL DO PONTO
     const mapaExistentes = new Map<string, Ponto>()
     for (const p of pontosExistentes) {
-      mapaExistentes.set(criarChaveComposta(p.umNome, p.linhaOrigem), p)
+      mapaExistentes.set(criarChaveComposta(p), p)
     }
 
     // 6. PROCESSAR LINHAS
@@ -151,17 +160,30 @@ export async function POST(request: Request) {
     let atualizados = 0
     let ignorados = 0
     const avisosStatus: AvisoStatus[] = []
+    const avisosSemPlusCode: AvisoSemPlusCode[] = []
     const chavesPresentes = new Set<string>()
 
     for (const linha of todasLinhas) {
+      // Sem Plus Code não existe identidade: a linha seria indistinguível de
+      // outra da mesma UM no mesmo ciclo/etapa. Pular e avisar é melhor que
+      // deixar a chave degradar em silêncio e fundir dois pontos em um.
+      if (!linha.plusCode.trim()) {
+        avisosSemPlusCode.push({
+          aba: linha.abaOrigem,
+          linha: linha.numeroLinha,
+          cidade: linha.cidade,
+        })
+        ignorados++
+        continue
+      }
+
       const inputCompleto = converterLinhaParaPontoInput(linha, projetoId, avisosStatus)
       if (!inputCompleto) {
         ignorados++
         continue
       }
 
-      // Chave composta: aba + linha (ex: "BSBIA01:2")
-      const chave = criarChaveComposta(linha.abaOrigem, linha.numeroLinha)
+      const chave = criarChaveComposta(inputCompleto)
       chavesPresentes.add(chave)
 
       const existente = mapaExistentes.get(chave)
@@ -179,18 +201,17 @@ export async function POST(request: Request) {
     }
 
     // 7. DETECTAR DELETADOS
-    // Pontos que estão no Firestore mas NÃO estão mais na planilha
+    // Pontos que estão no banco mas NÃO estão mais na planilha. Os que estiverem
+    // em uso (com rota ou "Agendado") são preservados como "Histórico".
     const idsParaDeletar: string[] = []
     for (const p of pontosExistentes) {
-      const chave = criarChaveComposta(p.umNome, p.linhaOrigem)
-      if (!chavesPresentes.has(chave)) {
+      if (!chavesPresentes.has(criarChaveComposta(p))) {
         idsParaDeletar.push(p.id)
       }
     }
 
-    if (idsParaDeletar.length > 0) {
-      await deletarPontosEmBatchAdmin(idsParaDeletar)
-    }
+    const { deletados, preservados } =
+      await deletarPontosEmBatchPreservandoEmUsoAdmin(idsParaDeletar)
 
     // 8. ATUALIZAR TIMESTAMP DE SYNC
     await marcarSincronizacaoAdmin(projetoId)
@@ -207,10 +228,12 @@ export async function POST(request: Request) {
       totalLinhasPlanilha: todasLinhas.length,
       novos,
       atualizados,
-      deletados: idsParaDeletar.length,
+      deletados,
+      preservados: preservados.length,
       ignorados,
       abas: abasResumo,
       avisosStatus,
+      avisosSemPlusCode,
       duracao: Date.now() - inicio,
     }
 
@@ -220,6 +243,21 @@ export async function POST(request: Request) {
         avisosStatus.map((a) => `${a.aba}!L${a.linha}="${a.statusCru}"`).join(", ")
       )
     }
+
+    if (avisosSemPlusCode.length > 0) {
+      console.warn(
+        `Sincronizacao: ${avisosSemPlusCode.length} linha(s) PULADA(S) por falta de Plus Code:`,
+        avisosSemPlusCode.map((a) => `${a.aba}!${a.linha} (${a.cidade})`).join(", ")
+      )
+    }
+
+    // Sempre logado, mesmo quando zero: a preservação é a evidência de que a
+    // guarda impediu uma deleção destrutiva.
+    console.info(
+      `Sincronizacao ${projeto.sigla}: ${deletados} ponto(s) deletado(s), ` +
+        `${preservados.length} preservado(s) como "Historico"` +
+        (preservados.length > 0 ? ` [${preservados.join(", ")}]` : "")
+    )
 
     return NextResponse.json(relatorio)
   } catch (err) {
@@ -234,15 +272,30 @@ export async function POST(request: Request) {
 // ============================================================
 
 /**
- * Cria uma chave única combinando o nome da UM/aba com o número da linha.
+ * Chave natural do ponto: projetoId + umNome + ciclo + etapa + plusCode.
  *
- * Necessária porque o mesmo numeroLinha pode existir em várias abas
- * (toda planilha começa na linha 2). Sem essa combinação, daria conflito.
+ * Era `umNome + linhaOrigem` — a POSIÇÃO da linha na aba. Isso quebrava na
+ * operação normal: inserir uma etapa no meio da aba desloca todas as linhas
+ * seguintes, e cada ponto deslocado era lido como "a linha antiga sumiu" +
+ * "apareceu uma linha nova". A sincronização deletava e recriava a aba inteira,
+ * perdendo os vínculos de rota.
  *
- * Ex: criarChaveComposta("BSBIA01", 2) === "BSBIA01:2"
+ * `plusCode` entra na chave porque sem ele há 5 pares de visitas legítimas
+ * indistinguíveis nos dados de produção (duas visitas à mesma cidade na mesma
+ * etapa, em locais diferentes). Com ele a chave é única nos 131 pontos, dos dois
+ * lados. O custo é que corrigir um Plus Code recria o ponto — evento raro, e que
+ * já altera o hash hoje.
+ *
+ * Ex: "abc123|BSBIA01|2|7|3WWH+977"
  */
-function criarChaveComposta(umNome: string, numeroLinha: number): string {
-  return `${umNome}:${numeroLinha}`
+function criarChaveComposta(p: {
+  projetoId: string
+  umNome: string
+  ciclo: number
+  etapa: number
+  plusCode: string
+}): string {
+  return [p.projetoId, p.umNome, p.ciclo, p.etapa, p.plusCode.trim()].join("|")
 }
 
 /**
@@ -324,6 +377,8 @@ function converterLinhaParaPontoInput(
   // Isso é importante: a aba é a fonte de verdade pra identificação da UM.
   const inputSemHash = {
     projetoId,
+    // Informativo (aparece na UI e ajuda a achar a linha na planilha). Não entra
+    // na chave de identidade nem no hash — ver criarChaveComposta.
     linhaOrigem: linha.numeroLinha,
     ciclo,
     etapa,
