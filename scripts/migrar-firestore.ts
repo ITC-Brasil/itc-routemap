@@ -418,22 +418,21 @@ async function gravarEntidade<T extends { id: string }>(
 }
 
 /**
- * Vínculo Ponto↔Rota, com CHECAGEM DE ALINHAMENTO planilha × app.
+ * Diagnóstico do alinhamento planilha × app. INFORMATIVO — não bloqueia.
  *
- * A migração pressupõe que a planilha e o app estejam alinhados: cada ponto
- * "Atual" (→ "Agendado") deve ser exatamente um dos pontos referenciados por uma
- * rota "Confirmada". Quando o passo manual do ciclo está pendente (a rota foi
- * confirmada no app mas a planilha ainda não foi marcada), os dois conjuntos
- * divergem — foi o que o dry-run de 2026-07-28 encontrou: 7 "Atual" e 7 pontos
- * de rotas, com apenas 3 em comum.
+ * Era critério de bloqueio: a migração pressupunha alinhamento (cada ponto
+ * "Atual" → "Agendado" sendo exatamente um dos pontos referenciados por uma rota
+ * "Confirmada") para poder reconstruir `rotaId`/`tecnicoId`. A premissa caiu em
+ * 2026-07-31: 12 dos 13 vínculos `Rota.pontoId` do Firestore estão corrompidos
+ * pelo update-in-place da sync antiga (ver §10.10 do handoff), então o
+ * desalinhamento é artefato dessa corrupção, e não passo manual pendente.
  *
- * Comportamento:
- * - ALINHADOS (conjuntos idênticos) → reconstrói `rotaId`/`tecnicoId` pela rota
- *   Confirmada mais recente de cada ponto. "Agendado" sem rota seria incoerente.
- * - DIVERGENTES → NÃO reconstrói nada e registra a diferença como CONFLITO, o
- *   que bloqueia a gravação. Alinhar a fonte (planilha) e rodar de novo.
+ * Como NÃO reconstruímos vínculo nenhum — `rotaId`/`tecnicoId` entram nulos e a
+ * primeira roteirização no Postgres os preenche corretamente —, o critério perdeu
+ * o sentido. A divergência segue reportada como AVISO, por ser útil para conferir
+ * o estado da operação na virada.
  */
-function analisarVinculo(
+function diagnosticarAlinhamento(
   rotas: ReturnType<typeof mapRota>[],
   pontos: ReturnType<typeof mapPonto>[]
 ) {
@@ -447,48 +446,13 @@ function analisarVinculo(
   const soRota = [...pontosDeRotas].filter((id) => !agendados.has(id))
   const alinhado = soAgendado.length === 0 && soRota.length === 0
 
-  if (!alinhado) {
-    conflitos.push(
-      `DESALINHAMENTO planilha × app: ${agendados.size} ponto(s) "Agendado" (era "Atual") x ${pontosDeRotas.size} ponto(s) com rota Confirmada — ${soAgendado.length} só Agendado, ${soRota.length} só em rota`
-    )
-    const descreve = (id: string) => {
-      const p = pontos.find((x) => x.id === id)
-      return p ? `${id} um=${p.umNome} ${p.raNome} c${p.ciclo}/e${p.etapa} status=${p.status}` : id
-    }
-    for (const id of soAgendado) conflitos.push(`  Agendado SEM rota Confirmada: ${descreve(id)}`)
-    for (const id of soRota) conflitos.push(`  em rota Confirmada mas NÃO Agendado: ${descreve(id)}`)
-    avisos.push(
-      "Vínculo Ponto↔Rota NÃO reconstruído: a planilha e o app estão desalinhados (passo manual do ciclo pendente). Alinhe a planilha e rode o dry-run de novo."
-    )
-    return []
-  }
-
-  // Alinhado: um ponto pode ter várias rotas Confirmadas ao longo do tempo;
-  // vale a mais recente, que é o estado atual.
-  const porPonto = new Map<string, (typeof aplicaveis)[number]>()
-  for (const r of aplicaveis) {
-    const atual = porPonto.get(r.pontoId)
-    if (!atual || r.criadoEm.getTime() > atual.criadoEm.getTime()) porPonto.set(r.pontoId, r)
-  }
-  const escolhidas = [...porPonto.values()]
   avisos.push(
-    `Vínculo Ponto↔Rota: planilha e app ALINHADOS — ${escolhidas.length} ponto(s) Agendado recebem rotaId/tecnicoId (rota Confirmada mais recente)`
+    `Vínculo Ponto↔Rota NÃO reconstruído (rotaId/tecnicoId nulos, por decisão): ` +
+      `${agendados.size} ponto(s) "Agendado" x ${pontosDeRotas.size} ponto(s) com rota Confirmada — ` +
+      (alinhado
+        ? "conjuntos alinhados"
+        : `${soAgendado.length} só Agendado, ${soRota.length} só em rota (esperado: reflexo da corrupção do vínculo no Firestore)`)
   )
-  return escolhidas
-}
-
-/** Grava o vínculo já analisado. Roda DEPOIS de pontos e rotas existirem. */
-async function gravarVinculo(escolhidas: ReturnType<typeof mapRota>[]) {
-  if (!GRAVAR || escolhidas.length === 0) return escolhidas.length
-  await prisma.$transaction(
-    escolhidas.map((r) =>
-      prisma.ponto.update({
-        where: { id: r.pontoId },
-        data: { tecnicoId: r.tecnicoId, rotaId: r.id },
-      })
-    )
-  )
-  return escolhidas.length
 }
 
 // ============================================================
@@ -671,9 +635,9 @@ async function main() {
     prisma.ponto.count({ where: { id: { in: ids } } })
   )
 
-  // Checagem de alinhamento planilha × app ANTES do bloqueio: um desalinhamento
+  // Diagnóstico informativo do alinhamento planilha × app — não bloqueia mais
   // é conflito e deve impedir a gravação.
-  const vinculoEscolhido = analisarVinculo(rotas, pontos)
+  diagnosticarAlinhamento(rotas, pontos)
 
   const bloqueado = conflitos.length > 0 && !FORCAR_CONFLITOS
   if (GRAVAR && bloqueado) {
@@ -705,7 +669,6 @@ async function main() {
       create: r as never,
     })
   )
-  const vinculos = await gravarVinculo(vinculoEscolhido)
 
   relatorio.push(
     { colecao: "projetos", lidos: projetosRaw.length, mapeados: projetos.length, ignorados: 0, gravados: GRAVAR ? gProjetos : null },
@@ -726,9 +689,6 @@ async function main() {
     )
   }
 
-  console.log(
-    `\nVÍNCULO Ponto↔Rota: ${vinculos} ponto(s) Agendado com rotaId/tecnicoId reconstruídos`
-  )
 
   // ---------- detalhe da consolidação ----------
   console.log("\nPROJETOS CANÔNICOS (resultado da consolidação)")

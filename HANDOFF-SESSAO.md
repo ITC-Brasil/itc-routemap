@@ -876,6 +876,14 @@ natural (§10.9) corrige a recorrência; a guarda de deleção cobre o outro lad
   (`historico/[loteId]/page.tsx:96,996`) e — este é o dano real, em escrita — no
   `cancelarLote` (`lib/db/lotes.ts:155`), que libera o ponto errado.
 
+### Dívida adiada (decisão de 2026-07-31)
+
+1. `destinoReferencia` no snapshot da `Rota` (~15 linhas: schema + migration +
+   escrita) — hoje o texto de WhatsApp busca a `referencia` no `Ponto` e pode
+   colar a de outro ponto junto do endereço correto do snapshot.
+2. `cancelarLote` liberar o ponto errado só afeta os vínculos antigos do
+   Firestore; com `rotaId` nulo na migração não há vínculo corrompido no Postgres.
+
 ---
 
 ## 11. PRÓXIMA AÇÃO IMEDIATA
