@@ -890,6 +890,29 @@ natural (§10.9) corrige a recorrência; a guarda de deleção cobre o outro lad
 2. `cancelarLote` liberar o ponto errado só afeta os vínculos antigos do
    Firestore; com `rotaId` nulo na migração não há vínculo corrompido no Postgres.
 
+## 10.11. Coordenadas e `PESO_PROXIMIDADE` (validação com dados reais)
+
+🔴 **Vírgula decimal:** a planilha grava `-15,9040875` e `parseFloat` devolve
+`-15` — erro de ~100 km, gravado sem erro nenhum. **As 34 latitudes das abas SPV
+estão como `-15` no Firestore de produção.** Ficou mascarado porque a longitude
+nunca era lida (range parava em `M`): sem ela o ponto contava como "sem
+coordenadas" e o geocoding sobrescrevia os dois campos. Corrigir só a longitude
+teria **ativado** a corrupção. Commits `2f9dd37` (range `A2:N`) e `39d3f04`
+(`coordenadaDaPlanilha`).
+
+**Auto-cura (opção b):** quando o hash bate e a coordenada divergiu, a sync
+atualiza só latitude/longitude (`coordenadasCorrigidas` no relatório) — necessário
+porque coordenada não entra no hash. Guarda: planilha vazia **nunca** sobrescreve
+o que o geocoding gravou, nos dois caminhos de escrita. Cura também o que a
+migração trouxer com `-15`, já que produção roda o código antigo até a virada.
+
+**`PESO_PROXIMIDADE` = 0.3 está correto — medido, não estimado.** Sobre a matriz
+real (7×5, Routes API), **0.3, 0.5 e 0.7 dão alocação idêntica**: 169 min de time,
+pior individual 70 min. O peso está saturado (só vira par em quase-empate). Forçar
+melhora custa: Allan→Planaltina **+93 min**, Paulo→Gama **+38 min** (e Santa Maria
+já é o ótimo do Paulo). O `modoPrincipal` vem do cadastro; Allan em TRANSIT levaria
+o time a 236 min — o carro dele é o que viabiliza o destino isolado.
+
 ---
 
 ## 11. PRÓXIMA AÇÃO IMEDIATA
