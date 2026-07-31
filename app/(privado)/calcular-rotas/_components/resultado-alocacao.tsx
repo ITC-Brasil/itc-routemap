@@ -284,11 +284,21 @@ export function ResultadoAlocacao({
   )
 
   // ====== Helper pra obter duração efetiva de uma alocação ======
+  //
+  // A rota detalhada (rotaCache) tem precedência quando existe: vem do
+  // /api/routes/single, com horário de partida e passos do trajeto. Sem ela,
+  // vale a métrica que a alocação já trouxe da matriz.
+  //
+  // TRANSIT não é mais exceção. Antes esta função devolvia null para TRANSIT e
+  // descartava `aloc.metricas.TRANSIT`, que a API de alocação envia junto do
+  // resultado. Como `carregarRota` só roda quando o usuário expande o card ou
+  // troca de modo, o card ficava eternamente em "buscando…" sem nenhuma
+  // requisição em andamento, e o total do cabeçalho somava só os pares não-TRANSIT
+  // — mostrava 107 min onde o time gastava 247.
   const obterDuracaoSeg = useCallback(
     (aloc: AlocacaoRica, modo: ModoTransporte): number | null => {
       const cacheEntry = rotaCache.get(`${chaveAlocacao(aloc)}|${modo}`)
       if (cacheEntry?.estado === "ok") return cacheEntry.duracaoSegundos
-      if (modo === "TRANSIT") return null
       return aloc.metricas[modo]?.duracaoSegundos ?? null
     },
     [rotaCache],
@@ -1062,12 +1072,14 @@ function LinhaAlocacao({
   onSwap: (keyOutra: string) => void
 }) {
   const duracaoMin = duracaoSeg != null ? Math.round(duracaoSeg / 60) : null
-  const distanciaKm =
+  // Mesmo raciocínio de obterDuracaoSeg: a matriz também traz distância para
+  // TRANSIT, então não há motivo para descartá-la e mostrar "—".
+  const distanciaMetros =
     rotaEntry?.estado === "ok"
-      ? (rotaEntry.distanciaMetros / 1000).toFixed(1)
-      : modo !== "TRANSIT"
-        ? ((alocacao.metricas[modo]?.distanciaMetros ?? 0) / 1000).toFixed(1)
-        : null
+      ? rotaEntry.distanciaMetros
+      : alocacao.metricas[modo]?.distanciaMetros
+  const distanciaKm =
+    distanciaMetros != null ? (distanciaMetros / 1000).toFixed(1) : null
 
   const explicacao = gerarExplicacaoAlgoritmica({
     tecnicoNome: alocacao.origem.nome,
