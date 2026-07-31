@@ -97,9 +97,14 @@ export async function lerLinhasDaPlanilha(
 ): Promise<LinhaPlanilha[]> {
   const sheets = criarClienteSheets()
 
-  // Range A2:M busca da linha 2 até o fim, colunas A até M
+  // Range A2:N busca da linha 2 até o fim, colunas A até N
   // Linha 1 é o cabeçalho — ignoramos
-  const range = `${nomeAba}!A2:M`
+  //
+  // Termina em N (Longitude), não em M (Latitude): o range é o que define
+  // `linha.length`, então parar em M fazia `linha[13]` ser sempre undefined e a
+  // longitude nunca chegava, mesmo com o mapeamento lendo o índice certo. A
+  // coluna O é campo de aviso livre, não é dado — fica de fora.
+  const range = `${nomeAba}!A2:N`
 
   try {
     const response = await sheets.spreadsheets.values.get({
