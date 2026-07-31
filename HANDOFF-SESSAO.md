@@ -853,6 +853,31 @@ indistinguíveis (2 visitas à mesma cidade na mesma etapa, em locais diferentes
 
 ---
 
+## 10.10. Vínculo `Rota.pontoId` corrompido no Firestore
+
+**12 das 13 rotas Confirmada apontam para o ponto errado.** Conferido comparando
+`Rota.destino` (snapshot) com o conteúdo atual do `Ponto` referenciado: só 1 casa.
+Todos os 12 pontos apontados estão hoje em `linhaOrigem=2`. Ex.: a rota do lote
+`7401cc7d` gravou Candangolândia, e o ponto `GcFRT7MK…` hoje é Planaltina c2/e7.
+
+**Causa:** a identidade por posição de linha. Etapa nova entra no topo da aba, a
+sync antiga fazia update-in-place e sobrescrevia o conteúdo do ponto mantendo o
+mesmo id — a rota seguia apontando para o id, agora com outro dado. A chave
+natural (§10.9) corrige a recorrência; a guarda de deleção cobre o outro lado.
+
+**Consequências:**
+- A migração **não reconstrói `rotaId`/`tecnicoId`** (decisão B, nulo): reconstruir
+  tornaria o vínculo corrompido permanente no Postgres.
+- O "desalinhamento planilha × app" que o script bloqueia é **artefato desta
+  corrupção**, não passo manual pendente. A planilha **não** deve ser editada para
+  forçar alinhamento, e o bloqueio deixa de ser critério válido.
+- O snapshot da Rota está **correto** e é o que toda a UI já exibe. O `Ponto`
+  corrompido é lido só para a `referencia` do texto de WhatsApp
+  (`historico/[loteId]/page.tsx:96,996`) e — este é o dano real, em escrita — no
+  `cancelarLote` (`lib/db/lotes.ts:155`), que libera o ponto errado.
+
+---
+
 ## 11. PRÓXIMA AÇÃO IMEDIATA
 
 Aguardando **OK do usuário no grupo B da Frente 2** (§6). Com o OK: aplicar os 10
