@@ -345,6 +345,27 @@ export type ConfirmarAlocacaoInput = {
   }>
 }
 
+/**
+ * Mapa projetoId → sigla, para gravar `Rota.projetoSigla`.
+ *
+ * A sigla é derivada do Projeto em vez de vir no input: é atributo do projeto, e
+ * pedi-la ao chamador só criaria oportunidade de divergência. Antes disso o campo
+ * não era gravado em rota nenhuma e ficava com a string vazia do `@default` —
+ * enquanto as rotas trazidas do Firestore pela migração vinham preenchidas,
+ * deixando a coluna inconsistente entre os dois grupos.
+ *
+ * Roda FORA da transação: é leitura, e não precisa da consistência dela.
+ */
+async function buscarSiglasPorProjeto(
+  projetoIds: string[]
+): Promise<Map<string, string>> {
+  const projetos = await prisma.projeto.findMany({
+    where: { id: { in: [...new Set(projetoIds)] } },
+    select: { id: true, sigla: true },
+  })
+  return new Map(projetos.map((p) => [p.id, p.sigla]))
+}
+
 export type ConfirmarAlocacaoResultado = {
   rotasIds: string[]
   pontosAtualizados: string[]
@@ -379,6 +400,10 @@ export async function confirmarAlocacao(
   // Default "auto" se o call site não passar (compatibilidade)
   const origemDecisao: OrigemDecisao = input.origemDecisao ?? "auto"
 
+  const siglaPorProjeto = await buscarSiglasPorProjeto(
+    input.alocacoes.map((a) => a.projetoId)
+  )
+
   return prisma.$transaction(
     async (tx) => {
       const rotasIds: string[] = []
@@ -396,6 +421,7 @@ export async function confirmarAlocacao(
             pontoId: aloc.pontoId,
             umNome: aloc.umNome,
             projetoId: aloc.projetoId,
+            projetoSigla: siglaPorProjeto.get(aloc.projetoId) ?? "",
             origemEndereco: aloc.origem.endereco,
             origemLatitude: aloc.origem.latitude,
             origemLongitude: aloc.origem.longitude,
@@ -498,6 +524,10 @@ export async function aplicarReotimizacao(
 
   const origemDecisao: OrigemDecisao = input.origemDecisao ?? "auto"
 
+  const siglaPorProjeto = await buscarSiglasPorProjeto(
+    input.alocacoes.map((a) => a.projetoId)
+  )
+
   return prisma.$transaction(
     async (tx) => {
       const rotasIds: string[] = []
@@ -539,6 +569,7 @@ export async function aplicarReotimizacao(
             pontoId: aloc.pontoId,
             umNome: aloc.umNome,
             projetoId: aloc.projetoId,
+            projetoSigla: siglaPorProjeto.get(aloc.projetoId) ?? "",
             origemEndereco: aloc.origem.endereco,
             origemLatitude: aloc.origem.latitude,
             origemLongitude: aloc.origem.longitude,
