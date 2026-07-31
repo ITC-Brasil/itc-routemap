@@ -50,6 +50,12 @@ type RelatorioSync = {
   totalLinhasPlanilha: number
   novos: number
   atualizados: number
+  /**
+   * Pontos cuja única mudança foi a coordenada. Contados à parte de
+   * `atualizados` porque latitude/longitude não entram no hash — não são
+   * "conteúdo alterado", são correção de coordenada vinda da planilha.
+   */
+  coordenadasCorrigidas: number
   deletados: number
   /** Pontos que sumiram da planilha mas estavam em uso: viraram "Histórico". */
   preservados: number
@@ -158,6 +164,7 @@ export async function POST(request: Request) {
     // 6. PROCESSAR LINHAS
     let novos = 0
     let atualizados = 0
+    let coordenadasCorrigidas = 0
     let ignorados = 0
     const avisosStatus: AvisoStatus[] = []
     const avisosSemPlusCode: AvisoSemPlusCode[] = []
@@ -188,16 +195,42 @@ export async function POST(request: Request) {
 
       const existente = mapaExistentes.get(chave)
 
+      // A planilha só é autoridade sobre a coordenada quando TEM coordenada:
+      // célula vazia significa "não sei", não "apague". Sem esta distinção a
+      // sincronização zeraria as coordenadas obtidas por geocoding — que é a
+      // única fonte para a maioria dos pontos.
+      const coordenadasDaPlanilha =
+        inputCompleto.latitude !== null && inputCompleto.longitude !== null
+          ? { latitude: inputCompleto.latitude, longitude: inputCompleto.longitude }
+          : null
+
       if (!existente) {
-        // NOVO: nunca esteve no Firestore
+        // NOVO: nunca esteve no banco
         await criarPontoAdmin(inputCompleto)
         novos++
       } else if (existente.hashMd5 !== inputCompleto.hashMd5) {
         // ALTERADO: hash mudou
-        await atualizarPontoAdmin(existente.id, inputCompleto)
+        await atualizarPontoAdmin(
+          existente.id,
+          coordenadasDaPlanilha
+            ? inputCompleto
+            : semCoordenadas(inputCompleto) // preserva o que o geocoding gravou
+        )
         atualizados++
+      } else if (
+        coordenadasDaPlanilha &&
+        divergem(existente.latitude, coordenadasDaPlanilha.latitude,
+                 existente.longitude, coordenadasDaPlanilha.longitude)
+      ) {
+        // Hash igual, coordenada diferente. Acontece porque latitude/longitude
+        // NÃO participam do hash: sem este ramo, um ponto gravado com coordenada
+        // errada ficaria errado para sempre. É o caminho de auto-cura das linhas
+        // que o parse antigo truncou para o grau inteiro (ver
+        // coordenadaDaPlanilha) e que a migração traz assim do Firestore.
+        await atualizarPontoAdmin(existente.id, coordenadasDaPlanilha)
+        coordenadasCorrigidas++
       }
-      // Hash igual: já sincronizado, nada a fazer
+      // Hash igual e coordenada igual: já sincronizado, nada a fazer
     }
 
     // 7. DETECTAR DELETADOS
@@ -228,6 +261,7 @@ export async function POST(request: Request) {
       totalLinhasPlanilha: todasLinhas.length,
       novos,
       atualizados,
+      coordenadasCorrigidas,
       deletados,
       preservados: preservados.length,
       ignorados,
@@ -355,6 +389,59 @@ function normalizarStatus(
   return "Pendente"
 }
 
+/**
+ * Converte coordenada da planilha para número, aceitando vírgula decimal.
+ *
+ * A planilha está em pt-BR e grava "-15,9040875". `parseFloat` para no primeiro
+ * caractere inválido e devolve `-15` — um ponto a ~100 km do lugar certo, gravado
+ * sem erro nenhum. Foi o que aconteceu com as 34 linhas de coordenada das abas
+ * SPV: todas estão como `-15` no Firestore de produção. Passava despercebido
+ * porque a longitude nunca era lida (ficava nula), então o ponto contava como
+ * "sem coordenadas" e o batch de geocoding sobrescrevia os dois campos.
+ *
+ * Retorna null para vazio ou não-numérico — o geocoding preenche depois.
+ */
+/**
+ * Copia do input sem latitude/longitude, para o Prisma não tocar nessas colunas
+ * (campo `undefined` é ignorado no update). Usado quando a planilha não tem
+ * coordenada e o que está gravado veio do geocoding.
+ */
+function semCoordenadas(input: PontoInput): Partial<PontoInput> {
+  const copia: Partial<PontoInput> = { ...input }
+  delete copia.latitude
+  delete copia.longitude
+  return copia
+}
+
+/**
+ * Compara par de coordenadas com tolerância.
+ *
+ * A tolerância evita reescrever o ponto a cada sincronização por diferença na
+ * última casa do double. 1e-7 grau ≈ 1 cm — abaixo da precisão de qualquer fonte
+ * que usamos, e muito abaixo do erro que interessa detectar (o truncamento para
+ * grau inteiro errava ~100 km).
+ */
+function divergem(
+  latAtual: number | null,
+  latNova: number,
+  lngAtual: number | null,
+  lngNova: number
+): boolean {
+  if (latAtual === null || lngAtual === null) return true
+  const TOLERANCIA = 1e-7
+  return (
+    Math.abs(latAtual - latNova) > TOLERANCIA ||
+    Math.abs(lngAtual - lngNova) > TOLERANCIA
+  )
+}
+
+function coordenadaDaPlanilha(valor: string): number | null {
+  const limpo = valor.trim().replace(",", ".")
+  if (!limpo) return null
+  const n = Number(limpo)
+  return Number.isFinite(n) ? n : null
+}
+
 function converterLinhaParaPontoInput(
   linha: LinhaComAba,
   projetoId: string,
@@ -367,11 +454,11 @@ function converterLinhaParaPontoInput(
 
   const ciclo = parseInt(linha.ciclo) || 0
   const etapa = parseInt(linha.etapa) || 0
-  const latitude = linha.latitude ? parseFloat(linha.latitude) : null
+  const latitude = coordenadaDaPlanilha(linha.latitude)
   // Coluna N. Antes era `longitude: null` fixo (esquecimento, não decisão — ver
   // lib/google-sheets.ts): a latitude vinha da planilha e a longitude não, então
   // todo ponto sincronizado ficava "sem coordenadas" para o batch de geocoding.
-  const longitude = linha.longitude ? parseFloat(linha.longitude) : null
+  const longitude = coordenadaDaPlanilha(linha.longitude)
 
   // umNome vem da ABA ORIGEM (ex: "BSBIA01"), não do campo F da planilha.
   // Isso é importante: a aba é a fonte de verdade pra identificação da UM.
@@ -390,8 +477,9 @@ function converterLinhaParaPontoInput(
     endereco: linha.endereco,
     referencia: linha.referencia,
     linkMaps: linha.link,
-    latitude: !isNaN(latitude ?? NaN) ? latitude : null,
-    longitude: !isNaN(longitude ?? NaN) ? longitude : null,
+    // Já validados em coordenadaDaPlanilha (null quando vazio ou não-numérico).
+    latitude,
+    longitude,
     // Normalizado ANTES do calcularHashPonto (logo abaixo): o status é o 13º
     // campo do hash, então normalizar depois faria a sync ver divergência a cada
     // execução e reescrever o ponto indefinidamente.
