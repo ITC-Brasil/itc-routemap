@@ -828,6 +828,31 @@ Admin → UMs.
 
 ---
 
+## 10.9. Identidade do ponto: chave natural (commit `d15ee58`)
+
+A identidade era `umNome + linhaOrigem` — a POSIÇÃO da linha. Inserir uma etapa
+no meio da aba desloca as linhas seguintes, e a sync lia cada deslocada como
+"sumiu" + "nova": deletava e recriava a aba inteira, perdendo vínculos de rota.
+Inserir etapa é evento de todo ciclo.
+
+Chave nova: `projetoId + umNome + ciclo + etapa + plusCode`. Única nos 131 pontos
+do Firestore E nas 131 linhas das 3 planilhas (0 colisões dos dois lados).
+`plusCode` é necessário: sem ele restam 5 grupos de visitas legítimas
+indistinguíveis (2 visitas à mesma cidade na mesma etapa, em locais diferentes).
+`linhaOrigem` saiu do hash pelo mesmo motivo — segue como campo informativo.
+
+- **Plus Code vazio** → linha pulada, com aviso (aba, linha, cidade). Sem ele não
+  há identidade, e degradar em silêncio fundiria dois pontos em um.
+- **Guarda de deleção**: ponto com `rotaId` ou "Agendado" não é deletado quando a
+  linha sai da planilha — vira "Histórico" e entra no contador `preservados`.
+- **Migração**: recalcula o hash dos **131** pontos (antes, só os remapeados) —
+  todo hash gravado antes inclui `linhaOrigem`. Invariante conferido: 131/131
+  idênticos entre Firestore e planilha, casados pela chave nova.
+- **`.npmrc`** com `node-options=--max-old-space-size=6144` (mesmo valor do
+  Dockerfile): `npm run build` estourava o heap default.
+
+---
+
 ## 11. PRÓXIMA AÇÃO IMEDIATA
 
 Aguardando **OK do usuário no grupo B da Frente 2** (§6). Com o OK: aplicar os 10
