@@ -675,6 +675,12 @@ Nunca commitados; preenchidos pelo dono do projeto, fora do chat.
    validação do seed (`>= 8`).
 5. **`BETTER_AUTH_SECRET` NOVO** para produção (não reaproveitar o de dev — ele
    assina os cookies de sessão).
+5b. ⚠️ **`BETTER_AUTH_URL` tem de casar EXATAMENTE com a origem de acesso** —
+   protocolo + host + porta. Divergindo, o login responde **403 com
+   `[Better Auth]: Invalid origin: <origem>`** no log e a senha parece errada
+   sem estar. Em produção: `https://routemap.grupoitcbrasil.com.br`, **nunca**
+   `localhost`. Medido em 2026-07-31: app na porta 3100 com a variável em
+   `:3000` → todo `POST /api/auth/sign-in/email` em 403.
 6. `DATABASE_URL` apontando para o Postgres do compose, `ADMIN_EMAIL`,
    `ADMIN_NOME`, `GOOGLE_MAPS_SERVER_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`,
    `GEMINI_API_KEY`, `BETTER_AUTH_URL` (URL pública), `GOOGLE_CLIENT_ID`/
@@ -705,9 +711,9 @@ Nunca commitados; preenchidos pelo dono do projeto, fora do chat.
       já existente;
     - transformar o server da 80 em redirect permanente para HTTPS;
     - garantir que `BETTER_AUTH_URL=https://routemap.grupoitcbrasil.com.br` bate
-      com a origem servida pelo nginx (em produção bate; no ensaio local havia
-      divergência benigna, `http://localhost:3000` vs origem `http://localhost`,
-      e mesmo assim o login funcionou pelos dois caminhos).
+      com a origem servida pelo nginx — ver 10.2 item 5b: divergência de porta
+      dá 403. No ensaio local a divergência `http://localhost:3000` vs origem
+      `http://localhost` não quebrou o login, mas não conte com essa tolerância.
 
 ### 10.5 Build e banco
 11. **Build**: o heap maior é **obrigatório** e já está no Dockerfile
