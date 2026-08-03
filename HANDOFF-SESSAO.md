@@ -913,6 +913,34 @@ melhora custa: Allan→Planaltina **+93 min**, Paulo→Gama **+38 min** (e Santa
 já é o ótimo do Paulo). O `modoPrincipal` vem do cadastro; Allan em TRANSIT levaria
 o time a 236 min — o carro dele é o que viabiliza o destino isolado.
 
+## 10.12. Acesso da equipe: convites, Google e RBAC
+
+O cadastro é fechado — `lib/better-auth.ts` exige `Convite` "ativo" e não expirado
+para criar conta, nos **dois** métodos. Não há tela de admin para isso, então a
+emissão é por **`scripts/convidar.ts`** (a tela fica para depois; são 3 pessoas):
+
+```bash
+npx tsx scripts/convidar.ts pessoa@empresa.com [--dias=N]   # default 14
+npx tsx scripts/convidar.ts --listar
+npx tsx scripts/convidar.ts --revogar pessoa@empresa.com
+```
+
+Em container use o one-off da imagem `builder` (§10.5), com `DATABASE_URL`
+apontando para o host `postgres`: `… itc-routemap-migrate:latest npx tsx
+scripts/convidar.ts pessoa@empresa.com`.
+
+**A equipe usa Google.** Medido no Firebase Auth do projeto antigo: 3 usuários,
+todos `google.com`, nenhum com senha. Falta preencher `GOOGLE_CLIENT_ID`/`SECRET`
+e registrar o callback `https://routemap.grupoitcbrasil.com.br/api/auth/callback/google`.
+
+⚠️ **Não há recuperação de senha** no projeto — esquecer a senha hoje exige mexer
+no banco. Mais um motivo para o Google ser o método da equipe.
+
+🔴 **RBAC é pendência.** `User.papel` existe ("admin"/"operador") mas **não é
+consultado em lugar nenhum**: todo usuário logado tem acesso total, inclusive
+cancelar lote e sincronizar. Por isso o convite **não** carrega papel — seria dado
+morto. Implementar a verificação é trabalho separado, e maior que a emissão.
+
 ---
 
 ## 11. PRÓXIMA AÇÃO IMEDIATA
