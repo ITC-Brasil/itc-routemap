@@ -569,17 +569,10 @@ function CardResumoProjeto({
 }: {
   estatistica: EstatisticaProjeto
 }) {
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    e.currentTarget.style.setProperty("--card-mx", `${e.clientX - rect.left}px`)
-    e.currentTarget.style.setProperty("--card-my", `${e.clientY - rect.top}px`)
-  }
-
+  // O spotlight que seguia o mouse saiu com o BackgroundGrid: `.card-interactive`
+  // ficou só com a elevação e a barra lateral no hover.
   return (
-    <Card
-      onMouseMove={handleMouseMove}
-      className="card-interactive"
-    >
+    <Card className="card-interactive">
       <CardContent className="space-y-4 p-4">
         <div className="space-y-2">
           <span

@@ -4,6 +4,12 @@ Fundação visual do sistema de alocação inteligente de técnicos do Grupo ITC
 Ferramenta operacional, desktop-first, usada por poucas pessoas com alta frequência.
 O trabalho é geográfico: emparelhar técnicos a unidades móveis pelo Distrito Federal.
 
+> **Precedência:** o protótipo em `design/handoff/` é a referência visual; este
+> documento registra as regras derivadas dele. Onde houver conflito, o protótipo
+> vence — parte deste texto foi escrita antes do protótipo existir e descrevia a
+> interface que o app já tinha, não uma proposta. As seções revistas em
+> 2026-08-07 estão marcadas.
+
 **Alvo de implementação:** Next.js 16 + Tailwind CSS 4 (`@theme`) + shadcn/ui.
 **Família ITC:** compartilha fundação com o ITC Sentinel (tokens, tipografia, componentes base).
 O que difere é o domínio — aqui tudo é deslocamento, não inventário.
@@ -51,9 +57,9 @@ O que difere é o domínio — aqui tudo é deslocamento, não inventário.
 | Token | Papel | Claro | Escuro |
 |---|---|---|---|
 | `bg-base` | fundo base | `#F5F0E8` | `#141918` |
-| `bg-surface` | superfície / cards | `#FDFBF7` | `#1E2422` |
+| `bg-surface` | superfície / cards | `#FBF8F1` | `#1E2422` |
 | `bg-muted` | fundo sutil / cabeçalho de tabela | `#EBE4D8` | `#2A302E` |
-| `border` | bordas | `#D8DEDE` | `#333B39` |
+| `border` | bordas | `#DDD6C9` | `#333B39` |
 | `text-base` | texto primário | `#1A2020` | `#F4F6F6` |
 | `text-muted` | texto secundário | `#697272` | `#8E9A98` |
 | `accent` | ação / destaque | `#008F95` | `#30A5AB` |
@@ -63,7 +69,9 @@ O que difere é o domínio — aqui tudo é deslocamento, não inventário.
 | `accent-dark` | acento escuro | `#003C3F` | `#0C2C2E` |
 | `bordo` | institucional pontual | `#491027` | `#7A2A45` |
 
-O tema escuro é o padrão atual do produto e continua disponível pelo alternador na topbar. Ambos os temas são de primeira classe: nenhuma tela pode ser desenhada só para um.
+**Revisto em 2026-08-07:** o **claro é o tema padrão** do produto (`defaultTheme="light"`, sem seguir o sistema operacional) e o escuro continua no alternador, agora no rail. Ambos os temas são de primeira classe: nenhuma tela pode ser desenhada só para um.
+
+Os tokens da paleta acompanham o protótipo. No `globals.css` o teal da marca vive como `--brand-*` e não `--accent-*`: no shadcn `--accent` é o fundo sutil de hover, e usar o mesmo nome quebraria os componentes.
 
 ---
 
@@ -94,7 +102,7 @@ Fonts: `Archivo` (600/700/800), `Inter` (300/400/500/600/700) — Google Fonts.
 
 **Espaçamento** (base 4px): `space-1` 4 · `space-2` 8 · `space-3` 12 · `space-4` 16 · `space-5` 20 · `space-6` 24 · `space-8` 32 · `space-10` 40 · `space-12` 48 · `space-16` 64.
 
-**Raio:** `radius-sm` 4 · `radius-md` 6 · `radius-lg` 8 · `radius-xl` 12 · `radius-full` 9999.
+**Raio (revisto em 2026-08-07):** o projeto usa um raio único, `--radius: 0.625rem` (10px), que o protótipo respeitou em botões, inputs e selects; a escala do shadcn deriva dele (`sm` 6 · `md` 8 · `lg` 10 · `xl` 14). Pílulas de status usam `radius-full`.
 
 **Sombras:**
 - `shadow-1` (cards, inputs): claro `0 1px 2px rgba(26,32,32,0.06)` · escuro `0 1px 2px rgba(0,0,0,0.35)`
@@ -117,9 +125,15 @@ Fonts: `Archivo` (600/700/800), `Inter` (300/400/500/600/700) — Google Fonts.
 - **Skeleton:** shimmer entre `bg-muted` e `bg-base`. Toda métrica que depende de chamada externa nasce em skeleton, nunca em texto de espera.
 - **Empty state:** ícone em `accent-light`, título Archivo 18px, descrição `text-muted`, CTA secundário.
 
-### Navegação
+### Navegação — revisto em 2026-08-07
 
-Topbar de 60px, `bg-surface`, com logo ITC RouteMap à esquerda, navegação horizontal centralizada e área de conta à direita. Item ativo = `accent-light` + texto `accent` + peso 600. O submenu Administração abre em popover.
+**Rail vertical de 92px à esquerda**, `--rail-bg` com borda direita `--rail-border`, fixo (`sticky`, `100vh`). A descrição anterior (topbar horizontal de 60px) documentava a interface que o app já tinha; o protótipo a substituiu para liberar a largura do topo ao contexto da operação.
+
+De cima para baixo: símbolo de rota em quadrado teal de 46px, os cinco itens de navegação (Início, Histórico, Estatísticas, Calcular, Admin) e, no rodapé, alternador de tema e avatar da conta. Cada item tem 76px de largura, raio 10px, ícone de 20px acima do rótulo curto em 10px/600. Item ativo = fundo `accent` com texto `accent-fg`; hover = `--rail-hover`. O submenu Administração abre em popover à direita, com as quatro rotas de cadastro.
+
+O conteúdo à direita tem largura máxima de 1400px, com 44px de respiro lateral.
+
+**Sem breakpoint:** o produto é de uso interno em desktop e o rail fica sempre visível, então a navegação nunca desaparece. Abaixo de ~1040px sobra pouca largura para o conteúdo — dívida registrada no handoff, não comportamento a inventar.
 
 **Rótulo de seção (eyebrow):** um só por página, em Caption, dizendo a **área** de navegação — `OPERAÇÃO` para Calcular Rotas, `ADMINISTRAÇÃO` para os cadastros, `ANÁLISE` para Histórico e Estatísticas. Se o eyebrow não corresponder ao caminho real do menu, ele mente e deve sair. Nada de rótulo de desenvolvimento (`FASE 5`) na interface.
 
@@ -189,9 +203,11 @@ O dashboard tem seis cards de métrica e frequentemente metade fica em zero. Car
 
 Empty state de cronograma diz o que fazer, não que está vazio: título "Nenhuma rota confirmada hoje", descrição com o caminho ("Calcule e confirme alocações para vê-las aqui") e botão secundário.
 
-### 5.6 Fundo cartográfico
+### 5.6 Fundo — revisto em 2026-08-07
 
-O grid de fundo é a única licença decorativa do sistema e existe porque o produto é geográfico. Regras: opacidade máxima 4% no escuro e 3% no claro, células de 64px, ancorado no viewport e **sem cortes visíveis nas bordas** — hoje ele forma faixas à esquerda em várias telas. Não aparece dentro de cards, modais ou tabelas.
+**Não há grade de fundo.** O protótipo não usa nenhuma: o fundo é liso (`bg-base`) e o que separa as camadas é a superfície (`bg-surface` + border + `shadow-1`). O `BackgroundGrid` foi removido, junto do efeito de vidro que dependia dele — os cards deixaram de ser translúcidos e o `backdrop-filter` saiu.
+
+A versão anterior desta seção defendia a grade como "única licença decorativa" e listava regras para consertá-la (3%/4%, células de 64px, sem cortes nas bordas). O defeito era real — ela formava faixas e vazava por cima das superfícies —, mas a decisão foi remover, não corrigir.
 
 ---
 

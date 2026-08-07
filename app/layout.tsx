@@ -4,7 +4,6 @@ import { AuthProvider } from "@/contexts/auth-context";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { BackgroundGrid } from "@/components/background-grid"
 
 
 // Pesos idênticos aos que o protótipo v2 carrega do Google Fonts:
@@ -55,7 +54,6 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <BackgroundGrid />
           <AuthProvider>{children}</AuthProvider>
           <Toaster richColors position="top-right" />
         </ThemeProvider>

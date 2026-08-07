@@ -20,16 +20,17 @@ test.describe("Regressão — Features Críticas", () => {
     expect(classeAntes).toBe(classeDepois)
   })
 
-  test("RG-01: background grid existe na página inicial", async ({ page }) => {
+  test("RG-01: rail de navegação existe na página inicial", async ({ page }) => {
     test.skip(!!process.env.CI)
     await page.goto("/")
     await page.waitForLoadState("networkidle")
 
-    // Verifica que existe algum elemento de background decorativo
-    const gridExists = await page
-      .locator("[class*='grid'], [class*='bg-grid'], canvas")
-      .count()
-    expect(gridExists).toBeGreaterThan(0)
+    // Antes este teste verificava a grade decorativa de fundo, removida na
+    // reforma visual junto do efeito de vidro. O invariante que sobrou na
+    // moldura da página é o rail: se ele não renderiza, não há navegação.
+    const rail = page.getByRole("navigation", { name: "Navegação principal" })
+    await expect(rail).toBeVisible()
+    await expect(rail.getByRole("link", { name: "Início" })).toBeVisible()
   })
 
   test("RG-05: todas as rotas principais retornam 200 quando autenticado", async ({ page }) => {

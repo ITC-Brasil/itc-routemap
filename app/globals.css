@@ -80,10 +80,11 @@
   --spacing-rail: 92px;
 
   /* Tipografia — protótipo v2: Archivo nos títulos, Inter no corpo.
-     Poppins fica disponível para uso pontual (peso 200/300), por decisão do time.
+     `display` é Archivo (system.md §2); Poppins fica disponível para uso pontual
+     pela variável --font-poppins, por decisão do time.
      O mono acompanha o protótipo, que usa a pilha do sistema. */
   --font-heading: var(--font-archivo);
-  --font-display: var(--font-poppins);
+  --font-display: var(--font-archivo);
 
   /* === Cores institucionais ITC (acesso direto via classes) === */
   --color-itc-ciano: #008f95;
@@ -181,7 +182,7 @@
   --muted: var(--bg-muted);
   --muted-foreground: var(--text-muted);
   --accent: var(--brand-light);
-  --accent-foreground: var(--brand-dark);
+  --accent-foreground: var(--brand-pressed);
   --destructive: var(--err);
   --input: var(--border);
   --ring: var(--brand);
@@ -205,16 +206,8 @@
   --sidebar-border: var(--rail-border);
   --sidebar-ring: var(--brand);
 
-  /* Camadas do BackgroundGrid. O protótipo usa superfícies sólidas sobre um
-     fundo liso, sem grade nem vidro — estes valores ficam neutros até a decisão
-     de remover o componente (ETAPA 2). */
-  --mx: 50%;
-  --my: 50%;
-  --grid-line: rgba(26, 32, 32, 0.05);
-  --grid-line-hl: rgba(0, 143, 149, 0.18);
-  --spot-bg: rgba(0, 143, 149, 0.06);
+  /* Barra lateral e sombra do hover de card (.card-interactive). */
   --card-bar: var(--brand);
-  --card-spot: rgba(0, 143, 149, 0.06);
   --card-shadow: var(--shadow-2);
 }
 
@@ -262,11 +255,7 @@
      este bloco redefine. Só os que não derivam da paleta ficam explícitos. */
   --chart-3: #a8dce0;
 
-  --grid-line: rgba(255, 255, 255, 0.04);
-  --grid-line-hl: rgba(48, 165, 171, 0.28);
-  --spot-bg: rgba(48, 165, 171, 0.1);
   --card-bar: var(--brand);
-  --card-spot: rgba(48, 165, 171, 0.08);
   --card-shadow: var(--shadow-2);
 }
 
@@ -283,36 +272,6 @@
 }
 
 @layer components {
-  /* Camadas de fundo (renderizadas pelo <BackgroundGrid />) */
-  .bg-grid {
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(var(--grid-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 48px 48px;
-    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
-    -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
-  }
-
-  .bg-grid-hl {
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(var(--grid-line-hl) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-line-hl) 1px, transparent 1px);
-    background-size: 48px 48px;
-    mask-image: radial-gradient(circle 300px at var(--mx) var(--my), black 0%, transparent 70%);
-    -webkit-mask-image: radial-gradient(circle 300px at var(--mx) var(--my), black 0%, transparent 70%);
-  }
-
-  .bg-spot {
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(circle 450px at var(--mx) var(--my), var(--spot-bg) 0%, transparent 65%);
-    transition: background 100ms ease-out;
-  }
-
   /* O protótipo v2 usa superfícies SÓLIDAS com sombra curta, não vidro: o
      `--card` deixou de ser translúcido, então o blur não tem mais o que
      esfumaçar e só custava composição. */
@@ -340,21 +299,6 @@
     border-radius: var(--radius) 0 0 var(--radius);
   }
 
-  .card-interactive::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(
-      circle 280px at var(--card-mx, 50%) var(--card-my, 50%),
-      var(--card-spot),
-      transparent 70%
-    );
-    opacity: 0;
-    transition: opacity 300ms ease-out;
-    pointer-events: none;
-    border-radius: inherit;
-  }
-
   .card-interactive:hover {
     transform: translateY(-2px);
     border-color: color-mix(in oklab, var(--primary) 40%, transparent);
@@ -365,7 +309,4 @@
     width: 3px;
   }
 
-  .card-interactive:hover::after {
-    opacity: 1;
-  }
 }
