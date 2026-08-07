@@ -943,6 +943,23 @@ morto. Implementar a verificação é trabalho separado, e maior que a emissão.
 
 ---
 
+## 10.13. Reforma visual v2 — dívida do responsivo
+
+O rail de navegação (92px, `components/layout/rail.tsx`) **não tem breakpoint**,
+por decisão: o produto é de uso interno em desktop, e nem o protótipo
+(`design/handoff/`) nem o `design/system.md` resolvem telas estreitas — o
+protótipo só tem media queries de grid de conteúdo (1240px e 1040px) e trata o
+rail como largura fixa.
+
+Consequência: o rail fica sempre visível, então **a navegação nunca desaparece**,
+mas abaixo de ~1040px sobram menos de 950px para o conteúdo e as grades de card do
+Início e do Histórico ficam apertadas. O menu hambúrguer saiu junto da topbar.
+
+Não é comportamento a inventar: se a operação precisar de tela estreita, a decisão
+de colapsar o rail (só ícones, ou drawer) tem de vir antes da implementação.
+
+---
+
 ## 11. PRÓXIMA AÇÃO IMEDIATA
 
 Aguardando **OK do usuário no grupo B da Frente 2** (§6). Com o OK: aplicar os 10
