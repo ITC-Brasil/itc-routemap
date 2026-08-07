@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 275.42 64" width="275.42" height="64" fill="none" role="img" aria-label="ITC RouteMap"><title>ITC RouteMap</title>
+  <g transform="scale(2.4615)">
+    <path d="M4 21V7l9 8 9-8v14" stroke="#008F95" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="53" stroke-dashoffset="0"><animate attributeName="stroke-dashoffset" values="0;0;53;0;0" keyTimes="0;0.12;0.13;0.72;1" dur="4s" repeatCount="indefinite"/></path>
+    <circle cx="4" cy="21" r="2.6" fill="#008F95"><animate attributeName="opacity" values="1;1;0;1;1" keyTimes="0;0.12;0.13;0.17;1" dur="4s" repeatCount="indefinite"/></circle>
+    <circle r="1.7" fill="#008F95" opacity="0"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.13;0.14;0.70;0.74;1" dur="4s" repeatCount="indefinite"/><animateMotion dur="4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.13;0.72;1" calcMode="linear" path="M4 21V7l9 8 9-8v14"/></circle>
+    <circle cx="22" cy="21" r="2.6" fill="none" stroke="#008F95" stroke-width="2.2"><animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;0.12;0.13;0.72;0.78;1" dur="4s" repeatCount="indefinite"/><animate attributeName="r" values="2.6;2.6;4.2;2.6;2.6" keyTimes="0;0.72;0.78;0.86;1" dur="4s" repeatCount="indefinite"/></circle>
+  </g>
+  <text x="72" y="19" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="5.04" textLength="34.28" lengthAdjust="spacing" fill="#008F95">ITC</text>
+  <text x="72" y="59" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="40" font-weight="800" letter-spacing="-1" textLength="198.62" lengthAdjust="spacingAndGlyphs" fill="#1B1B1B">RouteMap</text>
+</svg>

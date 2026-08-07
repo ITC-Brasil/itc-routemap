@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 275.42 64" width="275.42" height="64" fill="none" role="img" aria-label="ITC RouteMap"><title>ITC RouteMap</title>
+  <g transform="scale(2.4615)">
+    <path d="M4 21V7l9 8 9-8v14" stroke="#000000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+    <circle cx="4" cy="21" r="2.6" fill="#000000"></circle>
+    <circle cx="22" cy="21" r="2.6" fill="none" stroke="#000000" stroke-width="2.2"></circle>
+  </g>
+  <text x="72" y="19" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="5.04" textLength="34.28" lengthAdjust="spacing" fill="#000000">ITC</text>
+  <text x="72" y="59" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="40" font-weight="800" letter-spacing="-1" textLength="198.62" lengthAdjust="spacingAndGlyphs" fill="#000000">RouteMap</text>
+</svg>

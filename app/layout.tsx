@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Tenor_Sans, Poppins, Space_Mono } from "next/font/google";
+import { Archivo, Inter, Poppins } from "next/font/google";
 import { AuthProvider } from "@/contexts/auth-context";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -7,22 +7,27 @@ import { Toaster } from "@/components/ui/sonner";
 import { BackgroundGrid } from "@/components/background-grid"
 
 
-const tenorSans = Tenor_Sans({
-  variable: "--font-tenor-sans",
+// Pesos idênticos aos que o protótipo v2 carrega do Google Fonts:
+// Archivo 600;700;800 · Inter 300;400;500;600;700 · Poppins 200;300.
+// O mono não é uma webfont no protótipo — usa a pilha do sistema (ver
+// --font-mono em globals.css), então Space Mono saiu.
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
-  weight: "400",
+  weight: ["600", "700", "800"],
 });
 
-const poppins = Poppins({
-  variable: "--font-poppins",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
 });
 
-const spaceMono = Space_Mono({
-  variable: "--font-space-mono",
+// Carregada por decisão do time, para uso pontual em display.
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
-  weight: ["400", "700"],
+  weight: ["200", "300"],
 });
 
 export const metadata: Metadata = {
@@ -38,7 +43,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body
-        className={`${tenorSans.variable} ${poppins.variable} ${spaceMono.variable} font-sans antialiased`}
+        className={`${archivo.variable} ${inter.variable} ${poppins.variable} font-sans antialiased`}
       >
         <ThemeProvider
           attribute="class"

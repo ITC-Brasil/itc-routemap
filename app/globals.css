@@ -7,9 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-poppins);
-  --font-mono: var(--font-space-mono);
-  --font-heading: var(--font-tenor-sans);
+  --font-sans: var(--font-inter);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,6 +46,45 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
+  /* === Paleta do protótipo v2 (design/handoff) exposta como utilitários ===
+     Gera bg-brand, text-warn, border-rail-border, etc. */
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-pressed: var(--brand-pressed);
+  --color-brand-light: var(--brand-light);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-fg: var(--brand-fg);
+  --color-bordo: var(--bordo);
+  --color-surface: var(--bg-surface);
+  --color-base: var(--bg-base);
+  --color-muted-bg: var(--bg-muted);
+  --color-text-base: var(--text-base);
+  --color-text-muted: var(--text-muted);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+  --color-info: var(--info);
+  --color-ok-tint: var(--ok-tint);
+  --color-warn-tint: var(--warn-tint);
+  --color-err-tint: var(--err-tint);
+  --color-info-tint: var(--info-tint);
+  --color-track: var(--track);
+  --color-skeleton: var(--skeleton);
+  --color-rail: var(--rail-bg);
+  --color-rail-border: var(--rail-border);
+  --color-rail-fg: var(--rail-fg);
+  --color-rail-fg-strong: var(--rail-fg-strong);
+  --color-rail-hover: var(--rail-hover);
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+  --spacing-rail: 92px;
+
+  /* Tipografia — protótipo v2: Archivo nos títulos, Inter no corpo.
+     Poppins fica disponível para uso pontual (peso 200/300), por decisão do time.
+     O mono acompanha o protótipo, que usa a pilha do sistema. */
+  --font-heading: var(--font-archivo);
+  --font-display: var(--font-poppins);
+
   /* === Cores institucionais ITC (acesso direto via classes) === */
   --color-itc-ciano: #008f95;
   --color-itc-ciano-50: #e0f4f5;
@@ -73,114 +111,163 @@
   --color-itc-info: #1565c0;
 }
 
-/* === TEMA CLARO — Identidade ITC === */
+/* ============================================================
+   TEMA CLARO — paleta do protótipo v2 (design/handoff, bloco :root)
+   ============================================================
+
+   Duas camadas, de propósito:
+
+   1. Tokens da paleta (--bg-*, --text-*, --brand-*, --ok/--warn/--err/--info,
+      --rail-*): o vocabulário do protótipo, usado direto nas telas.
+   2. Tokens do shadcn (--background, --primary, --muted, ...): derivados da
+      camada 1. Nenhum componente do shadcn precisou ser tocado.
+
+   Uma renomeação foi necessária: o protótipo chama o teal da marca de
+   `--accent`, e no shadcn `--accent` é o fundo sutil de hover. Manter os dois
+   com o mesmo nome quebraria os componentes, então o teal virou `--brand-*`.
+   `--border` significa a mesma coisa nos dois e ficou com uma definição só. */
 :root {
-  --background: #BABABA;
-  --foreground: #1a2020;
-  --card: rgba(255, 255, 255, 0.55);
-  --card-foreground: #1a2020;
-  --popover: #BABABA;
-  --popover-foreground: #1a2020;
+  /* --- superfícies e texto --- */
+  --bg-base: #f5f0e8;
+  --bg-surface: #fbf8f1;
+  --bg-muted: #ebe4d8;
+  --border: #ddd6c9;
+  --text-base: #1a2020;
+  --text-muted: #697272;
 
-  /* Ciano ITC como cor primária */
-  --primary: #008f95;
-  --primary-foreground: #BABABA;
+  /* --- marca (o `--accent` do protótipo) --- */
+  --brand: #008f95;
+  --brand-hover: #007a80;
+  --brand-pressed: #006c72;
+  --brand-light: #e0f4f5;
+  --brand-dark: #003c3f;
+  --brand-fg: #ffffff;
+  --bordo: #491027;
 
-  --secondary: #f4f6f6;
-  --secondary-foreground: #1a2020;
+  /* --- semânticos --- */
+  --ok: #1a7f3c;
+  --warn: #cc7a00;
+  --err: #c0392b;
+  --info: #1565c0;
+  --ok-tint: rgba(26, 127, 60, 0.13);
+  --warn-tint: rgba(204, 122, 0, 0.13);
+  --err-tint: rgba(192, 57, 43, 0.13);
+  --info-tint: rgba(21, 101, 192, 0.1);
 
-  --muted: #f4f6f6;
-  --muted-foreground: #697272;
+  /* --- elevação e utilidades --- */
+  --shadow-1: 0 1px 2px rgba(26, 32, 32, 0.05);
+  --shadow-2: 0 10px 34px rgba(26, 32, 32, 0.09);
+  --track: #e6dfd2;
+  --skeleton: rgba(26, 32, 32, 0.07);
 
-  --accent: #e0f4f5;
-  --accent-foreground: #003c3f;
+  /* --- rail de navegação (92px, ETAPA 2) --- */
+  --rail-bg: #fbf8f1;
+  --rail-border: #ddd6c9;
+  --rail-fg: #697272;
+  --rail-fg-strong: #1a2020;
+  --rail-hover: rgba(26, 32, 32, 0.06);
 
-  --destructive: #c0392b;
+  /* ===== mapeamento shadcn ===== */
+  --background: var(--bg-base);
+  --foreground: var(--text-base);
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-base);
+  --popover: var(--bg-surface);
+  --popover-foreground: var(--text-base);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-fg);
+  --secondary: var(--bg-muted);
+  --secondary-foreground: var(--text-base);
+  --muted: var(--bg-muted);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--brand-light);
+  --accent-foreground: var(--brand-dark);
+  --destructive: var(--err);
+  --input: var(--border);
+  --ring: var(--brand);
 
-  --border: #d8dede;
-  --input: #d8dede;
-  --ring: #008f95;
-
-  --chart-1: #008f95;
-  --chart-2: #491027;
+  --chart-1: var(--brand);
+  --chart-2: var(--bordo);
   --chart-3: #4bbac0;
-  --chart-4: #8a2244;
-  --chart-5: #003c3f;
+  --chart-4: var(--warn);
+  --chart-5: var(--brand-dark);
 
+  /* Mantido em 0.625rem: é o raio que o protótipo já respeitou (10px). */
   --radius: 0.625rem;
 
-  /* Sidebar — modo claro */
-  --sidebar: #f4f6f6;
-  --sidebar-foreground: #1a2020;
-  --sidebar-primary: #008f95;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e0f4f5;
-  --sidebar-accent-foreground: #003c3f;
-  --sidebar-border: #d8dede;
-  --sidebar-ring: #008f95;
+  /* Sidebar do shadcn apontando para o rail. */
+  --sidebar: var(--rail-bg);
+  --sidebar-foreground: var(--rail-fg);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-fg);
+  --sidebar-accent: var(--rail-hover);
+  --sidebar-accent-foreground: var(--rail-fg-strong);
+  --sidebar-border: var(--rail-border);
+  --sidebar-ring: var(--brand);
 
-  /* === Background interativo + card hover (tema claro: ambiente bordô) === */
+  /* Camadas do BackgroundGrid. O protótipo usa superfícies sólidas sobre um
+     fundo liso, sem grade nem vidro — estes valores ficam neutros até a decisão
+     de remover o componente (ETAPA 2). */
   --mx: 50%;
   --my: 50%;
-  --grid-line: rgba(26, 32, 32, 0.07);
-  --grid-line-hl: rgba(73, 16, 39, 0.30);
-  --spot-bg: rgba(73, 16, 39, 0.10);
-  --card-bar: #491027;
+  --grid-line: rgba(26, 32, 32, 0.05);
+  --grid-line-hl: rgba(0, 143, 149, 0.18);
+  --spot-bg: rgba(0, 143, 149, 0.06);
+  --card-bar: var(--brand);
   --card-spot: rgba(0, 143, 149, 0.06);
-  --card-shadow: 0 12px 28px -12px rgba(0, 143, 149, 0.35), 0 6px 16px -6px rgba(73, 16, 39, 0.12);
+  --card-shadow: var(--shadow-2);
 }
 
-/* === TEMA ESCURO — Identidade ITC === */
+/* ============================================================
+   TEMA ESCURO — protótipo v2, bloco [data-theme="dark"]
+   Aqui vive em `.dark` porque o next-themes está com attribute="class".
+   ============================================================ */
 .dark {
-  --background: #1a2020;
-  --foreground: #f4f6f6;
-  --card: rgba(58, 64, 64, 0.45);
-  --card-foreground: #f4f6f6;
-  --popover: #3a4040;
-  --popover-foreground: #f4f6f6;
+  --bg-base: #141918;
+  --bg-surface: #1e2422;
+  --bg-muted: #2a302e;
+  --border: #333b39;
+  --text-base: #f4f6f6;
+  --text-muted: #8e9a98;
 
-  /* Ciano ITC mais luminoso para contraste no escuro */
-  --primary: #4bbac0;
-  --primary-foreground: #003c3f;
+  --brand: #30a5ab;
+  --brand-hover: #46b5ba;
+  --brand-pressed: #268a8f;
+  --brand-light: rgba(48, 165, 171, 0.16);
+  --brand-dark: #0c2c2e;
+  --brand-fg: #08201f;
+  --bordo: #7a2a45;
 
-  --secondary: #3a4040;
-  --secondary-foreground: #f4f6f6;
+  --ok: #3da35d;
+  --warn: #d98e2b;
+  --err: #d75a4a;
+  --info: #4b93db;
+  --ok-tint: rgba(61, 163, 93, 0.15);
+  --warn-tint: rgba(217, 142, 43, 0.15);
+  --err-tint: rgba(215, 90, 74, 0.15);
+  --info-tint: rgba(75, 147, 219, 0.14);
 
-  --muted: #3a4040;
-  --muted-foreground: #a5b0b0;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 12px 42px rgba(0, 0, 0, 0.5);
+  --track: #2e3634;
+  --skeleton: rgba(255, 255, 255, 0.08);
 
-  --accent: #006262;
-  --accent-foreground: #e0f4f5;
+  --rail-bg: #101615;
+  --rail-border: #2a3230;
+  --rail-fg: #8e9a98;
+  --rail-fg-strong: #ffffff;
+  --rail-hover: rgba(255, 255, 255, 0.07);
 
-  --destructive: #c0392b;
-
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.15);
-  --ring: #4bbac0;
-
-  --chart-1: #4bbac0;
-  --chart-2: #d4849f;
+  /* O mapeamento shadcn é herdado do :root: aponta para os tokens acima, que
+     este bloco redefine. Só os que não derivam da paleta ficam explícitos. */
   --chart-3: #a8dce0;
-  --chart-4: #8a2244;
-  --chart-5: #f4f6f6;
 
-  /* Sidebar — modo escuro */
-  --sidebar: #1a2020;
-  --sidebar-foreground: #f4f6f6;
-  --sidebar-primary: #4bbac0;
-  --sidebar-primary-foreground: #003c3f;
-  --sidebar-accent: #006262;
-  --sidebar-accent-foreground: #e0f4f5;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #4bbac0;
-
-  /* === Background interativo + card hover (tema escuro: ambiente ciano) === */
   --grid-line: rgba(255, 255, 255, 0.04);
-  --grid-line-hl: rgba(0, 143, 149, 0.5);
-  --spot-bg: rgba(0, 143, 149, 0.18);
-  --card-bar: #008f95;
-  --card-spot: rgba(0, 143, 149, 0.08);
-  --card-shadow: 0 10px 30px -10px rgba(0, 143, 149, 0.25);
+  --grid-line-hl: rgba(48, 165, 171, 0.28);
+  --spot-bg: rgba(48, 165, 171, 0.1);
+  --card-bar: var(--brand);
+  --card-spot: rgba(48, 165, 171, 0.08);
+  --card-shadow: var(--shadow-2);
 }
 
 @layer base {
@@ -226,12 +313,11 @@
     transition: background 100ms ease-out;
   }
 
-  /* Glass effect padrão em TODOS os Cards do shadcn.
-     O --card já é transparente (definido nos blocos :root e .dark);
-     esse blur é o que cria o efeito esfumaçado em cima do BackgroundGrid. */
+  /* O protótipo v2 usa superfícies SÓLIDAS com sombra curta, não vidro: o
+     `--card` deixou de ser translúcido, então o blur não tem mais o que
+     esfumaçar e só custava composição. */
   [data-slot="card"] {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-1);
   }
 
   /* Card com elevação + barra lateral colorida + spotlight interno.
