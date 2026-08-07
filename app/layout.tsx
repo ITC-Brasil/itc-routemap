@@ -45,10 +45,14 @@ export default function RootLayout({
       <body
         className={`${archivo.variable} ${inter.variable} ${poppins.variable} font-sans antialiased`}
       >
+        {/* Claro é o default do produto (decisão de 2026-08-07): é o tema em que
+            o protótipo v2 foi desenhado, e um default determinístico evita que a
+            mesma tela apareça diferente para cada pessoa conforme o SO. O
+            alternador continua; os dois temas são de primeira classe. */}
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="light"
+          enableSystem={false}
           disableTransitionOnChange
         >
           <BackgroundGrid />
