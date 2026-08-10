@@ -1093,9 +1093,12 @@ function SeletorModo({
       <div className="flex flex-wrap gap-2">
         {MODOS_SELECIONAVEIS.map((m) => {
           const ativo = m === modoAtual
-          const temMatriz = m !== "TRANSIT" && !!metricasDisponiveis[m]
-          const minMatriz = temMatriz
-            ? Math.round(metricasDisponiveis[m]!.duracaoSegundos / 60)
+          // TRANSIT não é mais exceção: a métrica dele está no snapshot da rota
+          // como a de qualquer outro modo, então a prévia em minutos aparece
+          // igual. Era o quarto lugar com o mesmo descarte.
+          const metrica = metricasDisponiveis[m]
+          const minMatriz = metrica
+            ? Math.round(metrica.duracaoSegundos / 60)
             : null
           return (
             <button
@@ -1111,7 +1114,7 @@ function SeletorModo({
               <IconeModo modo={m} className="h-4 w-4" />
               <span>{nomeAmigavelModo(m)}</span>
               {minMatriz != null && (
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs tabular-nums text-muted-foreground">
                   · {minMatriz}min
                 </span>
               )}
@@ -1120,7 +1123,7 @@ function SeletorModo({
         })}
       </div>
       <p className="text-[11px] text-muted-foreground">
-        🚌 Transporte público é calculado sob demanda (pode levar 1-2s).
+        O trajeto detalhado do transporte público é buscado ao abrir o mapa.
       </p>
     </div>
   )
