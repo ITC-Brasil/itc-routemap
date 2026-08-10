@@ -958,6 +958,14 @@ Início e do Histórico ficam apertadas. O menu hambúrguer saiu junto da topbar
 Não é comportamento a inventar: se a operação precisar de tela estreita, a decisão
 de colapsar o rail (só ícones, ou drawer) tem de vir antes da implementação.
 
+### Defesa morta: `STATUS_REALOCAVEIS` com "Atual"
+
+`lib/rotas-utils.ts:139` tem `new Set(["Pendente", "Agendado", "Atual"])`. O
+"Atual" ali **é defesa morta**: a ingestão normaliza o vocabulário da planilha
+(`Atual` → `Agendado`) antes de gravar, e a migração traduz o histórico, então
+nenhum ponto nasce "Atual". Mantido de propósito — remover mudaria comportamento
+para um dado que não deveria existir, e o custo de deixar é zero.
+
 ---
 
 ## 11. PRÓXIMA AÇÃO IMEDIATA

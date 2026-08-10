@@ -615,6 +615,14 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
     }
   }
 
+  // Cor cadastrada de cada técnico, para o avatar do par no Resultado. Os
+  // técnicos já estão carregados aqui pela lista de seleção — não custa uma
+  // consulta nova nem obriga a API de alocação a devolver a cor.
+  const coresPorTecnico = useMemo(
+    () => new Map(tecnicos.map((t) => [t.id, t.cor])),
+    [tecnicos],
+  )
+
   // === RENDER CONDICIONAL ===
 
   if (etapa === "calculando") {
@@ -631,6 +639,7 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
           resultado={resultado}
           onVoltar={handleVoltar}
           onConfirmar={handleConfirmar}
+          coresPorTecnico={coresPorTecnico}
         />
       </div>
     )

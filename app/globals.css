@@ -279,6 +279,24 @@
     box-shadow: var(--shadow-1);
   }
 
+  /* Pílula com cor vinda do banco — projeto, UM, técnico (system.md §5.4).
+     A cor é identificação, não status: entra como fundo em 16%, borda em 30% e
+     texto na própria cor, deslocado para o lado legível do tema (escurece no
+     claro, clareia no escuro). Sem esse deslocamento, um projeto cadastrado em
+     amarelo ficava ilegível sobre a superfície off-white — e a cor é escolha do
+     usuário, não do design.
+
+     Uso: className="badge-cor-dado" com style={{ "--cor-dado": cor }}. */
+  .badge-cor-dado {
+    background: color-mix(in oklab, var(--cor-dado) 16%, transparent);
+    border-color: color-mix(in oklab, var(--cor-dado) 30%, transparent);
+    color: color-mix(in oklab, var(--cor-dado) 78%, black);
+  }
+
+  .dark .badge-cor-dado {
+    color: color-mix(in oklab, var(--cor-dado) 78%, white);
+  }
+
   /* Card com elevação + barra lateral colorida + spotlight interno.
      Aplicada manualmente só onde quisermos esse comportamento (ex: CardResumoProjeto). */
   .card-interactive {

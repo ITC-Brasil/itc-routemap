@@ -92,6 +92,13 @@ type RotaCacheEntry =
 async function buscarReferenciaPontos(
   rotas: Rota[]
 ): Promise<Map<string, string>> {
+  // ATENÇÃO: `Ponto` só é lido aqui, e só pela `referencia`. Todo o resto do
+  // destino sai do SNAPSHOT da própria rota (destinoEndereco/Latitude/Longitude),
+  // nunca do ponto — 12 dos 13 vínculos `Rota.pontoId` do dado legado apontam
+  // para o ponto errado, porque a sincronização antiga sobrescrevia o conteúdo
+  // mantendo o id (ver §10.10 do handoff). A referência é a dívida conhecida:
+  // enquanto não existir `destinoReferencia` no snapshot, ela pode vir de outro
+  // ponto no texto de compartilhamento.
   const resultados = await Promise.all(
     rotas.map((r) => buscarPonto(r.pontoId).catch(() => null))
   )
@@ -313,13 +320,17 @@ export default function DetalheLotePage() {
   )
 
   // ====== Helper: duração efetiva no modo selecionado ======
+  //
+  // A rota detalhada tem precedência quando já foi buscada; sem ela vale a
+  // métrica do snapshot da rota — para TRANSIT também. Antes este helper
+  // devolvia null para TRANSIT e descartava `rota.metricas.TRANSIT`, que está
+  // gravada no snapshot desde a confirmação: as rotas de transporte público
+  // ficavam em "calculando…" para sempre, porque a busca detalhada só acontece
+  // quando o usuário expande o card.
   const obterDuracaoSeg = useCallback(
     (rota: Rota, modo: ModoTransporte): number | null => {
-      if (modo === "TRANSIT") {
-        const entry = rotaCache.get(`${rota.id}|TRANSIT`)
-        if (entry?.estado === "ok") return entry.duracaoSegundos
-        return null
-      }
+      const entry = rotaCache.get(`${rota.id}|${modo}`)
+      if (entry?.estado === "ok") return entry.duracaoSegundos
       return rota.metricas[modo]?.duracaoSegundos ?? null
     },
     [rotaCache]
@@ -328,11 +339,8 @@ export default function DetalheLotePage() {
   // ====== Helper: distância no modo selecionado ======
   const obterDistanciaMetros = useCallback(
     (rota: Rota, modo: ModoTransporte): number | null => {
-      if (modo === "TRANSIT") {
-        const entry = rotaCache.get(`${rota.id}|TRANSIT`)
-        if (entry?.estado === "ok") return entry.distanciaMetros
-        return null
-      }
+      const entry = rotaCache.get(`${rota.id}|${modo}`)
+      if (entry?.estado === "ok") return entry.distanciaMetros
       return rota.metricas[modo]?.distanciaMetros ?? null
     },
     [rotaCache]
@@ -572,7 +580,7 @@ export default function DetalheLotePage() {
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+              <p className="font-mono text-xs uppercase tracking-widest tabular-nums text-muted-foreground">
                 Lote {loteIdCurto}
               </p>
               <StatusBadge statusLote={statusLote} />
@@ -901,12 +909,17 @@ function LinhaRotaHistorico({
                 {rota.umNome}
               </Badge>
               {rota.status === "Cancelada" && (
-                <Badge variant="destructive">Cancelada</Badge>
+                <Badge
+                  variant="outline"
+                  className="border-err/40 bg-transparent text-err"
+                >
+                  Cancelada
+                </Badge>
               )}
               {rota.realocadaDe !== null && (
                 <Badge
                   variant="outline"
-                  className="gap-1 border-blue-300/50 bg-blue-50/40 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/20 dark:text-blue-400"
+                  className="gap-1 border-info/40 bg-info-tint text-info"
                 >
                   <RefreshCw className="h-3 w-3" />
                   Re-otimização
@@ -921,13 +934,17 @@ function LinhaRotaHistorico({
             </p>
           </div>
 
-          {/* Tempo atual no modo selecionado */}
+          {/* Tempo no modo selecionado. Sem valor, skeleton — não texto de
+              espera no lugar de um número (system.md §5.1). */}
           <div className="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">
-            <IconeModo modo={modo} className="h-4 w-4" />
+            <IconeModo modo={modo} className="size-4" />
             {duracaoSeg != null ? (
-              <span>{formatarDuracao(duracaoSeg)}</span>
+              <span className="tabular-nums">{formatarDuracao(duracaoSeg)}</span>
             ) : (
-              <span className="text-xs">calculando…</span>
+              <span
+                aria-label="calculando duração"
+                className="h-4 w-14 animate-pulse rounded bg-skeleton"
+              />
             )}
           </div>
 
@@ -1110,32 +1127,24 @@ function SeletorModo({
 }
 
 
+/** Mesma regra do card de lote: ver system.md §5.2. */
 function StatusBadge({ statusLote }: { statusLote: StatusLote }) {
   if (statusLote === "Confirmada") {
     return (
-      <Badge
-        variant="outline"
-        className="border-itc-sucesso/30 bg-itc-sucesso/10 text-itc-sucesso"
-      >
+      <Badge variant="outline" className="border-ok bg-ok-tint text-ok">
         Confirmada
       </Badge>
     )
   }
   if (statusLote === "Cancelada") {
     return (
-      <Badge
-        variant="outline"
-        className="border-destructive/30 bg-destructive/10 text-destructive"
-      >
+      <Badge variant="outline" className="border-err/40 bg-transparent text-err">
         Cancelada
       </Badge>
     )
   }
   return (
-    <Badge
-      variant="outline"
-      className="border-itc-atencao/30 bg-itc-atencao/10 text-itc-atencao"
-    >
+    <Badge variant="outline" className="border-warn bg-warn-tint text-warn">
       Mista
     </Badge>
   )
@@ -1145,7 +1154,7 @@ function BadgeAjusteManual() {
   return (
     <Badge
       variant="outline"
-      className="gap-1 border-accent/40 bg-accent/10 text-accent"
+      className="gap-1 border-info/40 bg-transparent text-info"
     >
       <Hand className="h-3 w-3" />
       Ajuste manual
@@ -1157,7 +1166,7 @@ function BadgeReotimizacao() {
   return (
     <Badge
       variant="outline"
-      className="gap-1 border-blue-300/50 bg-blue-50/40 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/20 dark:text-blue-400"
+      className="gap-1 border-info/40 bg-info-tint text-info"
     >
       <RefreshCw className="h-3 w-3" />
       Re-otimização

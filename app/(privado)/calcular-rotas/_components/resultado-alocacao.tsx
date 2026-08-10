@@ -40,6 +40,7 @@ import {
   Users,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { corTextoIdeal } from "@/lib/cores"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -174,16 +175,37 @@ interface Props {
   resultado: RespostaAlocacao
   onVoltar: () => void
   onConfirmar: (payload: PayloadConfirmacao) => void
+  /**
+   * Cor cadastrada de cada técnico, por id — o avatar do par (system.md §5.4).
+   *
+   * Vem por prop e não pela API: a página de Calcular Rotas já carrega os
+   * técnicos com `cor` para montar a lista de seleção, e este componente vive na
+   * mesma árvore. Acrescentar `cor` a `AlocacaoRica.origem` faria a resposta de
+   * `/api/routes/alocar` carregar um dado que ela não precisa conhecer.
+   */
+  coresPorTecnico?: Map<string, string>
 }
 
 function chaveAlocacao(a: AlocacaoRica): string {
   return `${a.origem.id}|${a.destino.id}`
 }
 
+/** Iniciais para o avatar: "José Frederico" -> "JF". */
+function iniciaisDe(nome: string): string {
+  return nome
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((parte) => parte[0] ?? "")
+    .join("")
+    .toUpperCase()
+}
+
 export function ResultadoAlocacao({
   resultado,
   onVoltar,
   onConfirmar,
+  coresPorTecnico,
 }: Props) {
   // ====== 13.11 BLOCO 2: Estado de edição manual ======
   // null = sem edição (usa resultado.alocacoes original do algoritmo)
@@ -634,6 +656,7 @@ export function ResultadoAlocacao({
                 expandido={expandido}
                 rotaEntry={rotaEntry}
                 duracaoSeg={obterDuracaoSeg(aloc, modo)}
+                corTecnico={coresPorTecnico?.get(aloc.origem.id)}
                 onExpandir={() => handleExpandir(aloc)}
                 onTrocarModo={(m) => handleTrocarModo(aloc, m)}
                 // Q1: contexto pra explicação algorítmica + justificativa global
@@ -1047,6 +1070,7 @@ function LinhaAlocacao({
   modo,
   expandido,
   rotaEntry,
+  corTecnico,
   duracaoSeg,
   onExpandir,
   onTrocarModo,
@@ -1062,6 +1086,7 @@ function LinhaAlocacao({
   modo: ModoTransporte
   expandido: boolean
   rotaEntry: RotaCacheEntry | undefined
+  corTecnico: string | undefined
   duracaoSeg: number | null
   onExpandir: () => void
   onTrocarModo: (m: ModoTransporte) => void
@@ -1108,6 +1133,18 @@ function LinhaAlocacao({
 
           {/* Zona 1 — técnico */}
           <div className="flex min-w-0 items-center gap-3">
+            <div
+              className="flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+              style={{
+                backgroundColor: corTecnico ?? "var(--muted)",
+                color: corTecnico
+                  ? corTextoIdeal(corTecnico)
+                  : "var(--muted-foreground)",
+              }}
+              aria-hidden="true"
+            >
+              {iniciaisDe(alocacao.origem.nome)}
+            </div>
             <div className="flex min-w-0 flex-col">
               <span
                 className="truncate font-semibold"

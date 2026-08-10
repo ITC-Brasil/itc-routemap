@@ -104,7 +104,7 @@ export default function HistoricoPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Administração
+            Análise
           </p>
           <h1 className="mt-1 font-heading text-4xl">Histórico de Alocações</h1>
           <p className="mt-2 max-w-2xl text-muted-foreground">
