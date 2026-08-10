@@ -8,10 +8,8 @@ import {
   ArrowLeft,
   CheckCircle,
   Info,
-  MapPin,
   RefreshCw,
   Sparkles,
-  Users,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -137,20 +135,20 @@ export default function CalcularRotasPage() {
   // ====== RENDER ======
   return (
     <div className="space-y-8">
-      {/* HEADER */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Operação
-          </p>
-          <h1 className="mt-1 font-heading text-4xl">Calcular Rotas</h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
-            Alocação inteligente: o sistema sugere qual técnico vai para qual
-            UM com base na distância da casa de cada um, usando Google Routes
-            API e IA Gemini.
-          </p>
-        </div>
-      </div>
+      {/* HEADER — eyebrow em accent, título Archivo, régua inferior (protótipo v2) */}
+      <header className="border-b pb-[22px]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+          Operação
+        </p>
+        <h1 className="mt-2 max-w-[620px] font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em]">
+          Calcular Rotas
+        </h1>
+        <p className="mt-2.5 max-w-[620px] text-pretty text-muted-foreground">
+          O sistema sugere qual técnico vai para qual UM a partir da distância
+          entre a casa de cada um e o destino, usando Google Routes e o
+          algoritmo Húngaro.
+        </p>
+      </header>
 
       {/* CONTEÚDO */}
       {carregando ? (
@@ -685,43 +683,31 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
   // etapa === "selecao"
   return (
     <div className="space-y-6">
-      {/* PRONTIDÃO */}
-      <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          Prontidão para alocação
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <CardPrincipal
-            valor={tecnicos.length}
-            icone={<Users className="h-6 w-6 text-primary" />}
-            legenda={
-              tecnicos.length === 1
-                ? "técnico disponível"
-                : "técnicos disponíveis"
-            }
-          />
-          <CardPrincipal
-            valor={itensUM.length}
-            icone={<MapPin className="h-6 w-6 text-primary" />}
-            legenda={
-              itensUM.length === 1
-                ? "UM aguardando alocação"
-                : "UMs aguardando alocação"
-            }
-          />
-        </div>
-      </section>
+      {/* PRONTIDÃO — no protótipo são dois números, não dois cards: o dado é a
+          contagem, e o card em volta só tirava peso dela. */}
+      <div className="flex gap-8">
+        <ContagemProntidao
+          valor={tecnicos.length}
+          legenda={
+            tecnicos.length === 1 ? "técnico disponível" : "técnicos disponíveis"
+          }
+        />
+        <div className="w-px bg-border" />
+        <ContagemProntidao
+          valor={itensUM.length}
+          legenda={
+            itensUM.length === 1
+              ? "UM aguardando alocação"
+              : "UMs aguardando alocação"
+          }
+        />
+      </div>
 
       {/* SELEÇÃO — 2 COLUNAS */}
-      <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          Selecione técnicos e UMs
-        </h2>
-
-        <div className="grid gap-4 lg:grid-cols-2">
+      <section>
+        <div className="grid gap-5 lg:grid-cols-2">
           {/* COLUNA TÉCNICOS */}
-          <Card>
-            <CardContent className="space-y-4 p-6">
+          <PainelSelecao>
               <CabecalhoColuna
                 titulo="Técnicos"
                 selecionados={totalSelTecnicos}
@@ -729,14 +715,16 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
                 onSelecionarTodos={selecionarTodosTecnicos}
                 onLimpar={limparTecnicos}
               />
-              <ul className="space-y-2">
+              <ul className="flex flex-col gap-1.5 p-3">
                 {tecnicos.map((t) => {
                   const id = `tec-${t.id}`
                   const checked = selectedTecnicoIds.has(t.id)
                   return (
                     <li
                       key={t.id}
-                      className="card-interactive flex items-center gap-3 rounded-md border p-3 transition-colors hover:bg-accent/30"
+                      className={`flex items-center gap-3 rounded-[9px] border p-3 transition-colors hover:border-primary ${
+                        checked ? "border-primary bg-accent" : "bg-transparent"
+                      }`}
                     >
                       <Checkbox
                         id={id}
@@ -770,27 +758,27 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
                   )
                 })}
               </ul>
-            </CardContent>
-          </Card>
+          </PainelSelecao>
 
           {/* COLUNA UMs */}
-          <Card>
-            <CardContent className="space-y-4 p-6">
+          <PainelSelecao>
               <CabecalhoColuna
-                titulo="UMs"
+                titulo="Unidades móveis"
                 selecionados={totalSelUms}
                 total={itensUM.length}
                 onSelecionarTodos={selecionarTodasUms}
                 onLimpar={limparUms}
               />
-              <ul className="space-y-2">
+              <ul className="flex flex-col gap-1.5 p-3">
                 {itensUM.map((item) => {
                   const id = `um-${item.key}`
                   const checked = selectedUmKeys.has(item.key)
                   return (
                     <li
                       key={item.key}
-                      className="card-interactive flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-accent/30"
+                      className={`flex items-start gap-3 rounded-[9px] border p-3 transition-colors hover:border-primary ${
+                        checked ? "border-primary bg-accent" : "bg-transparent"
+                      }`}
                     >
                       <Checkbox
                         id={id}
@@ -800,7 +788,7 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
                       />
                       <Label
                         htmlFor={id}
-                        className="flex flex-1 cursor-pointer flex-col gap-1"
+                        className="flex flex-1 cursor-pointer flex-col items-start gap-1"
                       >
                         <div className="flex items-center gap-2">
                           <Badge
@@ -827,20 +815,17 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
                   )
                 })}
               </ul>
-            </CardContent>
-          </Card>
+          </PainelSelecao>
         </div>
       </section>
 
       {/* 13.12: AVISO DE RE-OTIMIZAÇÃO quando técnicos têm rotas ativas */}
       {tecnicosAtivosSelected.length > 0 && (
-        <div className="flex items-start gap-3 rounded-lg border border-blue-300 bg-blue-50/60 p-4 dark:border-blue-800/60 dark:bg-blue-950/30">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+        <div className="flex items-start gap-3 rounded-xl border border-info bg-info-tint px-5 py-4">
+          <Info className="mt-0.5 size-4 shrink-0 text-info" />
           <div className="space-y-1 text-sm">
-            <p className="font-medium text-blue-900 dark:text-blue-100">
-              Re-otimização inteligente ativa
-            </p>
-            <p className="text-blue-800/80 dark:text-blue-200/80">
+            <p className="font-semibold">Re-otimização inteligente ativa</p>
+            <p className="max-w-[700px] text-pretty leading-relaxed text-muted-foreground">
               {tecnicosAtivosSelected.length}{" "}
               {tecnicosAtivosSelected.length === 1
                 ? "técnico selecionado tem"
@@ -849,8 +834,8 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
               se houver melhora de 5+ minutos, você verá as oportunidades antes
               de confirmar.
             </p>
-            <p className="flex items-center gap-1 text-xs text-blue-700/70 dark:text-blue-300/70">
-              <RefreshCw className="h-3 w-3" />
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <RefreshCw className="size-3" />
               Sincronize as planilhas antes de calcular para garantir dados
               atualizados.
             </p>
@@ -858,17 +843,18 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
         </div>
       )}
 
-      {/* RESUMO + AÇÃO */}
-      <Card>
-        <CardContent className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
+      {/* RESUMO + AÇÃO — barra fixa no rodapé: a ação primária acompanha a
+          rolagem em vez de ficar no fim de uma lista longa (protótipo v2). */}
+      <div className="sticky bottom-0 z-10 rounded-xl border border-t-2 border-t-primary bg-card px-[22px] py-4 shadow-[var(--shadow-2)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <p className="font-heading text-lg">
+            <p className="font-heading text-[22px] font-bold leading-tight tabular-nums">
               {totalSelTecnicos}{" "}
               {totalSelTecnicos === 1 ? "técnico" : "técnicos"} → {totalSelUms}{" "}
               {totalSelUms === 1 ? "UM" : "UMs"}
             </p>
             {contagensDiferem && podeCalcular && (
-              <p className="text-xs text-amber-700 dark:text-amber-300">
+              <p className="text-[13px] text-pretty text-warn">
                 ⚠ Contagens diferentes —{" "}
                 {Math.min(totalSelTecnicos, totalSelUms)}{" "}
                 {Math.min(totalSelTecnicos, totalSelUms) === 1
@@ -885,13 +871,13 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
               </p>
             )}
             {!contagensDiferem && podeCalcular && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-pretty text-muted-foreground">
                 Cada técnico será alocado a uma UM, minimizando o deslocamento
                 total do time.
               </p>
             )}
             {!podeCalcular && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 Selecione pelo menos 1 técnico e 1 UM.
               </p>
             )}
@@ -899,14 +885,13 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
           <Button
             onClick={handleCalcular}
             disabled={!podeCalcular}
-            size="lg"
-            className="gap-2"
+            className="h-12 gap-2 px-6 text-[15px]"
           >
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="size-4" />
             Calcular Alocação Ótima
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1223,25 +1208,33 @@ function BannerRestaurado({ onFechar }: { onFechar: () => void }) {
 // SUBCOMPONENTES REUTILIZÁVEIS
 // ============================================================
 
-function CardPrincipal({
+/** Número grande + legenda. Substituiu o card de prontidão. */
+function ContagemProntidao({
   valor,
-  icone,
   legenda,
 }: {
   valor: number
-  icone: React.ReactNode
   legenda: string
 }) {
   return (
-    <Card>
-      <CardContent className="flex items-center gap-4 p-6">
-        <div className="rounded-full bg-primary/10 p-3">{icone}</div>
-        <div>
-          <p className="font-heading text-3xl">{valor}</p>
-          <p className="text-sm text-muted-foreground">{legenda}</p>
-        </div>
-      </CardContent>
-    </Card>
+    <div>
+      <p className="font-heading text-[34px] font-bold leading-none tabular-nums">
+        {valor}
+      </p>
+      <p className="mt-1 text-[13px] text-muted-foreground">{legenda}</p>
+    </div>
+  )
+}
+
+/**
+ * Painel de seleção — superfície com a régua teal de 2px no topo, a assinatura
+ * dos painéis do protótipo v2.
+ */
+function PainelSelecao({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col rounded-xl border border-t-2 border-t-primary bg-card shadow-[var(--shadow-1)]">
+      {children}
+    </div>
   )
 }
 
@@ -1259,10 +1252,10 @@ function CabecalhoColuna({
   onLimpar: () => void
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <h3 className="font-heading text-lg">
+    <div className="flex items-center justify-between gap-3 border-b px-5 py-4">
+      <h3 className="text-[17px] font-semibold">
         {titulo}{" "}
-        <span className="font-mono text-sm text-muted-foreground">
+        <span className="font-medium tabular-nums text-muted-foreground">
           ({selecionados}/{total})
         </span>
       </h3>

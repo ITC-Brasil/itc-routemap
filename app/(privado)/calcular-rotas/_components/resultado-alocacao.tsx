@@ -28,6 +28,7 @@ import { useCallback, useMemo, useState } from "react"
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
   Check,
   ChevronDown,
   ChevronUp,
@@ -1081,6 +1082,7 @@ function LinhaAlocacao({
   const distanciaKm =
     distanciaMetros != null ? (distanciaMetros / 1000).toFixed(1) : null
 
+
   const explicacao = gerarExplicacaoAlgoritmica({
     tecnicoNome: alocacao.origem.nome,
     umNome: alocacao.destino.umNome,
@@ -1093,58 +1095,85 @@ function LinhaAlocacao({
   return (
     <Card className="card-interactive">
       <CardContent className="space-y-4 p-5">
-        {/* Header — sempre visível */}
-        <div className="grid gap-4 md:grid-cols-[auto_1fr_1fr_auto_auto] md:items-center">
-          <div className="hidden h-10 w-10 items-center justify-center rounded-full bg-muted font-mono text-sm font-semibold text-muted-foreground md:flex">
+        {/* O PAR DE ALOCAÇÃO — elemento assinatura (system.md §5.1).
+            Três zonas: técnico · rota · destino. A zona central é o conector,
+            com a distância acima e duração + modo abaixo — a duração sem o modo
+            é ambígua, então os dois andam juntos. Antes as informações eram
+            colunas soltas e o tempo era uma pílula no canto, o que não deixava
+            claro que o número é o custo DAQUELE deslocamento. */}
+        <div className="grid gap-5 md:grid-cols-[auto_minmax(0,1fr)_210px_minmax(0,1fr)_auto] md:items-center">
+          <div className="hidden size-10 items-center justify-center rounded-full bg-muted font-mono text-sm font-semibold text-muted-foreground md:flex">
             {ordem}
           </div>
 
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Técnico
-            </p>
-            <p className="truncate font-medium" title={alocacao.origem.nome}>
-              {alocacao.origem.nome}
-            </p>
-            <p
-              className="truncate text-xs text-muted-foreground"
-              title={alocacao.origem.endereco}
-            >
-              {alocacao.origem.endereco}
-            </p>
+          {/* Zona 1 — técnico */}
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 flex-col">
+              <span
+                className="truncate font-semibold"
+                title={alocacao.origem.nome}
+              >
+                {alocacao.origem.nome}
+              </span>
+              <span
+                className="truncate text-[13px] text-muted-foreground"
+                title={alocacao.origem.endereco}
+              >
+                {alocacao.origem.endereco}
+              </span>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Destino
-            </p>
+          {/* Zona 2 — a rota. Skeleton enquanto a métrica não chega; nunca
+              texto de espera no lugar de um número. */}
+          <div className="flex flex-col items-center gap-1.5">
+            {distanciaKm != null ? (
+              <span className="text-sm font-semibold tabular-nums">
+                {distanciaKm} km
+              </span>
+            ) : (
+              <span
+                aria-label="calculando distância"
+                className="h-[13px] w-[88px] animate-pulse rounded bg-skeleton"
+              />
+            )}
+            <span className="flex w-full items-center">
+              <span className="h-px flex-1 bg-border" />
+              <ArrowRight className="size-3.5 shrink-0 text-primary" />
+            </span>
+            {duracaoMin != null ? (
+              <span className="flex items-center gap-1.5 text-[13px] tabular-nums text-muted-foreground">
+                <IconeModo modo={modo} className="size-3.5" />
+                {duracaoMin} min · {nomeAmigavelModo(modo)}
+              </span>
+            ) : (
+              <span
+                aria-label="calculando duração"
+                className="h-[11px] w-16 animate-pulse rounded bg-skeleton"
+              />
+            )}
+          </div>
+
+          {/* Zona 3 — destino */}
+          <div className="flex min-w-0 flex-col gap-0.5">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="font-mono">
                 {alocacao.destino.projetoSigla}
               </Badge>
-              <span className="font-medium">{alocacao.destino.umNome}</span>
+              <span className="font-semibold">{alocacao.destino.umNome}</span>
               <span className="text-sm text-muted-foreground">
                 · {alocacao.destino.raNome}
               </span>
             </div>
             <p
-              className="truncate text-xs text-muted-foreground"
+              className="truncate text-[13px] text-muted-foreground"
               title={alocacao.destino.endereco}
             >
               {alocacao.destino.endereco}
             </p>
-          </div>
-
-          {/* Tempo atual no modo selecionado */}
-          <div className="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">
-            <IconeModo modo={modo} className="h-4 w-4" />
-            {duracaoMin != null ? (
-              <span>{duracaoMin} min</span>
-            ) : modo === "TRANSIT" ? (
-              <span className="text-xs">buscando…</span>
-            ) : (
-              <span className="text-xs">calculando…</span>
-            )}
+            <p className="text-[13px] font-medium tabular-nums text-muted-foreground">
+              C{alocacao.destino.ciclo} · E{alocacao.destino.etapa}
+            </p>
           </div>
 
           {/* Botão expandir/colapsar */}
@@ -1156,11 +1185,11 @@ function LinhaAlocacao({
           >
             {expandido ? (
               <>
-                <ChevronUp className="h-4 w-4" /> Fechar
+                <ChevronUp className="size-4" /> Fechar
               </>
             ) : (
               <>
-                <ChevronDown className="h-4 w-4" /> Detalhar
+                <ChevronDown className="size-4" /> Detalhar
               </>
             )}
           </Button>
