@@ -108,7 +108,7 @@ Fonts: `Archivo` (600/700/800), `Inter` (300/400/500/600/700) — Google Fonts.
 - `shadow-1` (cards, inputs): claro `0 1px 2px rgba(26,32,32,0.06)` · escuro `0 1px 2px rgba(0,0,0,0.35)`
 - `shadow-2` (modais, popovers): claro `0 10px 34px rgba(26,32,32,0.09)` · escuro `0 12px 42px rgba(0,0,0,0.5)`
 
-**Largura de conteúdo:** máximo `1280px` centralizado, com `padding` lateral de 32px. Telas de tabela curta (Projetos, UMs) usam `max-width: 960px` — hoje elas esticam até a borda e ficam vazias.
+**Largura de conteúdo (revisto em 2026-08-11):** a coluna à direita do rail vai até `1400px`, com 44px de respiro lateral — é a medida do protótipo, e telas de tabela larga (Localidades, com sete colunas, e o Histórico) usam essa largura inteira. **Telas de tabela curta (Projetos, UMs) usam `max-width: 960px`**: com 1400px as duas ou três colunas ficam separadas por um vazio enorme. A regra é por conteúdo, não global — a versão anterior desta linha dizia 960px de forma genérica e contradiz o layout das telas largas.
 
 ---
 

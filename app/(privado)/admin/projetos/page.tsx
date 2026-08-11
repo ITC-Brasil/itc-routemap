@@ -1,6 +1,5 @@
 "use client"
 
-import { corTextoIdeal } from "@/lib/cores"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Pencil, Plus, Trash2 } from "lucide-react"
@@ -69,18 +68,20 @@ export default function ProjetosPage() {
     setDeleteAberto(true)
   }
 
+  // Tabela curta: 960px em vez da largura cheia (system.md §3). Era um
+  // <main> aqui dentro, aninhado no <main> do layout — dois landmarks.
   return (
-    <main className="container mx-auto px-4 py-8">
+    <div className="max-w-[960px]">
       {/* Cabeçalho da página */}
-      <div className="mb-8 flex items-end justify-between gap-4">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-6 border-b pb-[22px]">
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Administração
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+Administração
           </p>
-          <h1 className="mt-1 font-heading text-4xl text-foreground">
+          <h1 className="mt-2 font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground">
             Projetos
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2.5 max-w-[620px] text-pretty text-muted-foreground">
             Gestão de projetos do Grupo ITC Brasil. Cada projeto possui nome,
             sigla e cor para identificação visual.
           </p>
@@ -119,11 +120,8 @@ export default function ProjetosPage() {
                 <TableRow key={projeto.id} className="transition-colors hover:bg-muted/50">
                   <TableCell>
                     <span
-                      className="inline-flex items-center rounded-md px-3 py-1 text-xs font-mono font-semibold"
-                        style={{
-                            backgroundColor: projeto.cor,
-                            color: corTextoIdeal(projeto.cor),
-                    }}                
+                      className="badge-cor-dado inline-flex items-center rounded-full border px-3 py-1 font-mono text-xs font-semibold"
+                      style={{ "--cor-dado": projeto.cor } as React.CSSProperties}
                     >
                       {projeto.sigla}
                     </span>
@@ -178,7 +176,7 @@ export default function ProjetosPage() {
           mensagemSucesso="Projeto deletado com sucesso!"
         />
       )}
-    </main>
+    </div>
   )
 }
 

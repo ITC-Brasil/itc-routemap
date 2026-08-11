@@ -101,15 +101,15 @@ export default function TecnicosPage() {
 
   return (
     <main className="container mx-auto px-4 py-8">
-      <div className="mb-8 flex items-end justify-between gap-4">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-6 border-b pb-[22px]">
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Administração
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+Administração
           </p>
-          <h1 className="mt-1 font-heading text-4xl text-foreground">
+          <h1 className="mt-2 font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground">
             Técnicos
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2.5 max-w-[620px] text-pretty text-muted-foreground">
             Cadastro de técnicos com endereço residencial e coordenadas
             geográficas. Base para o cálculo automatizado de rotas.
           </p>
@@ -243,8 +243,11 @@ function ItemTecnico({
               <p className="truncate font-medium text-foreground" title={tecnico.nome}>
                 {tecnico.nome}
               </p>
+              {/* Só o pausado recebe badge: ativo é o estado normal, e a
+                  ausência já diz isso (system.md §5.2). Outline, não sólido —
+                  pausado informa, não alarma. */}
               {pausado && (
-                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                <span className="shrink-0 rounded-full border border-warn px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-warn">
                   Pausado
                 </span>
               )}
