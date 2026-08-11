@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { Suspense, useEffect, useState, type FormEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { signIn, signUp } from "@/lib/auth-client"
@@ -7,13 +8,6 @@ import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 const MSG_SEM_CONVITE =
@@ -127,41 +121,68 @@ function LoginConteudo() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-border shadow-lg">
-        <CardHeader className="space-y-4 pb-8 pt-10">
-          <p className="text-center font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Grupo ITC Brasil
+    // Duas colunas (protótipo v2): painel ink com a marca à esquerda, formulário
+    // sobre off-white à direita. Abaixo de `lg` o painel sai e sobra o
+    // formulário — a marca é ambientação, não informação, e em tela estreita o
+    // que importa é entrar.
+    <main className="grid min-h-screen lg:grid-cols-[minmax(320px,1fr)_minmax(420px,1fr)]">
+      <aside className="hidden flex-col justify-between gap-12 bg-ink p-14 lg:flex">
+        {/* Lockup oficial na variante negativa. O painel usa --ink, que é escuro
+            nos dois temas, então o logo não acompanha o alternador aqui. */}
+        <Image
+          src="/logos/lockup/routemap-lockup-horizontal-negative.svg"
+          alt="ITC RouteMap"
+          width={275}
+          height={64}
+          priority
+          className="h-[38px] w-auto self-start"
+        />
+        <div className="space-y-4">
+          {/* Display — Archivo 800 em caixa-alta. É o ÚNICO lugar do sistema que
+              usa este estilo (system.md §2). */}
+          <p className="font-heading text-[48px] font-extrabold uppercase leading-[1.05] tracking-[-0.02em] text-white">
+            Alocação
+            <br />
+            inteligente
           </p>
+          <p className="max-w-[420px] text-pretty text-white/70">
+            O sistema emparelha técnicos e unidades móveis pela distância real
+            entre a casa de cada um e o destino, no Distrito Federal.
+          </p>
+        </div>
+        <p className="font-mono text-xs uppercase tracking-widest text-white/40">
+          Grupo ITC Brasil
+        </p>
+      </aside>
 
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
-              <span className="font-heading text-2xl text-primary-foreground">
-                ITC
-              </span>
-            </div>
-            <CardTitle className="font-heading text-3xl text-foreground">
-              ITC RouteMap
-            </CardTitle>
-            <CardDescription className="text-center text-base">
+      <div className="flex items-center justify-center p-6 sm:p-10">
+        <div className="w-full max-w-[420px] space-y-6">
+          <div className="space-y-1.5">
+            {/* A marca reaparece no alto do formulário para quem está sem o
+                painel (tela estreita), em versão compacta. */}
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary lg:hidden">
+              Grupo ITC Brasil
+            </p>
+            <h1 className="font-heading text-[32px] font-bold leading-[1.15] tracking-[-0.01em]">
+              Entrar
+            </h1>
+            <p className="text-muted-foreground">
               Sistema de Alocação Inteligente de Técnicos
-            </CardDescription>
+            </p>
           </div>
-        </CardHeader>
 
-        <CardContent className="space-y-6 pb-10">
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
+          {/* Ação primária: é o método que a equipe usa — os três usuários do
+              sistema antigo entram por Google e nenhum tem senha. */}
           <Button
             onClick={handleGoogleLogin}
             disabled={loading}
-            variant="outline"
-            className="w-full gap-3"
-            size="lg"
+            className="h-11 w-full gap-3 text-[15px]"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
               <path
@@ -237,7 +258,12 @@ function LoginConteudo() {
               />
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full" size="lg">
+            <Button
+              type="submit"
+              disabled={loading}
+              variant="outline"
+              className="h-11 w-full"
+            >
               {loading
                 ? "Entrando..."
                 : primeiroAcesso
@@ -259,13 +285,15 @@ function LoginConteudo() {
               : "Primeiro acesso? Criar conta com convite"}
           </button>
 
+          {/* Aviso de acesso por convite: o cadastro é fechado, e sem isto a
+              recusa do primeiro acesso pareceria erro do sistema. */}
           <p className="text-center text-xs text-muted-foreground">
             Acesso restrito a usuários autorizados.
             <br />
             Solicite um convite ao administrador do sistema.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </main>
   )
 }

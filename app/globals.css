@@ -70,6 +70,7 @@
   --color-info-tint: var(--info-tint);
   --color-track: var(--track);
   --color-skeleton: var(--skeleton);
+  --color-ink: var(--ink);
   --color-rail: var(--rail-bg);
   --color-rail-border: var(--rail-border);
   --color-rail-fg: var(--rail-fg);
@@ -160,6 +161,11 @@
   --shadow-2: 0 10px 34px rgba(26, 32, 32, 0.09);
   --track: #e6dfd2;
   --skeleton: rgba(26, 32, 32, 0.07);
+
+  /* Ink — superfície sempre escura, independente do tema. Hoje só o painel de
+     marca do Login usa: ele é ambientação e mantém a identidade nos dois temas,
+     então NÃO pode sair de --rail-bg, que acompanha o tema. */
+  --ink: #101615;
 
   /* --- rail de navegação (92px, ETAPA 2) --- */
   --rail-bg: #fbf8f1;
