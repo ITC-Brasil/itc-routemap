@@ -135,24 +135,12 @@ export default function CalcularRotasPage() {
   // ====== RENDER ======
   return (
     <div className="space-y-8">
-      {/* HEADER — eyebrow em accent, título Archivo, régua inferior (protótipo v2) */}
-      <header className="border-b pb-[22px]">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
-          Operação
-        </p>
-        <h1 className="mt-2 max-w-[620px] font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em]">
-          Calcular Rotas
-        </h1>
-        <p className="mt-2.5 max-w-[620px] text-pretty text-muted-foreground">
-          O sistema sugere qual técnico vai para qual UM a partir da distância
-          entre a casa de cada um e o destino, usando Google Routes e o
-          algoritmo Húngaro.
-        </p>
-      </header>
-
       {/* CONTEÚDO */}
       {carregando ? (
-        <SkeletonLoading />
+        <>
+          <CabecalhoCalcular />
+          <SkeletonLoading />
+        </>
       ) : (
         <ConteudoCondicional
           projetos={projetos}
@@ -209,35 +197,35 @@ function ConteudoCondicional({
 
   if (tecnicos.length === 0) {
     return (
-      <EstadoVazio
+      <><CabecalhoCalcular /><EstadoVazio
         titulo="Nenhum técnico cadastrado"
         descricao="Antes de calcular rotas, cadastre pelo menos um técnico com endereço completo."
         linkLabel="Cadastrar técnicos"
         linkHref="/admin/tecnicos"
-      />
+      /></>
     )
   }
 
   if (tecnicosComLocalizacao.length === 0) {
     return (
-      <EstadoVazio
+      <><CabecalhoCalcular /><EstadoVazio
         titulo="Técnicos sem geocodificação"
         descricao="Os técnicos cadastrados não têm coordenadas (lat/lng) salvas. Edite cada um e use o botão de geocodificar o endereço."
         linkLabel="Ir para Técnicos"
         linkHref="/admin/tecnicos"
-      />
+      /></>
     )
   }
 
   // Com re-otimização: se há pontos realocáveis (mesmo sem Pendentes), prossegue
   if (totalUmsAptas === 0 && !temRotasAtivas) {
     return (
-      <EstadoVazio
+      <><CabecalhoCalcular /><EstadoVazio
         titulo="Todos os pontos pendentes foram alocados"
         descricao="Não há UMs com pontos Pendentes no momento. Confira o histórico para ver as rotas ativas ou sincronize a planilha para importar novos destinos."
         linkLabel="Ver histórico de alocações"
         linkHref="/historico"
-      />
+      /></>
     )
   }
 
@@ -705,6 +693,8 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
   // etapa === "selecao"
   return (
     <div className="space-y-6">
+      <CabecalhoCalcular />
+
       {/* PRONTIDÃO — no protótipo são dois números, não dois cards: o dado é a
           contagem, e o card em volta só tirava peso dela. */}
       <div className="flex gap-8">
@@ -1300,6 +1290,32 @@ function CabecalhoColuna({
         </Button>
       </div>
     </div>
+  )
+}
+
+/**
+ * Cabeçalho da tela de seleção.
+ *
+ * No protótipo cada TELA tem o seu cabeçalho, e o Resultado tem um diferente
+ * (título "Resultado da alocação", id do lote e as duas ações no topo). Deixar
+ * este na raiz da página empilhava dois cabeçalhos e dois eyebrow "OPERAÇÃO" na
+ * mesma tela.
+ */
+function CabecalhoCalcular() {
+  return (
+    <header className="border-b pb-[22px]">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+        Operação
+      </p>
+      <h1 className="mt-2 max-w-[620px] font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em]">
+        Calcular Rotas
+      </h1>
+      <p className="mt-2.5 max-w-[620px] text-pretty text-muted-foreground">
+        O sistema sugere qual técnico vai para qual UM a partir da distância
+        entre a casa de cada um e o destino, usando Google Routes e o algoritmo
+        Húngaro.
+      </p>
+    </header>
   )
 }
 

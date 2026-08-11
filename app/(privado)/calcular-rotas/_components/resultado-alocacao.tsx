@@ -61,6 +61,7 @@ import type {
   OrigemDecisao,
 } from "@/lib/rotas-utils"
 import { MapaAlocacao, type RotaData } from "./mapa-alocacao"
+import { MapaLote } from "./mapa-lote"
 import {
   IconeModo,
   MODOS_SELECIONAVEIS,
@@ -611,14 +612,74 @@ export function ResultadoAlocacao({
   // ====== Render ======
   const alocacoesAtuais = obterAlocacoesAtuais()
 
+  // Pares para o mapa do lote. A polyline sai do cache de rota detalhada: onde o
+  // par já foi expandido, o caminho real; onde não, reta tracejada. Nenhuma
+  // chamada nova.
+  const paresNoMapa = alocacoesAtuais.map((a) => {
+    const chave = chaveAlocacao(a)
+    const modo = modosPorAloc.get(chave) ?? resultado.modoPrincipal
+    const entrada = rotaCache.get(`${chave}|${modo}`)
+    return {
+      chave,
+      tecnicoNome: a.origem.nome,
+      umNome: a.destino.umNome,
+      origem: { latitude: a.origem.latitude, longitude: a.origem.longitude },
+      destino: { latitude: a.destino.latitude, longitude: a.destino.longitude },
+      corTecnico: coresPorTecnico?.get(a.origem.id) ?? "#008F95",
+      corProjeto: coresPorProjeto?.get(a.destino.projetoId) ?? "#491027",
+      polyline: entrada?.estado === "ok" ? entrada.polyline : null,
+    }
+  })
+
   return (
     <div className="space-y-6">
-      {/* 13.11: banner muda se foi editado */}
-      {foiEditada ? (
-        <AvisoAlocacaoEditada onVoltarParaOtima={voltarParaOtima} />
-      ) : (
-        <JustificativaBanner texto={resultado.justificativaGemini} />
-      )}
+      {/* Cabeçalho da tela, com as duas ações no topo (protótipo v2): quem já
+          decidiu não precisa rolar a lista inteira para confirmar. */}
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b pb-[22px]">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+            Operação
+          </p>
+          <h1 className="mt-2 font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em]">
+            Resultado da alocação
+          </h1>
+          <p className="mt-1.5 font-mono text-[13px] font-semibold uppercase tabular-nums text-muted-foreground">
+            Lote {resultado.loteId.slice(0, 8)}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2.5">
+          <Button
+            variant="outline"
+            onClick={onVoltar}
+            className="h-11 gap-2 px-5 text-[15px]"
+          >
+            <ArrowLeft className="size-4" />
+            Voltar
+          </Button>
+          <Button
+            onClick={handleConfirmar}
+            disabled={alocacoesAtuais.length === 0}
+            className="h-11 gap-2 px-6 text-[15px]"
+          >
+            <Check className="size-4" />
+            Confirmar alocação
+          </Button>
+        </div>
+      </header>
+
+      {/* MAPA DO LOTE — elemento principal da tela. A distribuição geográfica de
+          uma alocação se entende num relance; ler par por par vem depois. */}
+      <section className="overflow-hidden rounded-xl border border-t-2 border-t-primary bg-card shadow-[var(--shadow-1)]">
+        <div className="flex items-center justify-between gap-4 border-b px-[22px] py-3.5">
+          <h2 className="text-[17px] font-semibold">Mapa do lote</h2>
+          <span className="text-[13px] text-muted-foreground">
+            {expandida
+              ? "Par destacado — feche o card para ver o lote inteiro"
+              : "Abra um par abaixo para destacá-lo no mapa"}
+          </span>
+        </div>
+        <MapaLote pares={paresNoMapa} chaveSelecionada={expandida} />
+      </section>
 
       <MetricasCards
         derivadas={metricasDerivadas}
@@ -628,17 +689,29 @@ export function ResultadoAlocacao({
         }
       />
 
-      {(resultado.tecnicosNaoAlocados.length > 0 ||
-        resultado.destinosNaoAlocados.length > 0) && (
-        <BannerSobras
-          tecnicos={resultado.tecnicosNaoAlocados}
-          destinos={resultado.destinosNaoAlocados}
-        />
-      )}
+      {/* Análise e sobras lado a lado, 1.7fr / 1fr — a análise é texto corrido e
+          precisa da largura; a sobra é uma lista curta de nomes. */}
+      <div className="grid items-stretch gap-3.5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+        {foiEditada ? (
+          <AvisoAlocacaoEditada onVoltarParaOtima={voltarParaOtima} />
+        ) : (
+          <JustificativaBanner texto={resultado.justificativaGemini} />
+        )}
+        {(resultado.tecnicosNaoAlocados.length > 0 ||
+          resultado.destinosNaoAlocados.length > 0) && (
+          <BannerSobras
+            tecnicos={resultado.tecnicosNaoAlocados}
+            destinos={resultado.destinosNaoAlocados}
+          />
+        )}
+      </div>
 
       <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          Alocações ({alocacoesAtuais.length})
+        <h2 className="text-[17px] font-semibold">
+          Pares de alocação{" "}
+          <span className="font-medium tabular-nums text-muted-foreground">
+            ({alocacoesAtuais.length})
+          </span>
         </h2>
         <div className="space-y-3">
           {alocacoesAtuais.map((aloc, i) => {
@@ -677,13 +750,6 @@ export function ResultadoAlocacao({
         </div>
       </section>
 
-      <BotoesAcao
-        onVoltar={onVoltar}
-        onConfirmar={handleConfirmar}
-        totalAlocados={alocacoesAtuais.length}
-        foiEditada={foiEditada}
-        onVoltarParaOtima={voltarParaOtima}
-      />
     </div>
   )
 }
@@ -1394,52 +1460,6 @@ function SeletorModo({
     </div>
   )
 }
-// ============================================================
-// BOTÕES DE AÇÃO (rodapé)
-// ============================================================
-
-function BotoesAcao({
-  onVoltar,
-  onConfirmar,
-  totalAlocados,
-  foiEditada,
-  onVoltarParaOtima,
-}: {
-  onVoltar: () => void
-  onConfirmar: () => void
-  totalAlocados: number
-  foiEditada: boolean
-  onVoltarParaOtima: () => void
-}) {
-  return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-      <Button variant="outline" onClick={onVoltar} className="gap-2">
-        <ArrowLeft className="h-4 w-4" />
-        Voltar para seleção
-      </Button>
-      {foiEditada && (
-        <Button
-          variant="outline"
-          onClick={onVoltarParaOtima}
-          className="gap-2"
-        >
-          <RotateCcw className="h-4 w-4" />
-          Voltar pra ótima
-        </Button>
-      )}
-      <Button
-        onClick={onConfirmar}
-        disabled={totalAlocados === 0}
-        size="lg"
-        className="gap-2"
-      >
-        <Check className="h-4 w-4" />
-        Confirmar alocação
-      </Button>
-    </div>
-  )
-}
-
 // ============================================================
 // HELPERS
 // ============================================================
