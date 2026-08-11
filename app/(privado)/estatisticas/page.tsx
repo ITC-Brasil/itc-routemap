@@ -166,14 +166,18 @@ export default function EstatisticasPage() {
 
   return (
     <div className="space-y-8">
-      {/* HEADER */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Fase 5
+      {/* HEADER — o eyebrow diz a ÁREA de navegação, igual ao Histórico: as duas
+          telas são análise. Antes dizia "Fase 5", que é rótulo de
+          desenvolvimento vazando para a interface (system.md §4). */}
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b pb-[22px]">
+        <div className="max-w-[620px]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+            Análise
           </p>
-          <h1 className="mt-1 font-heading text-4xl">Estatísticas</h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
+          <h1 className="mt-2 font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em]">
+            Estatísticas
+          </h1>
+          <p className="mt-2.5 text-pretty text-muted-foreground">
             Indicadores gerenciais derivados das rotas confirmadas: desempenho
             por técnico, frequência de UMs e distribuição por modo de transporte.
           </p>
@@ -182,13 +186,12 @@ export default function EstatisticasPage() {
           onClick={carregar}
           disabled={carregando}
           variant="outline"
-          size="lg"
           className="gap-2"
         >
-          <RefreshCw className={`h-4 w-4 ${carregando ? "animate-spin" : ""}`} />
+          <RefreshCw className={`size-4 ${carregando ? "animate-spin" : ""}`} />
           Recarregar
         </Button>
-      </div>
+      </header>
 
       {carregando ? (
         <SkeletonEstatisticas />
@@ -198,7 +201,7 @@ export default function EstatisticasPage() {
         <>
           {/* INDICADOR 1 — Ranking de técnicos */}
           <section className="space-y-3">
-            <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            <h2 className="text-[17px] font-semibold">
               Ranking de técnicos por desempenho
             </h2>
             <Card>
@@ -217,17 +220,17 @@ export default function EstatisticasPage() {
                   <TableBody>
                     {rankingTecnicos.map((t, i) => (
                       <TableRow key={t.tecnicoId}>
-                        <TableCell className="pl-5 font-mono text-xs text-muted-foreground">
+                        <TableCell className="w-10 pl-5 font-mono text-xs tabular-nums text-muted-foreground">
                           {i + 1}
                         </TableCell>
                         <TableCell className="font-medium">{t.tecnicoNome}</TableCell>
-                        <TableCell className="text-right font-heading text-lg">
+                        <TableCell className="text-right font-heading text-lg tabular-nums">
                           {t.umsAtendidas}
                         </TableCell>
-                        <TableCell className="text-right text-sm">
+                        <TableCell className="text-right text-sm tabular-nums">
                           {formatarDuracao(t.tempoTotalSeg)}
                         </TableCell>
-                        <TableCell className="text-right text-sm text-muted-foreground">
+                        <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
                           {formatarDuracao(t.tempoMedioSeg)}
                         </TableCell>
                         <TableCell>
@@ -246,7 +249,7 @@ export default function EstatisticasPage() {
 
           {/* INDICADOR 2 — UMs por frequência */}
           <section className="space-y-3">
-            <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            <h2 className="text-[17px] font-semibold">
               UMs por frequência de atendimento
             </h2>
             <Card>
@@ -263,16 +266,16 @@ export default function EstatisticasPage() {
                   <TableBody>
                     {rankingUMs.slice(0, 20).map((u) => (
                       <TableRow key={u.umNome}>
-                        <TableCell className="pl-5 font-mono font-semibold text-sm">
+                        <TableCell className="pl-5 font-mono text-sm font-semibold">
                           {u.umNome}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {u.raNome || "—"}
                         </TableCell>
-                        <TableCell className="text-right font-heading text-lg">
+                        <TableCell className="text-right font-heading text-lg tabular-nums">
                           {u.visitas}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        <TableCell className="text-sm tabular-nums text-muted-foreground">
                           {u.ultimaVisita
                             ? u.ultimaVisita.toLocaleDateString("pt-BR", {
                                 day: "2-digit",
@@ -286,7 +289,7 @@ export default function EstatisticasPage() {
                   </TableBody>
                 </Table>
                 {rankingUMs.length > 20 && (
-                  <p className="px-5 py-3 text-xs text-muted-foreground border-t">
+                  <p className="border-t px-5 py-3 text-xs tabular-nums text-muted-foreground">
                     Exibindo top 20 de {rankingUMs.length} UMs.
                   </p>
                 )}
@@ -296,7 +299,7 @@ export default function EstatisticasPage() {
 
           {/* INDICADOR 3 — Distribuição por modo */}
           <section className="space-y-3">
-            <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            <h2 className="text-[17px] font-semibold">
               Distribuição por modo de transporte
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -319,17 +322,28 @@ function CardModo({ stat }: { stat: EstatisticaModo }) {
   return (
     <Card>
       <CardContent className="space-y-3 p-5">
+        {/* Ícone e rótulo do modo andam sempre juntos (system.md §5.3). */}
         <div className="flex items-center gap-2">
-          <IconeModo modo={stat.modo} className="h-5 w-5 text-primary" />
+          <IconeModo modo={stat.modo} className="size-5 text-primary" />
           <span className="font-medium">{nomeAmigavelModo(stat.modo)}</span>
         </div>
         <div>
-          <p className="font-heading text-3xl leading-none">{stat.qtd}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="font-heading text-3xl leading-none tabular-nums">
+            {stat.qtd}
+          </p>
+          <p className="text-xs tabular-nums text-muted-foreground">
             {stat.qtd === 1 ? "rota" : "rotas"} · {stat.percentual}%
           </p>
         </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+        {/* A trilha usa --track, não --muted: no tema escuro `muted` fica quase
+            no tom da barra e o preenchimento desaparece. `track` existe para
+            isso, e o `role="img"` dá ao leitor de tela o número que a barra
+            representa. */}
+        <div
+          role="img"
+          aria-label={`${stat.percentual}% das rotas`}
+          className="h-2 w-full overflow-hidden rounded-full bg-track"
+        >
           <div
             className="h-full rounded-full bg-primary transition-all duration-500"
             style={{ width: `${stat.percentual}%` }}

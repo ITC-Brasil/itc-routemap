@@ -966,6 +966,29 @@ de colapsar o rail (só ícones, ou drawer) tem de vir antes da implementação.
 nenhum ponto nasce "Atual". Mantido de propósito — remover mudaria comportamento
 para um dado que não deveria existir, e o custo de deixar é zero.
 
+## 10.14. Painéis do Início que ficaram fora da reforma visual
+
+O protótipo (`design/handoff/`) desenha no Início dois painéis que **não foram
+implementados**, por decisão de 2026-08-10: são trabalho de dados, não de
+apresentação, e ainda não há uso real do sistema para saber se são as métricas
+certas. O Início fica com os seis cards de métrica + cronograma, que é o que o
+app calcula hoje.
+
+**1. "Números da semana"** — tempo médio de deslocamento da semana fechada,
+comparação com a semana anterior (`−6 min vs. semana anterior`), meta (`meta
+42 min`) e gráfico de barras. Custo: agregação por janela semanal sobre
+`Rota.metricas`, retenção de série histórica para comparar semanas, e um lugar no
+schema para a **meta** — que não existe (nem tabela de configuração, nem campo em
+`Projeto`). Estimativa: ~1 dia, sendo metade decisão de produto (qual semana
+fecha, meta por projeto ou global, o que fazer quando falta dado).
+
+**2. "Alocações por projeto"** — barras de contagem por projeto. Custo menor,
+~2 horas: agregação de `Rota` por `projetoId` no período, mais o componente de
+barra (que já existe em Estatísticas). Não depende de schema novo.
+
+Recomendação: revisitar depois da virada, com dado de uso real na mão. As duas
+são acréscimos, não correções — nada hoje depende delas.
+
 ---
 
 ## 11. PRÓXIMA AÇÃO IMEDIATA
