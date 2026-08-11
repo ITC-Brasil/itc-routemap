@@ -622,6 +622,18 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
     () => new Map(tecnicos.map((t) => [t.id, t.cor])),
     [tecnicos],
   )
+  // As listas de UM já trazem o Projeto inteiro (com `cor`), então o mapa sai
+  // delas — `projetos` não está em escopo aqui, e passar mais uma prop só para
+  // isso seria redundante.
+  const coresPorProjeto = useMemo(
+    () =>
+      new Map<string, string>(
+        [...umsAptasPorProjeto, ...umsRealocaveisPorProjeto].map(
+          ({ projeto }) => [projeto.id, projeto.cor],
+        ),
+      ),
+    [umsAptasPorProjeto, umsRealocaveisPorProjeto],
+  )
 
   // === RENDER CONDICIONAL ===
 
@@ -640,6 +652,7 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
           onVoltar={handleVoltar}
           onConfirmar={handleConfirmar}
           coresPorTecnico={coresPorTecnico}
+          coresPorProjeto={coresPorProjeto}
         />
       </div>
     )

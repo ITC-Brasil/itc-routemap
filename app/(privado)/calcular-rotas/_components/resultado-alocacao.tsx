@@ -184,6 +184,8 @@ interface Props {
    * `/api/routes/alocar` carregar um dado que ela não precisa conhecer.
    */
   coresPorTecnico?: Map<string, string>
+  /** Cor cadastrada de cada projeto, por id — marcador de destino no mapa. */
+  coresPorProjeto?: Map<string, string>
 }
 
 function chaveAlocacao(a: AlocacaoRica): string {
@@ -206,6 +208,7 @@ export function ResultadoAlocacao({
   onVoltar,
   onConfirmar,
   coresPorTecnico,
+  coresPorProjeto,
 }: Props) {
   // ====== 13.11 BLOCO 2: Estado de edição manual ======
   // null = sem edição (usa resultado.alocacoes original do algoritmo)
@@ -657,6 +660,7 @@ export function ResultadoAlocacao({
                 rotaEntry={rotaEntry}
                 duracaoSeg={obterDuracaoSeg(aloc, modo)}
                 corTecnico={coresPorTecnico?.get(aloc.origem.id)}
+                corProjeto={coresPorProjeto?.get(aloc.destino.projetoId)}
                 onExpandir={() => handleExpandir(aloc)}
                 onTrocarModo={(m) => handleTrocarModo(aloc, m)}
                 // Q1: contexto pra explicação algorítmica + justificativa global
@@ -1071,6 +1075,7 @@ function LinhaAlocacao({
   expandido,
   rotaEntry,
   corTecnico,
+  corProjeto,
   duracaoSeg,
   onExpandir,
   onTrocarModo,
@@ -1087,6 +1092,7 @@ function LinhaAlocacao({
   expandido: boolean
   rotaEntry: RotaCacheEntry | undefined
   corTecnico: string | undefined
+  corProjeto: string | undefined
   duracaoSeg: number | null
   onExpandir: () => void
   onTrocarModo: (m: ModoTransporte) => void
@@ -1277,6 +1283,8 @@ function LinhaAlocacao({
             <div className="flex flex-col gap-4 lg:flex-row">
               <div className={modo === "TRANSIT" && rotaEntry?.estado === "ok" ? "lg:w-1/2" : "w-full"}>
                 <MapaAlocacao
+                  corTecnico={corTecnico}
+                  corProjeto={corProjeto}
                   origem={{
                     latitude: alocacao.origem.latitude,
                     longitude: alocacao.origem.longitude,
