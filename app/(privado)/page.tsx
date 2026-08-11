@@ -4,17 +4,10 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   ArrowRight,
-  CalendarDays,
-  CheckCircle2,
   Clock,
-  MapPin,
-  Timer,
-  TrendingUp,
-  Users,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -161,133 +154,135 @@ export default function InicioPage() {
         </Button>
       </header>
 
-      {/* KPIs — sem rótulo de seção: o header já diz onde estamos, e o system.md
-          limita a dois rótulos em caixa-alta por tela. */}
-      <section>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <CardKpi
-            icone={<MapPin className="h-5 w-5 text-primary" />}
-            valor={carregando ? "—" : String(pontosPendentes)}
-            label="Pontos pendentes"
-            descricao="aguardando alocação"
-            href="/calcular-rotas"
-            linkLabel="Calcular rotas"
-            destaque={pontosPendentes > 0}
-            zero={!carregando && pontosPendentes === 0}
-          />
-          <CardKpi
-            icone={<CheckCircle2 className="size-5 text-primary" />}
-            valor={carregando ? "—" : String(pontosAgendados)}
-            label="Pontos agendados"
-            descricao="rotas confirmadas ativas"
-            href="/historico"
-            linkLabel="Ver histórico"
-            zero={!carregando && pontosAgendados === 0}
-          />
-          <CardKpi
-            icone={<Users className="h-5 w-5 text-primary" />}
-            valor={carregando ? "—" : String(tecnicosDisponiveis)}
-            label="Técnicos disponíveis"
-            descricao="com localização cadastrada"
-            href="/admin/tecnicos"
-            linkLabel="Gerenciar técnicos"
-            zero={!carregando && tecnicosDisponiveis === 0}
-          />
-          <CardKpi
-            icone={<CalendarDays className="h-5 w-5 text-primary" />}
-            valor={carregando ? "—" : String(rotasHoje.length)}
-            label="Rotas confirmadas hoje"
-            descricao="cronograma do dia"
-            zero={!carregando && rotasHoje.length === 0}
-          />
-          <CardKpi
-            icone={<TrendingUp className="h-5 w-5 text-primary" />}
-            valor={carregando ? "—" : String(rotasNoMes.length)}
-            label="Alocações no mês"
-            descricao={`${new Date().toLocaleString("pt-BR", { month: "long" })} atual`}
-            zero={!carregando && rotasNoMes.length === 0}
-          />
-          <CardKpi
-            icone={<Timer className="h-5 w-5 text-primary" />}
-            valor={
-              carregando
-                ? "—"
-                : tempoMedioSeg > 0
-                  ? formatarDuracao(tempoMedioSeg)
-                  : "—"
-            }
-            label="Tempo médio"
-            descricao="de deslocamento no mês"
-            zero={!carregando && tempoMedioSeg === 0}
-          />
-        </div>
-      </section>
+      {/* HERO — "Rodando agora" ocupa a largura e os indicadores do momento viram
+          uma coluna de tiles de 300px ao lado (protótipo v2).
 
-      {/* CRONOGRAMA DO DIA */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[17px] font-semibold">
-            Rodando agora{" "}
-            <span className="font-medium tabular-nums text-muted-foreground">
-              ({rotasHoje.length}{" "}
-              {rotasHoje.length === 1 ? "rota em campo" : "rotas em campo"})
-            </span>
-          </h2>
-          {rotasHoje.length > 0 && (
-            <Button asChild variant="ghost" size="sm" className="gap-1.5 text-xs">
+          A grade de seis cards de métrica saiu da posição de destaque: o que
+          importa ao abrir o sistema é o que está rodando, não seis números. Nenhum
+          dos seis se perdeu — quatro são os tiles desta coluna (os do "agora", com
+          link de ação) e dois vão para "Mês atual", que é o recorte deles. */}
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <section className="overflow-hidden rounded-xl border border-t-2 border-t-primary bg-card shadow-[var(--shadow-1)]">
+          <div className="flex items-center justify-between gap-4 border-b px-[22px] py-4">
+            <div className="flex items-center gap-2.5">
+              <span
+                aria-hidden="true"
+                className={`size-2 shrink-0 rounded-full ${
+                  rotasHoje.length > 0 ? "bg-ok" : "bg-muted-foreground/40"
+                }`}
+              />
+              <h2 className="text-[17px] font-semibold">Rodando agora</h2>
+              <span className="text-[13px] tabular-nums text-muted-foreground">
+                {rotasHoje.length}{" "}
+                {rotasHoje.length === 1 ? "rota em campo" : "rotas em campo"}
+              </span>
+            </div>
+            <Button asChild variant="ghost" size="sm" className="gap-1.5 text-[13px]">
               <Link href="/historico">
-                Ver histórico completo
-                <ArrowRight className="h-3.5 w-3.5" />
+                Histórico completo
+                <ArrowRight className="size-3.5" />
               </Link>
             </Button>
-          )}
-        </div>
+          </div>
 
-        {carregando ? (
-          <SkeletonCronograma />
-        ) : rotasHoje.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              {/* Empty state diz o que fazer, não que está vazio: o título nomeia
-                  a ausência e a descrição dá o caminho (system.md §5.5). */}
+          {carregando ? (
+            <SkeletonCronograma />
+          ) : rotasHoje.length === 0 ? (
+            <div className="px-[22px] py-12 text-center">
+              {/* Empty state diz o que fazer, não que está vazio. */}
               <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-full bg-accent">
                 <Clock className="size-5 text-primary" />
               </div>
-              <p className="font-heading text-lg">
-                Nenhuma rota confirmada hoje
-              </p>
+              <p className="font-heading text-lg">Nenhuma rota confirmada hoje</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Calcule e confirme alocações para vê-las aqui.
               </p>
               <Button asChild className="mt-4 gap-2" size="sm">
                 <Link href="/calcular-rotas">
                   Calcular rotas
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="size-4" />
                 </Link>
               </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-5">Técnico</TableHead>
-                    <TableHead>Destino</TableHead>
-                    <TableHead>Modo</TableHead>
-                    <TableHead className="pr-5 text-right">Tempo</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rotasHoje.map((rota) => (
-                    <LinhaRota key={rota.id} rota={rota} />
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-[22px]">Técnico</TableHead>
+                  <TableHead>Destino</TableHead>
+                  <TableHead>Modo</TableHead>
+                  <TableHead className="pr-[22px] text-right">Tempo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rotasHoje.map((rota) => (
+                  <LinhaRota key={rota.id} rota={rota} />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </section>
+
+        {/* Indicadores do AGORA — os que têm ação, em tiles compactos. */}
+        <div className="flex flex-col gap-3">
+          <TileKpi
+            valor={carregando ? "—" : String(pontosPendentes)}
+            label="Pontos pendentes"
+            acao="Calcular rotas"
+            href="/calcular-rotas"
+            zero={!carregando && pontosPendentes === 0}
+          />
+          <TileKpi
+            valor={carregando ? "—" : String(pontosAgendados)}
+            label="Pontos agendados"
+            acao="Ver histórico"
+            href="/historico"
+            zero={!carregando && pontosAgendados === 0}
+          />
+          <TileKpi
+            valor={carregando ? "—" : String(tecnicosDisponiveis)}
+            label="Técnicos disponíveis"
+            acao="Gerenciar técnicos"
+            href="/admin/tecnicos"
+            zero={!carregando && tecnicosDisponiveis === 0}
+          />
+          <TileKpi
+            valor={carregando ? "—" : String(rotasHoje.length)}
+            label="Rotas confirmadas hoje"
+            descricao="cronograma do dia"
+            zero={!carregando && rotasHoje.length === 0}
+          />
+        </div>
+      </div>
+
+      {/* MÊS ATUAL — os dois indicadores que são recorte do mês. */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h2 className="text-[17px] font-semibold">Mês atual</h2>
+          <span className="text-[13px] text-muted-foreground">
+            {new Date().toLocaleString("pt-BR", { month: "long" })} começou há{" "}
+            <span className="tabular-nums">{new Date().getDate() - 1}</span>{" "}
+            {new Date().getDate() - 1 === 1 ? "dia" : "dias"}
+          </span>
+        </div>
+        <div className="grid max-w-[620px] gap-3.5 sm:grid-cols-2">
+          <CardMes
+            valor={carregando ? "—" : String(rotasNoMes.length)}
+            label="Alocações no mês"
+            descricao="rotas confirmadas desde o dia 1º"
+            zero={!carregando && rotasNoMes.length === 0}
+          />
+          <CardMes
+            valor={
+              carregando || tempoMedioSeg === 0
+                ? "—"
+                : formatarDuracao(tempoMedioSeg)
+            }
+            label="Tempo médio de deslocamento"
+            descricao="por rota confirmada no mês"
+            zero={!carregando && tempoMedioSeg === 0}
+          />
+        </div>
       </section>
 
       {/* ACESSO RÁPIDO */}
@@ -309,82 +304,95 @@ export default function InicioPage() {
 // ============================================================
 
 /**
- * Card de métrica do dashboard.
+ * Tile de indicador do "agora" — coluna de 300px ao lado do que está rodando.
  *
- * Metade destes cards fica em zero com frequência. Card zerado NÃO desaparece —
- * a ausência é informação —, mas recolhe: o número vai para `text-muted` e o
- * link de ação sai, porque não há o que acionar sobre nada. O card com dado real
- * fica visualmente à frente sem precisar de destaque artificial (system.md §5.5).
+ * Zerado recolhe: número e rótulo em `text-muted` e o link de ação sai, porque
+ * não há o que acionar sobre nada (system.md §5.5). O tile não desaparece — a
+ * ausência é informação.
  */
-function CardKpi({
-  icone,
+function TileKpi({
+  valor,
+  label,
+  acao,
+  href,
+  descricao,
+  zero,
+}: {
+  valor: string
+  label: string
+  acao?: string
+  href?: string
+  descricao?: string
+  zero?: boolean
+}) {
+  const mostrarAcao = acao && href && !zero
+  return (
+    <div className="flex items-center gap-4 rounded-xl border border-t-2 border-t-primary bg-card px-[18px] py-4 shadow-[var(--shadow-1)]">
+      <span
+        className={`min-w-[44px] font-heading text-[34px] font-bold leading-none tabular-nums ${
+          zero ? "text-muted-foreground" : ""
+        }`}
+      >
+        {valor}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p
+          className={`text-sm font-semibold leading-tight ${
+            zero ? "text-muted-foreground" : ""
+          }`}
+        >
+          {label}
+        </p>
+        {mostrarAcao ? (
+          <Link
+            href={href}
+            className="mt-0.5 inline-flex items-center gap-1 text-[12.5px] font-semibold text-primary hover:text-brand-hover"
+          >
+            {acao}
+            <ArrowRight className="size-3" />
+          </Link>
+        ) : (
+          descricao && (
+            <p className="mt-px text-[12.5px] text-muted-foreground">
+              {descricao}
+            </p>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Card de indicador do mês — mesma regra do zero. */
+function CardMes({
   valor,
   label,
   descricao,
-  href,
-  linkLabel,
-  destaque,
   zero,
 }: {
-  icone: React.ReactNode
   valor: string
   label: string
   descricao: string
-  href?: string
-  linkLabel?: string
-  destaque?: boolean
   zero?: boolean
 }) {
-  const mostrarAcao = href && linkLabel && !zero
-
   return (
-    <Card
-      className={
-        destaque && !zero ? "border-primary/40 bg-accent" : undefined
-      }
-    >
-      <CardContent className="flex flex-col gap-3 p-5">
-        <div className="flex items-center gap-3">
-          <div
-            className={`rounded-full p-2.5 ${
-              zero ? "bg-muted" : "bg-primary/10"
-            }`}
-          >
-            {icone}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p
-              className={`font-heading text-3xl leading-tight tabular-nums ${
-                zero ? "text-muted-foreground" : ""
-              }`}
-            >
-              {valor}
-            </p>
-            <p
-              className={`text-xs font-medium ${
-                zero ? "text-muted-foreground" : "text-foreground"
-              }`}
-            >
-              {label}
-            </p>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">{descricao}</p>
-        {mostrarAcao && (
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="h-7 justify-start gap-1 px-0 text-xs text-primary"
-          >
-            <Link href={href}>
-              {linkLabel}
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+    <div className="rounded-xl border border-t-2 border-t-primary bg-card px-[18px] py-4 shadow-[var(--shadow-1)]">
+      <p
+        className={`font-heading text-[26px] font-bold leading-none tabular-nums ${
+          zero ? "text-muted-foreground" : ""
+        }`}
+      >
+        {valor}
+      </p>
+      <p
+        className={`mt-1.5 text-[13px] font-semibold leading-tight ${
+          zero ? "text-muted-foreground" : ""
+        }`}
+      >
+        {label}
+      </p>
+      <p className="mt-px text-[12.5px] text-muted-foreground">{descricao}</p>
+    </div>
   )
 }
 

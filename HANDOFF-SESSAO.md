@@ -884,9 +884,15 @@ natural (§10.9) corrige a recorrência; a guarda de deleção cobre o outro lad
 
 ### Dívida adiada (decisão de 2026-07-31)
 
-1. `destinoReferencia` no snapshot da `Rota` (~15 linhas: schema + migration +
-   escrita) — hoje o texto de WhatsApp busca a `referencia` no `Ponto` e pode
-   colar a de outro ponto junto do endereço correto do snapshot.
+1. **`destinoReferencia` + `destinoRaNome` no snapshot da `Rota`**, numa mesma
+   migration (~25 linhas: schema + migration + escrita em `confirmarAlocacao` e
+   `aplicarReotimizacao`). Hoje o texto de WhatsApp busca a `referencia` no
+   `Ponto` e pode colar a de outro ponto junto do endereço correto do snapshot; e
+   a coluna Destino da tabela do Detalhe mostra o **endereço** onde o protótipo
+   pedia a **cidade**, porque `raNome` não está no snapshot e o `Ponto` está
+   corrompido. Decisão de 2026-08-11: manter o endereço até a migration existir —
+   é informação melhor que a cidade para quem vai a campo, e vem da fonte
+   confiável.
 2. `cancelarLote` liberar o ponto errado só afeta os vínculos antigos do
    Firestore; com `rotaId` nulo na migração não há vínculo corrompido no Postgres.
 
