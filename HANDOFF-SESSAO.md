@@ -991,6 +991,24 @@ são acréscimos, não correções — nada hoje depende delas.
 
 ---
 
+## 10.15. Senha de usuário × segredo de infraestrutura
+
+**Senha de usuário final: qualquer caractere.** O caminho é formulário → JSON →
+scrypt, sem parser de arquivo no meio, então `#`, aspas e acentos passam. Único
+limite é comprimento: **8 a 128 caracteres**, os defaults do Better Auth
+(`emailAndPassword` não configura nada em `lib/better-auth.ts`).
+
+**Segredos de infraestrutura (`.env.docker`): alfanuméricos, sem `#` e sem aspas.**
+A restrição é do formato `.env` e do Docker Compose — não do Postgres nem do Better
+Auth (ver §9 e §10.2 item 4).
+
+**Política de complexidade: não implementada, por decisão.** Time de 3 pessoas
+entrando por Google, ninguém tem senha. Se um dia precisar, o lugar é
+`password.validate` em `lib/better-auth.ts` — servidor, não formulário, porque
+validação só no cliente é contornável.
+
+---
+
 ## 11. PRÓXIMA AÇÃO IMEDIATA
 
 Aguardando **OK do usuário no grupo B da Frente 2** (§6). Com o OK: aplicar os 10
