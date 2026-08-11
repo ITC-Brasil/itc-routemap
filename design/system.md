@@ -77,15 +77,23 @@ Os tokens da paleta acompanham o protótipo. No `globals.css` o teal da marca vi
 
 ## 2. Tipografia
 
-**Archivo** para títulos (personalidade, caixa-alta no display) e **Inter** para toda a UI.
-Dados técnicos usam Inter com `font-variant-numeric: tabular-nums`.
+**Archivo** para títulos e **Inter** para toda a UI. Dados técnicos usam Inter com
+`font-variant-numeric: tabular-nums`.
+
+**Revisto em 2026-08-11:** o estilo **Display em caixa-alta não é usado em lugar
+nenhum**. A versão anterior desta tabela o descrevia como exclusivo do login, mas o
+protótipo usa lá **Archivo 700 / 42px em caixa de sentença** — a frase de marca
+("Cada técnico na unidade móvel mais perto de casa.") é uma sentença, e caixa-alta
+em 48px a transformaria em grito. Pela regra de precedência do topo, vale o
+protótipo. Caixa-alta no sistema fica restrita a **Caption** (11px, eyebrow e
+rótulo de coluna).
 
 | Papel | Família | Peso | Tamanho / line-height | Notas |
 |---|---|---|---|---|
-| Display | Archivo | 800 | 48 / 1.05 | `-0.02em`, CAIXA-ALTA — só no login |
-| H1 | Archivo | 700 | 32 / 1.15 | `-0.01em` — título de página |
+| Marca (login) | Archivo | 700 | 42 / 1.1 | `-0.02em`, caixa de sentença — só no painel do login |
+| H1 | Archivo | 700 | 38 / 1.1 | `-0.02em` — título de página |
 | H2 | Archivo | 700 | 24 / 1.2 | seções maiores, título de modal |
-| H3 | Inter | 600 | 18 / 1.3 | cabeçalho de card |
+| H3 | Inter | 600 | 17 / 1.3 | título de seção e cabeçalho de painel — o protótipo usa 17px |
 | Body | Inter | 400 | 15 / 1.5 | corpo padrão |
 | Small | Inter | 400 | 13 / 1.45 | apoio, endereços secundários |
 | Caption | Inter | 500–600 | 11 / 1.3 | `0.06em`, CAIXA-ALTA, `text-muted` |
