@@ -136,22 +136,29 @@ function LoginConteudo() {
           priority
           className="h-[38px] w-auto self-start"
         />
-        <div className="space-y-4">
-          {/* Display — Archivo 800 em caixa-alta. É o ÚNICO lugar do sistema que
-              usa este estilo (system.md §2). */}
-          <p className="font-heading text-[48px] font-extrabold uppercase leading-[1.05] tracking-[-0.02em] text-white">
-            Alocação
-            <br />
-            inteligente
-          </p>
-          <p className="max-w-[420px] text-pretty text-white/70">
-            O sistema emparelha técnicos e unidades móveis pela distância real
-            entre a casa de cada um e o destino, no Distrito Federal.
+        {/* Copy do protótipo, verbatim. O que estava aqui antes — um display
+            "ALOCAÇÃO INTELIGENTE" em caixa-alta e um parágrafo descritivo — era
+            invenção minha: dizia o que o sistema faz, não o que ele resolve.
+            A frase do protótipo é a promessa do produto numa linha.
+
+            Nota: o protótipo usa Archivo 700 em 42px, em caixa de sentença, não o
+            Display 48px em caixa-alta da §2 do system.md. Precedência é do
+            protótipo. */}
+        <div className="max-w-[460px] space-y-5">
+          <h1 className="text-balance font-heading text-[42px] font-bold leading-[1.1] tracking-[-0.02em] text-[#F4F6F6]">
+            Cada técnico na unidade móvel mais perto de casa.
+          </h1>
+          <p className="text-pretty text-base leading-relaxed text-[#8E9A98]">
+            Distâncias reais do Google Routes e alocação ótima pelo algoritmo
+            Húngaro — o time inteiro resolvido numa rodada.
           </p>
         </div>
-        <p className="font-mono text-xs uppercase tracking-widest text-white/40">
-          Grupo ITC Brasil
-        </p>
+        <div className="space-y-4">
+          <div className="h-0.5 w-16 bg-primary" />
+          <span className="font-mono text-xs font-semibold uppercase tracking-[0.1em] text-white/40">
+            Grupo ITC Brasil
+          </span>
+        </div>
       </aside>
 
       <div className="flex items-center justify-center p-6 sm:p-10">
@@ -162,12 +169,10 @@ function LoginConteudo() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary lg:hidden">
               Grupo ITC Brasil
             </p>
-            <h1 className="font-heading text-[32px] font-bold leading-[1.15] tracking-[-0.01em]">
+            <h2 className="font-heading text-[32px] font-bold leading-[1.15] tracking-[-0.01em]">
               Entrar
-            </h1>
-            <p className="text-muted-foreground">
-              Sistema de Alocação Inteligente de Técnicos
-            </p>
+            </h2>
+            <p className="text-muted-foreground">Use seu e-mail corporativo.</p>
           </div>
 
           {error && (
@@ -231,7 +236,7 @@ function LoginConteudo() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">E-mail corporativo</Label>
               <Input
                 id="email"
                 type="email"
@@ -287,9 +292,7 @@ function LoginConteudo() {
           {/* Aviso de acesso por convite: o cadastro é fechado, e sem isto a
               recusa do primeiro acesso pareceria erro do sistema. */}
           <p className="text-center text-xs text-muted-foreground">
-            Acesso restrito a usuários autorizados.
-            <br />
-            Solicite um convite ao administrador do sistema.
+            Acesso por convite. Solicite liberação ao administrador do sistema.
           </p>
         </div>
       </div>
