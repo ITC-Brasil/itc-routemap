@@ -100,36 +100,31 @@ export default function HistoricoPage() {
   // ====== RENDER ======
   return (
     <div className="space-y-8">
-      {/* HEADER */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+      {/* HEADER — no protótipo só Recarregar fica aqui; o filtro é uma barra
+          própria logo abaixo, antes dos números. */}
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b pb-[22px]">
+        <div className="max-w-[620px]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
             Análise
           </p>
-          <h1 className="mt-1 font-heading text-4xl">Histórico de Alocações</h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
+          <h1 className="mt-2 font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em]">
+            Histórico de Alocações
+          </h1>
+          <p className="mt-2.5 text-pretty text-muted-foreground">
             Todos os lotes de alocação confirmados, agrupados por rodada.
             Expanda um lote pra ver as rotas individuais ou cancele lotes inteiros.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <FiltrosHistoricoPopover
-            filtros={filtros}
-            tecnicosDisponiveis={tecnicosDisponiveis}
-            onChange={setFiltros}
-          />
-          <Button
-            onClick={recarregar}
-            disabled={carregando}
-            size="sm"
-            variant="outline"
-            className="gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Recarregar
-          </Button>
-        </div>
-      </div>
+        <Button
+          onClick={recarregar}
+          disabled={carregando}
+          variant="outline"
+          className="gap-2"
+        >
+          <RefreshCw className="size-4" />
+          Recarregar
+        </Button>
+      </header>
 
       {/* CONTEÚDO */}
       {carregando ? (
@@ -138,8 +133,23 @@ export default function HistoricoPage() {
         <EstadoVazio />
       ) : (
         <>
+          {/* FILTROS — antes dos números, porque eles mudam o que os números
+              contam. Barra horizontal de uma linha, como no protótipo, no lugar
+              do popover escondido no cabeçalho. */}
+          {/* O protótipo tem os controles inline (pílulas de status + selects).
+              Aqui eles seguem no popover que já existia — trocar o controle não
+              era o objeto desta correção, que é ordem e grade. Sem rótulo
+              "FILTROS" ao lado: o próprio botão diz isso. */}
+          <div className="flex flex-wrap items-center gap-4 rounded-xl border border-t-2 border-t-primary bg-card px-[18px] py-3 shadow-[var(--shadow-1)]">
+            <FiltrosHistoricoPopover
+              filtros={filtros}
+              tecnicosDisponiveis={tecnicosDisponiveis}
+              onChange={setFiltros}
+            />
+          </div>
+
           {/* STATS */}
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-3">
             <CardStat
               label="Lotes"
               valor={stats.totalLotes}
@@ -159,7 +169,7 @@ export default function HistoricoPage() {
 
           {/* LISTA DE LOTES */}
           <section className="space-y-3">
-            <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            <h2 className="text-[17px] font-semibold tabular-nums">
               {lotesFiltrados.length}{" "}
               {lotesFiltrados.length === 1
                 ? "lote encontrado"
@@ -173,7 +183,7 @@ export default function HistoricoPage() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-4">
+              <div className="grid gap-5 xl:grid-cols-2">
                 {lotesFiltrados.map((lote) => (
                   <CardLote
                     key={lote.loteId}
