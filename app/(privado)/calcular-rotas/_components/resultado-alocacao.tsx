@@ -110,6 +110,11 @@ export type AlocacaoRica = {
 export type RespostaAlocacao = {
   sucesso: true
   loteId: string
+  /**
+   * ISO do momento do cálculo, do servidor. Opcional porque um cálculo restaurado
+   * do sessionStorage pode ter sido salvo antes deste campo existir.
+   */
+  criadoEmIso?: string
   modoPrincipal: ModoTransporte
   modosCalculados: ModoTransporte[]
   alocacoes: AlocacaoRica[]
@@ -191,6 +196,21 @@ interface Props {
 
 function chaveAlocacao(a: AlocacaoRica): string {
   return `${a.origem.id}|${a.destino.id}`
+}
+
+/** "2026-08-11T17:04:00Z" -> "11 ago 2026, 14:04" (fuso local). */
+function formatarDataHoraCurta(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return d
+    .toLocaleString("pt-BR", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+    .replace(".", "")
 }
 
 /** Iniciais para o avatar: "José Frederico" -> "JF". */
@@ -645,6 +665,9 @@ export function ResultadoAlocacao({
           </h1>
           <p className="mt-1.5 font-mono text-[13px] font-semibold uppercase tabular-nums text-muted-foreground">
             Lote {resultado.loteId.slice(0, 8)}
+            {resultado.criadoEmIso && (
+              <> · {formatarDataHoraCurta(resultado.criadoEmIso)}</>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2.5">

@@ -294,6 +294,12 @@ export async function POST(request: Request) {
     return NextResponse.json({
       sucesso: true,
       loteId: gerarLoteId(),
+      // Momento do cálculo, gerado no SERVIDOR. O lote só ganha `criadoEm` no
+      // banco quando é confirmado, e a tela do Resultado precisa da data antes
+      // disso. No cliente não serve: o cálculo é restaurado do sessionStorage por
+      // até 2h, e `new Date()` na renderização mostraria a hora de agora para um
+      // cálculo de mais cedo — data errada é pior que data ausente.
+      criadoEmIso: new Date().toISOString(),
       modoPrincipal,
       modosCalculados,
       alocacoes: alocacoesRicas,
