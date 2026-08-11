@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { SimboloRouteMap } from "@/components/layout/logo-routemap"
 
 /**
  * Rail de navegação — 92px à esquerda, do protótipo v2 (design/handoff).
@@ -50,35 +51,6 @@ const NAV_ADMIN = [
   { href: "/admin/localidades", label: "Localidades" },
   { href: "/admin/tecnicos", label: "Técnicos" },
 ] as const
-
-/** Símbolo de rota da identidade ITC RouteMap, o mesmo do protótipo. */
-function SimboloRota() {
-  return (
-    <svg
-      viewBox="0 0 26 26"
-      aria-hidden="true"
-      className="h-7 w-7"
-      fill="none"
-    >
-      <path
-        d="M4 21V7l9 8 9-8v14"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="4" cy="21" r="2.6" fill="currentColor" />
-      <circle
-        cx="22"
-        cy="21"
-        r="2.6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.4"
-      />
-    </svg>
-  )
-}
 
 export function Rail() {
   const { user } = useAuth()
@@ -121,7 +93,7 @@ export function Rail() {
         aria-label="ITC RouteMap — Início"
         className="flex size-[46px] shrink-0 items-center justify-center rounded-[10px] bg-primary text-primary-foreground"
       >
-        <SimboloRota />
+        <SimboloRouteMap className="size-7" />
       </Link>
 
       <nav

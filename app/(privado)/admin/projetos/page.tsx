@@ -71,7 +71,7 @@ export default function ProjetosPage() {
   // Tabela curta: 960px em vez da largura cheia (system.md §3). Era um
   // <main> aqui dentro, aninhado no <main> do layout — dois landmarks.
   return (
-    <div className="max-w-[960px]">
+    <div className="mx-auto max-w-[960px]">
       {/* Cabeçalho da página */}
       <div className="mb-8 flex flex-wrap items-end justify-between gap-6 border-b pb-[22px]">
         <div>

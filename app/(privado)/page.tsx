@@ -164,7 +164,7 @@ export default function InicioPage() {
       {/* KPIs — sem rótulo de seção: o header já diz onde estamos, e o system.md
           limita a dois rótulos em caixa-alta por tela. */}
       <section>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <CardKpi
             icone={<MapPin className="h-5 w-5 text-primary" />}
             valor={carregando ? "—" : String(pontosPendentes)}

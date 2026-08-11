@@ -18,11 +18,11 @@ export default function PrivadoLayout({
       <div className="flex min-h-screen">
         <Rail />
         <div className="flex min-w-0 flex-1 flex-col">
-          <main className="w-full max-w-[1400px] flex-1 px-11 pb-14 pt-10">
+          <main className="mx-auto w-full max-w-[1400px] flex-1 px-11 pb-14 pt-10">
             <PageTransition>{children}</PageTransition>
           </main>
           <footer className="border-t">
-            <div className="flex max-w-[1400px] items-center justify-between px-11 py-4">
+            <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between px-11 py-4">
               <span className="font-mono text-xs text-muted-foreground">
                 ITC RouteMap · Grupo ITC Brasil
               </span>

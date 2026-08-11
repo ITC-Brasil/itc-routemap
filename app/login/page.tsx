@@ -1,6 +1,6 @@
 "use client"
 
-import Image from "next/image"
+import { LockupRouteMap } from "@/components/layout/logo-routemap"
 import { Suspense, useEffect, useState, type FormEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { signIn, signUp } from "@/lib/auth-client"
@@ -127,11 +127,10 @@ function LoginConteudo() {
     // que importa é entrar.
     <main className="grid min-h-screen lg:grid-cols-[minmax(320px,1fr)_minmax(420px,1fr)]">
       <aside className="hidden flex-col justify-between gap-12 bg-ink p-14 lg:flex">
-        {/* Lockup oficial na variante negativa. O painel usa --ink, que é escuro
-            nos dois temas, então o logo não acompanha o alternador aqui. */}
-        <Image
-          src="/logos/lockup/routemap-lockup-horizontal-negative.svg"
-          alt="ITC RouteMap"
+        {/* Lockup oficial, símbolo ciano + wordmark branco, animado. O painel usa
+            --ink, escuro nos dois temas, então o logo não acompanha o alternador.
+            A variante `negative` (tudo branco) perdia o ciano da marca. */}
+        <LockupRouteMap
           width={275}
           height={64}
           priority

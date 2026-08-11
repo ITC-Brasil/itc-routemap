@@ -302,7 +302,7 @@ export default function EstatisticasPage() {
             <h2 className="text-[17px] font-semibold">
               Distribuição por modo de transporte
             </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {distribuicaoModos.map((m) => (
                 <CardModo key={m.modo} stat={m} />
               ))}
@@ -373,7 +373,7 @@ function SkeletonEstatisticas() {
           </Card>
         </div>
       ))}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
           <Card key={i}>
             <CardContent className="space-y-3 p-5">
