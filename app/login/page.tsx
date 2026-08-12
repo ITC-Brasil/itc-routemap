@@ -1,5 +1,6 @@
 "use client"
 
+import { Eye, EyeOff } from "lucide-react"
 import { LockupRouteMap } from "@/components/layout/logo-routemap"
 import { Suspense, useEffect, useState, type FormEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -36,6 +37,7 @@ function LoginConteudo() {
   const [nome, setNome] = useState("")
   const [email, setEmail] = useState("")
   const [senha, setSenha] = useState("")
+  const [mostrarSenha, setMostrarSenha] = useState(false)
 
   // Erro vindo do redirect do fluxo Google (ex.: convite inválido) é lido
   // da query string uma única vez no mount.
@@ -250,16 +252,38 @@ function LoginConteudo() {
 
             <div className="space-y-2">
               <Label htmlFor="senha">Senha</Label>
-              <Input
-                id="senha"
-                type="password"
-                value={senha}
-                onChange={(e) => setSenha(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={8}
-                autoComplete={primeiroAcesso ? "new-password" : "current-password"}
-              />
+              {/* Mostrar/ocultar: um campo mascarado sem escape faz a pessoa
+                  apagar tudo e redigitar ao errar uma tecla. É o único campo de
+                  senha do fluxo — login e primeiro acesso compartilham este
+                  input, mudando só o autoComplete. */}
+              <div className="relative">
+                <Input
+                  id="senha"
+                  type={mostrarSenha ? "text" : "password"}
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  minLength={8}
+                  autoComplete={
+                    primeiroAcesso ? "new-password" : "current-password"
+                  }
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarSenha((v) => !v)}
+                  aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
+                  aria-pressed={mostrarSenha}
+                  className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  {mostrarSenha ? (
+                    <EyeOff className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="size-4" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <Button
