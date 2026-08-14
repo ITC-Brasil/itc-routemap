@@ -1015,6 +1015,45 @@ validação só no cliente é contornável.
 
 ---
 
+## 10.16. TLS no nginx — o que falta e como testar antes do servidor
+
+O `nginx/nginx.conf` **já tem o server block HTTPS** (feito em 2026-08-11): `listen
+443 ssl` + `http2 on`, TLS 1.2/1.3, redirect 301 de :80 preservando path e query
+(`$request_uri`), `server_name routemap.grupoitcbrasil.com.br` e o mesmo
+`proxy_pass` para `app:3000`. Falta **só colocar os certificados**.
+
+**Arquivos esperados em `./nginx/certs`:** `routemap.crt` (fullchain: certificado +
+intermediários) e `routemap.key` (chave privada, sem passphrase). Com certbot, são
+`fullchain.pem` e `privkey.pem` renomeados.
+
+🔴 **O bind mount mascara a ausência dos certificados.** `./nginx/certs` está no
+`.gitignore`, e o Docker **cria o diretório vazio** se ele não existir — então o
+`docker compose up` não reclama de pasta faltando e o **nginx morre no start** com
+`cannot load certificate ... No such file or directory`. O sintoma é "o nginx não
+sobe", não "faltam certificados". Confira com
+`docker compose logs nginx | tail -5`.
+
+**`X-Forwarded-Proto` é fixo em `https`, não `$scheme`** — o Next e o Better Auth
+montam URLs absolutas a partir desse header, e com "http" o login voltaria para
+`http://…`, cairia no redirect e quebraria o fluxo de OAuth.
+
+**Testar localmente com self-signed**, antes de ter o certificado real:
+
+```bash
+mkdir -p nginx/certs
+docker run --rm -v "$(pwd)/nginx/certs:/certs" alpine/openssl req -x509 -nodes   -newkey rsa:2048 -days 365 -keyout /certs/routemap.key -out /certs/routemap.crt   -subj "/CN=routemap.grupoitcbrasil.com.br"   -addext "subjectAltName=DNS:routemap.grupoitcbrasil.com.br,DNS:localhost"
+```
+
+Depois: apontar o domínio para `127.0.0.1` no arquivo `hosts` do Windows
+(`C:\Windows\System32\drivers\etc\hosts`, precisa de admin), subir a stack e
+abrir `https://routemap.grupoitcbrasil.com.br`. O navegador vai avisar que o
+certificado não é confiável — aceitar. **`BETTER_AUTH_URL` tem de ser
+`https://routemap.grupoitcbrasil.com.br`** nesse teste, senão dá 403 `Invalid
+origin` (§10.2 item 5b). O self-signed valida o server block, o redirect e os
+headers; não valida a cadeia, que só o certificado real exercita.
+
+---
+
 ## 11. PRÓXIMA AÇÃO IMEDIATA
 
 Aguardando **OK do usuário no grupo B da Frente 2** (§6). Com o OK: aplicar os 10
