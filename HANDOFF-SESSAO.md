@@ -836,6 +836,35 @@ Admin → UMs.
 
 ---
 
+## 10.8b. VIRADA EM PARALELO — Firebase é a fonte de verdade (decisão de 2026-08-18)
+
+O sistema novo sobe **ao lado** do Firebase, não no lugar dele. O Firebase segue
+sendo a **fonte de verdade** até o novo estar validado em operação.
+
+1. **A migração de dados roda DUAS vezes:** no deploy inicial e de novo no corte
+   final. `scripts/migrar-firestore.ts` é **idempotente e preserva os IDs** do
+   Firestore (tudo por `upsert` com `where: { id }` — Projeto, RA, Técnico, UM,
+   Ponto e Rota), então a 2ª execução **atualiza sem duplicar**. Já provado; é o
+   mesmo motivo pelo qual os `hashMd5` dos pontos seguem válidos (§10.9).
+2. 🔴 **Durante o paralelo, NÃO confirmar alocações reais no sistema novo.** O novo
+   é para **observar e comparar** — rodar cálculo, olhar resultado, conferir contra
+   o Firebase. Confirmar nos dois cria divergência que a 2ª migração **não sabe
+   resolver**: ela sobrescreve o registro pelo ID vindo do Firestore, e uma
+   confirmação que só existe no Postgres é perdida em silêncio, sem conflito
+   detectado. O prejuízo é justamente onde mais dói: histórico de lote.
+3. **A planilha é compartilhada pelos dois sistemas**, então os pontos se mantêm
+   alinhados sozinhos — nenhuma sincronização manual é necessária no paralelo.
+   (Vale o pressuposto de §10.8: planilha e app **alinhados**.)
+4. **Checklist do corte final, nesta ordem:** (a) **congelar o uso do Firebase** —
+   ninguém confirma mais nada lá; (b) rodar a migração pela **última** vez;
+   (c) **conferir as contagens** por entidade (Projeto, RA, Técnico, UM, Ponto,
+   Rota) entre origem e Postgres, e o aviso de "id(s) já existem — o upsert vai
+   ATUALIZAR" que o script imprime; (d) **só então** liberar a operação no novo.
+   Congelar **antes** de migrar é o que garante que a última execução não perca
+   nada gravado no Firebase durante a própria migração.
+
+---
+
 ## 10.9. Identidade do ponto: chave natural (commit `d15ee58`)
 
 A identidade era `umNome + linhaOrigem` — a POSIÇÃO da linha. Inserir uma etapa
