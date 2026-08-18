@@ -689,8 +689,10 @@ Nunca commitados; preenchidos pelo dono do projeto, fora do chat.
    aspas e preserva o `#`** — mas veja o item 4 e evite `#`.
 
 ### 10.3 Google Cloud
-7. **Redirect URI de produção** no console OAuth:
-   `https://<dominio>/api/auth/callback/google` (o de dev não serve).
+7. ✅ **Redirect URI de produção** no console OAuth:
+   `https://routemap.grupoitcbrasil.com.br/api/auth/callback/google` — **já
+   registrado e validado** em 2026-08-18 pelo ensaio com self-signed (§10.16).
+   Não é mais risco aberto.
 8. **Gemini**: liberar acesso/billing (hoje retorna 403 PERMISSION_DENIED —
    ver §7). Sem isso o app funciona, mas a justificativa da alocação sai do
    template.
@@ -939,6 +941,20 @@ scripts/convidar.ts pessoa@empresa.com`.
 todos `google.com`, nenhum com senha. Falta preencher `GOOGLE_CLIENT_ID`/`SECRET`
 e registrar o callback `https://routemap.grupoitcbrasil.com.br/api/auth/callback/google`.
 
+**`dev.itcbrasil@gmail.com` usa Google** (validado em dev, banco `itc_local`,
+2026-08-17): login pelo botão "Entrar com Google" funcionando, `Account.providerId
+= google`, convite consumido, `papel` corrigido para `admin` na mão.
+
+⚠️ **Um método por pessoa — e o seed cria o admin por SENHA.** O hook do convite só
+roda na CRIAÇÃO da conta, e o Better Auth recusa uma segunda conta para o mesmo
+email ("já está registrado com outro método"). Como `prisma/seed.ts` cria o primeiro
+admin com `ADMIN_PASSWORD` (método `credential`), **no servidor a mesma decisão se
+repete**: ou o admin fica com senha, ou apagar a conta de senha e convidar para
+entrar pelo Google. Foi o que foi feito em dev — `delete from "user" where email=…`
+(as FKs `account.userId` e `session.userId` são `ON DELETE CASCADE`, então Account e
+Session vão junto), depois `scripts/convidar.ts`, depois `update … set papel='admin'`.
+`scripts/convidar.ts` **recusa** emitir para email que já tem conta, de propósito.
+
 ⚠️ **Não há recuperação de senha** no projeto — esquecer a senha hoje exige mexer
 no banco. Mais um motivo para o Google ser o método da equipe.
 
@@ -946,6 +962,73 @@ no banco. Mais um motivo para o Google ser o método da equipe.
 consultado em lugar nenhum**: todo usuário logado tem acesso total, inclusive
 cancelar lote e sincronizar. Por isso o convite **não** carrega papel — seria dado
 morto. Implementar a verificação é trabalho separado, e maior que a emissão.
+
+**ROTEIRO TESTADO — trocar o admin de senha para Google** (ensaiado de ponta a
+ponta em 2026-08-18 no stack Docker, banco `itc_routemap`, sem dado real). É a
+sequência que vai se repetir no servidor: o seed cria por SENHA, e aí ou fica
+assim, ou apaga e convida. Os one-offs usam a imagem do stage `builder` (§10.5);
+`$PW` é a `POSTGRES_PASSWORD` **que inicializou o volume**, não necessariamente a
+do `.env.docker` (ver o alerta de rotação de senha no fim desta seção).
+
+```bash
+# 1. apaga o User — Account e Session vêm por CASCADE (FKs account.userId e
+#    session.userId são ON DELETE CASCADE; conferido no schema)
+docker exec itc-routemap-db psql -U itc_user -d itc_routemap   -c 'delete from "user" where email=EMAIL;'
+
+# 2. (opcional) re-semear por senha, se a decisão for admin com senha
+docker run --rm --network itc-routemap_default --env-file .env.docker   -e DATABASE_URL="postgresql://itc_user:$PW@postgres:5432/itc_routemap"   itc-routemap-migrate:latest npx tsx prisma/seed.ts
+
+# 3. convidar, para o acesso ser criado pelo Google
+docker run --rm --network itc-routemap_default --env-file .env.docker   -e DATABASE_URL="postgresql://itc_user:$PW@postgres:5432/itc_routemap"   itc-routemap-migrate:latest npx tsx scripts/convidar.ts pessoa@empresa.com
+
+# 4. conferir
+docker exec itc-routemap-db psql -U itc_user -d itc_routemap   -c 'select email,status,"expiraEm">now() as valido from convites;'
+# 5. após o login pelo Google: o papel volta ao default do hook (`operador`) —
+#    corrigir na mão, o convite não carrega papel
+docker exec itc-routemap-db psql -U itc_user -d itc_routemap   -c "update \"user\" set papel='admin' where email=EMAIL;"
+```
+
+Ordem importa: **apagar antes de convidar**. O `convidar.ts` recusa email que já
+tem conta (de propósito), e o hook do convite só roda na CRIAÇÃO da conta.
+
+**Login por senha via HTTPS: validado** no ensaio (`POST /api/auth/sign-in/email`
+→ `200`, cookie `better-auth.session_token`, `get-session` → `200`). Antes de
+re-semear ele dava `401`: o hash no banco era de uma senha **anterior** à
+consolidação e o seed **não** reescreve senha de usuário existente (early-return).
+Trocar `ADMIN_PASSWORD` sem apagar o User não tem efeito nenhum.
+
+---
+
+## 10.12b. PERGUNTAS AO RESPONSÁVEL PELO SERVIDOR (antes de subir)
+
+O servidor já roda outros serviços em Docker. Estas 8 perguntas precisam de
+resposta antes do primeiro `up` — as três primeiras podem mudar o compose.
+
+1. **Já existe proxy em 80/443?** Qual (nginx/traefik) e como se registra um
+   backend nele? Nosso compose publica 80 e 443 — com proxy existente, isso é
+   conflito de porta na largada.
+2. **3000 e 5432 estão livres?** Hoje o compose publica as duas no host. Atrás de
+   proxy, o certo é **não publicar** o 3000 (ou limitar a `127.0.0.1:3000:3000`) e
+   não publicar o 5432 de jeito nenhum.
+3. **Qual rede Docker externa devo usar?** Para o proxy alcançar `app:3000` por DNS
+   interno, o `app` tem de estar na rede dele (`external: true` no nosso compose).
+4. **Versão do Docker e do Compose?** Uso sintaxe Compose v2 e `http2 on` no nginx
+   (exige nginx ≥ 1.25.1). Na máquina de ensaio: Docker 29.6.1.
+5. **Onde ficam os volumes e como entram no backup?** O banco é volume nomeado
+   (`postgres_data`), não bind mount — precisa estar na rotina de backup.
+6. **Quem emite e renova o certificado?** O proxy deles já faz Let's Encrypt?
+7. **RAM disponível para o daemon?** O build exige heap de 6 GB
+   (`NODE_OPTIONS=--max-old-space-size=6144`); sem isso ele falha, comprovado.
+8. **Se o proxy deles já faz Let's Encrypt, o nginx sai do compose.** Nossos
+   `nginx/certs/*` e todo o server block HTTPS que escrevemos (§10.16) ficam sem
+   uso — TLS, redirect 80→443 e `X-Forwarded-Proto: https` passam a ser
+   responsabilidade do proxy deles. Confirmar isso **antes**, para não manter dois
+   terminadores TLS nem perder o header (sem ele o OAuth quebra).
+
+**Colisões de nome a checar no daemon deles:** `container_name` é fixo
+(`itc-routemap-db`, `-app`, `-nginx` — nomes globais), a rede `itc-routemap_default`
+e o volume `postgres_data` (os dois prefixados pelo nome do projeto, que muda com o
+diretório ou com `-p`).
 
 ---
 
@@ -1051,6 +1134,26 @@ certificado não é confiável — aceitar. **`BETTER_AUTH_URL` tem de ser
 `https://routemap.grupoitcbrasil.com.br`** nesse teste, senão dá 403 `Invalid
 origin` (§10.2 item 5b). O self-signed valida o server block, o redirect e os
 headers; não valida a cadeia, que só o certificado real exercita.
+
+✅ **ENSAIO EXECUTADO em 2026-08-18 — passou.** Par self-signed gerado, domínio
+apontado para `127.0.0.1` no `hosts`, stack completa de pé (postgres + app +
+nginx). Validado: nginx sobe com os certificados; **redirect 80→443 preservando
+path e query** (`301` com `?redirect=/historico&x=1%20a` intacto, `%20` incluído);
+HTTPS `200` em `/login`; **login por senha** (`sign-in/email` → `200`, cookie
+`better-auth.session_token`, `get-session` → `200`); **login com Google no domínio
+de produção** → conta criada com `Account.providerId=google` e convite consumido;
+as 5 rotas de API em `401` sem sessão (e `POST /api/sincronizar` passa a `400`
+**com** sessão, provando que o gate é de sessão, não de método).
+
+🟢 **O redirect URI de produção deixa de ser risco.**
+`https://routemap.grupoitcbrasil.com.br/api/auth/callback/google` foi
+**exercitado de verdade** contra o Google, com o domínio real e o cliente OAuth
+real — só o certificado é que era self-signed. Falta apenas a cadeia TLS válida,
+que nada além do certificado emitido exercita.
+
+⚠️ Os certificados do ensaio **foram apagados** de `nginx/certs` de propósito: não
+podem ir para o servidor. O diretório está no `.gitignore`, então nunca houve
+risco de commit — mas em disco ficariam.
 
 ---
 
