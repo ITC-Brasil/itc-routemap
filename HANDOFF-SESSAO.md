@@ -1174,15 +1174,55 @@ de produção** → conta criada com `Account.providerId=google` e convite consu
 as 5 rotas de API em `401` sem sessão (e `POST /api/sincronizar` passa a `400`
 **com** sessão, provando que o gate é de sessão, não de método).
 
-🟢 **O redirect URI de produção deixa de ser risco.**
+🟢 **O redirect URI deixa de ser risco — para o domínio testado.**
 `https://routemap.grupoitcbrasil.com.br/api/auth/callback/google` foi
-**exercitado de verdade** contra o Google, com o domínio real e o cliente OAuth
-real — só o certificado é que era self-signed. Falta apenas a cadeia TLS válida,
-que nada além do certificado emitido exercita.
+**exercitado de verdade** contra o Google, com o cliente OAuth real — só o
+certificado é que era self-signed. Falta apenas a cadeia TLS válida, que nada
+além do certificado emitido exercita.
+
+🔴 **Mas o domínio de produção mudou — ver §10.17.** O host final é
+`routemap.itcbr.xyz`, não `routemap.grupoitcbrasil.com.br`. Este ensaio validou
+o **mecanismo**, não o endereço que vai para o ar.
 
 ⚠️ Os certificados do ensaio **foram apagados** de `nginx/certs` de propósito: não
 podem ir para o servidor. O diretório está no `.gitignore`, então nunca houve
 risco de commit — mas em disco ficariam.
+
+---
+
+## 10.17. 🔴 O ensaio HTTPS validou o domínio ERRADO (2026-08-21)
+
+O responsável pelo servidor definiu o ambiente: o RouteMap sobe no `glpi-srv`,
+publicado por **Cloudflare Tunnel** em **`https://routemap.itcbr.xyz`**. Não há
+nginx nem Let's Encrypt ali — o TLS termina na borda da Cloudflare e o tunnel
+entrega em `http://localhost:3100`. Ver `DEPLOY.md`.
+
+**Consequência para o ensaio de §10.16:** ele foi feito contra
+`routemap.grupoitcbrasil.com.br`, que **não** é o host final.
+
+O que **continua valendo** (é mecanismo, não endereço):
+
+- o fluxo de OAuth com o Google funciona de ponta a ponta sob HTTPS: conta
+  criada com `Account.providerId=google` e convite consumido pelo hook;
+- o login por senha e o `get-session` sob HTTPS;
+- os gates de sessão nas 5 rotas de API;
+- a exigência de `BETTER_AUTH_URL` casar com a origem servida, senão dá `403
+  Invalid origin`.
+
+O que **precisa ser refeito no host final**:
+
+- [ ] `BETTER_AUTH_URL=https://routemap.itcbr.xyz` no `.env.docker` de produção
+      (já ajustado no `.env.docker` local desta máquina);
+- [ ] `https://routemap.itcbr.xyz/api/auth/callback/google` nos redirect URIs
+      autorizados do cliente OAuth, no console do Google Cloud;
+- [ ] **re-testar o login por Google** no host final. Este é o item que o ensaio
+      não cobre: o redirect URI é casado por string exata pelo Google, e o que
+      foi exercitado foi o do outro domínio. Um URI ausente falha com
+      `redirect_uri_mismatch` no primeiro login real.
+
+O `nginx/nginx.conf` ficou no repo de propósito, com cabeçalho dizendo que não é
+usado no `glpi-srv` — o server block HTTPS com redirect 80→443 está pronto e
+validado, e serve se o host mudar para um com TLS próprio.
 
 ---
 
