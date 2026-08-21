@@ -1,16 +1,20 @@
+# ~/docker/itc-routemap/docker-compose.yml  (glpi-srv)
+# Sem nginx: TLS termina no Cloudflare Tunnel -> http://localhost:3100
 services:
   postgres:
     image: postgres:16-alpine
     container_name: itc-routemap-db
-    restart: unless-stopped
+    restart: always
+    # SEM label do Watchtower: bump automatico de major do Postgres
+    # corromperia o datadir (16 -> 17 exige pg_upgrade manual).
     environment:
       POSTGRES_DB: itc_routemap
       POSTGRES_USER: itc_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: America/Sao_Paulo
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - itc-routemap-db-data:/var/lib/postgresql/data
+    # SEM ports: acessivel apenas pela rede interna do compose.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U itc_user -d itc_routemap"]
       interval: 10s
@@ -21,44 +25,33 @@ services:
     build:
       context: .
       args:
-        # NEXT_PUBLIC_*: embutida no bundle do browser DURANTE o build —
-        # precisa ser build arg (ARG no Dockerfile), não environment.
+        # NEXT_PUBLIC_*: embutidas no bundle em BUILD-time -> build arg.
         NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+        NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL: ${NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL}
+    image: itc-routemap-app:local
     container_name: itc-routemap-app
-    restart: unless-stopped
+    restart: always
+    # SEM label do Watchtower: imagem buildada localmente, sem registry.
+    # Atualizacao e sempre `git pull && docker compose up -d --build`.
     depends_on:
       postgres:
         condition: service_healthy
     environment:
+      TZ: America/Sao_Paulo
       DATABASE_URL: postgresql://itc_user:${POSTGRES_PASSWORD}@postgres:5432/itc_routemap
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}   # https://routemap.itcbr.xyz
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_MAPS_SERVER_API_KEY: ${GOOGLE_MAPS_SERVER_API_KEY}
       GOOGLE_SERVICE_ACCOUNT_BASE64: ${GOOGLE_SERVICE_ACCOUNT_BASE64}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_ENABLED: ${GEMINI_ENABLED:-true}
-      # Credenciais do primeiro admin — usadas SOMENTE pelo seed manual
-      # (npx tsx prisma/seed.ts), nunca em runtime. Interpoladas do .env.docker.
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_NOME: ${ADMIN_NOME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     ports:
-      - "3000:3000"
-
-  nginx:
-    image: nginx:alpine
-    container_name: itc-routemap-nginx
-    restart: unless-stopped
-    depends_on:
-      - app
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/certs:/etc/nginx/certs:ro
+      - "127.0.0.1:3100:3000"   # so loopback; o tunnel le daqui
 
 volumes:
-  postgres_data:
+  itc-routemap-db-data:

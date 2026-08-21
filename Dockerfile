@@ -12,6 +12,8 @@ FROM base AS builder
 # environment de runtime.
 ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+ARG NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL
+ENV NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL=$NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL
 # Heap maior para o type-check do `next build`. Sem isso o build FALHA dentro do
 # container com "FATAL ERROR: Ineffective mark-compacts near heap limit -
 # JavaScript heap out of memory" (verificado no ensaio de deploy de 2026-07-27:
