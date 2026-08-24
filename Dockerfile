@@ -1,10 +1,20 @@
+# syntax=docker/dockerfile:1
+# A diretiva `syntax` fixa o frontend do BuildKit, que é o que habilita o
+# `--mount=type=cache` do stage `deps`. Docker 23+ já usa BuildKit por padrão
+# e o Docker 29 do glpi-srv nem tem mais o builder clássico.
 FROM node:20-alpine AS base
 WORKDIR /app
+# Telemetria do Next desligada em todos os stages: não há valor em enviá-la de
+# dentro do build nem do container de produção.
+ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 COPY package*.json ./
-RUN npm ci
+# Cache mount do BuildKit: reaproveita o cache do npm (~/.npm) entre builds,
+# evitando rebaixar todos os pacotes a cada `docker compose up -d --build` no
+# servidor. O cache fica no builder, não vira camada da imagem.
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM base AS builder
 # NEXT_PUBLIC_*: o Next embute no bundle do browser em BUILD-time,
