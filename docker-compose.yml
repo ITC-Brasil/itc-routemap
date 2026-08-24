@@ -1,5 +1,5 @@
 # ~/docker/itc-routemap/docker-compose.yml  (glpi-srv)
-# Sem nginx: TLS termina no Cloudflare Tunnel -> http://localhost:3100
+# Sem nginx: TLS termina no Cloudflare Tunnel -> http://localhost:3015
 services:
   postgres:
     image: postgres:16-alpine
@@ -51,7 +51,7 @@ services:
       ADMIN_NOME: ${ADMIN_NOME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     ports:
-      - "127.0.0.1:3100:3000"   # so loopback; o tunnel le daqui
+      - "127.0.0.1:3015:3000"   # so loopback; o tunnel le daqui
 
 volumes:
   itc-routemap-db-data:

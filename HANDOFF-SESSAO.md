@@ -1195,7 +1195,7 @@ risco de commit — mas em disco ficariam.
 O responsável pelo servidor definiu o ambiente: o RouteMap sobe no `glpi-srv`,
 publicado por **Cloudflare Tunnel** em **`https://routemap.itcbr.xyz`**. Não há
 nginx nem Let's Encrypt ali — o TLS termina na borda da Cloudflare e o tunnel
-entrega em `http://localhost:3100`. Ver `DEPLOY.md`.
+entrega em `http://localhost:3015`. Ver `DEPLOY.md`.
 
 **Consequência para o ensaio de §10.16:** ele foi feito contra
 `routemap.grupoitcbrasil.com.br`, que **não** é o host final.

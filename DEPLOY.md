@@ -11,7 +11,7 @@ Referências: `novo-container-glpi-srv.md` (padrões do servidor),
 |---|---|
 | SSH | `glpissh@100.68.161.44` (Tailscale) |
 | Pasta | `~/docker/itc-routemap/` |
-| Porta host | `3100` (só loopback) |
+| Porta host | `3015` (só loopback) |
 | Rede do compose | `itc-routemap_default` |
 | Containers | `itc-routemap-app`, `itc-routemap-db` |
 
@@ -20,10 +20,10 @@ Referências: `novo-container-glpi-srv.md` (padrões do servidor),
 ## 0. Antes de começar
 
 ```bash
-sudo ss -tlnp | grep :3100
+sudo ss -tlnp | grep :3015
 ```
 
-Tem de sair **vazio**. Se a `3100` estiver ocupada, escolher outra livre e
+Tem de sair **vazio**. Se a `3015` estiver ocupada, escolher outra livre e
 trocar nos **dois** lugares: `docker-compose.yml` (`ports`) e
 `~/.cloudflared/config.yml`.
 
@@ -180,7 +180,7 @@ Editar `~/.cloudflared/config.yml` e inserir **antes** do catch-all
 
 ```yaml
   - hostname: routemap.itcbr.xyz
-    service: http://localhost:3100
+    service: http://localhost:3015
 ```
 
 ```bash
@@ -199,7 +199,7 @@ Em `https://monitor.itcbr.xyz` → **Add New Monitor**: type `HTTP(s)`, URL
 ## 9. Verificações finais
 
 ```bash
-curl -I http://localhost:3100
+curl -I http://127.0.0.1:3015
 ```
 
 ```bash
