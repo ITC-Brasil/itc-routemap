@@ -1327,8 +1327,21 @@ simplificado — sem build do `builder`, sem `--network`, sem `-e DATABASE_URL`.
 TypeScript — `Cannot find module '../lib/prisma'`, e depois `@/lib/prisma`, que
 depende do `tsconfig.json`. **Testado**: copiando `lib/` (200 KB) e
 `tsconfig.json` para dentro do container, o seed roda e cria o admin. Não
-adotado — levaria fonte da aplicação para a imagem de produção. Decisão em
-aberto; o §4b do `DEPLOY.md` segue com o one-off do `builder`.
+adotado — levaria fonte da aplicação para a imagem de produção. **Decisão
+adiada**; o §4b do `DEPLOY.md` segue com o one-off do `builder`.
+
+**Peso confirmado como aceitável (2026-08-24):** o `glpi-srv` tem 2 SSDs de
+480 GB em RAID, e a padronização entre os dois projetos do mesmo host tem valor
+próprio. O `node_modules` completo **fica**.
+
+🔴 **O `docker-entrypoint.sh` com migrate no start segue RECUSADO** — e o motivo
+não é mais o tamanho, que agora já foi pago. É que nosso deploy é **manual** e
+o compose usa **`restart: always`**: um `migrate deploy` que falha vira
+**container reiniciando em laço**, escondendo a causa. O NoteScan convive com
+isso porque o deploy deles é automatizado (`deploy.yml`) e a falha aparece no
+pipeline. Aqui, rodar o §4a como passo explícito custa um comando e deixa o erro
+na tela. Se um dia se adotar o entrypoint, trocar antes para
+`restart: on-failure:3`.
 
 ### 6. Dois detalhes que reforçam as recusas acima
 
