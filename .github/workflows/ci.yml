@@ -1,0 +1,112 @@
+# CI do itc-routemap.
+#
+# NÃO é o ci.yml do NoteScan: lá `npm run test` é teste unitário, aqui a suíte
+# é Playwright, com browser e banco populado. Por isso este workflow sobe um
+# Postgres de serviço, aplica as migrations e roda o seed de teste antes da
+# suíte — sem banco populado, 6 testes falham.
+#
+# ⚠️ CUSTO DE API: os testes que clicam "Calcular Alocação" chamam a Google
+# Routes API (paga) e o Gemini. Ficam EXCLUÍDOS por `--grep-invert`. Ver a
+# lista no passo "Testes E2E".
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: itc_routemap_test
+          POSTGRES_USER: itc_user
+          POSTGRES_PASSWORD: senha_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U itc_user -d itc_routemap_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://itc_user:senha_ci@localhost:5432/itc_routemap_test
+      # Placeholders: o CI não fala com Google nem Gemini. BETTER_AUTH_URL tem
+      # de casar EXATAMENTE com a origem servida, senão o login dá 403
+      # `Invalid origin` (§10.2 item 5b do HANDOFF).
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: segredo_de_ci_sem_valor_real
+      ADMIN_EMAIL: ci@exemplo.test
+      ADMIN_NOME: CI
+      ADMIN_PASSWORD: senha_de_ci_123
+      GOOGLE_CLIENT_ID: ci-placeholder
+      GOOGLE_CLIENT_SECRET: ci-placeholder
+      GOOGLE_MAPS_SERVER_API_KEY: ci-placeholder
+      GOOGLE_SERVICE_ACCOUNT_BASE64: ci-placeholder
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ci-placeholder
+      NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL: ci@ci.iam.gserviceaccount.com
+      GEMINI_API_KEY: ci-placeholder
+      # Gemini desligado no CI: sem chave real, cada chamada seria um 403.
+      GEMINI_ENABLED: "false"
+      # Mesmo heap do Dockerfile: sem isso o type-check do `next build` estoura
+      # com "JavaScript heap out of memory".
+      NODE_OPTIONS: --max-old-space-size=6144
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Auditoria de dependências
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed de teste
+        run: npx tsx prisma/seed-teste.ts
+
+      - name: Build
+        run: npm run build
+
+      - name: Instalar o Chromium do Playwright
+        run: npx playwright install --with-deps chromium
+
+      # `--grep-invert` exclui o que gasta API paga:
+      #   UI-08, UI-09, UI-10 e UI-14/15 (02-calcular-rotas.spec.ts) e
+      #   "calcular e confirmar cria rotas e agenda pontos" (09-crud.spec.ts).
+      # Todos clicam "Calcular Alocação", que chama a Google Routes API. Os
+      # specs de tests/e2e/tests/api/ NÃO gastam: são todos casos de validação
+      # que respondem 400 antes de qualquer chamada externa.
+      - name: Testes E2E
+        run: npx playwright test --grep-invert "UI-08|UI-09|UI-10|UI-14/15|calcular e confirmar"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

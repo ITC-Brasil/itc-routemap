@@ -1,0 +1,58 @@
+# Deploy contínuo do itc-routemap no servidor glpi-srv.
+#
+# ⚠️ ESTE WORKFLOW AINDA NÃO FUNCIONA. Antes do primeiro uso é preciso:
+#
+#   1. criar o usuário `routemap-deploy` no glpi-srv, dono de
+#      /home/glpissh/docker/routemap e membro do grupo `docker`;
+#   2. gerar um par de chaves SSH dedicado para ele e autorizar a pública;
+#   3. cadastrar os secrets do repositório: SSH_HOST, SSH_USER, SSH_KEY e
+#      SSH_PORT;
+#   4. fazer o clone inicial em /home/glpissh/docker/routemap/app e criar o
+#      .env.docker ao lado, seguindo o DEPLOY.md.
+#
+# Enquanto isso não existir, o job falha no passo de SSH — de propósito, para
+# não dar a impressão de que o deploy automático está de pé.
+#
+# 🔴 NUNCA rodar `docker system prune -f` aqui. O glpi-srv hospeda 19 serviços
+# de outras equipes, e o prune apagaria imagens e volumes que não são nossos.
+# A limpeza, se necessária, é manual e escopada às nossas imagens.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-glpi-srv
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Deploy por SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          # O build do Next roda no servidor e leva minutos; o default de 10m
+          # do ssh-action corta no meio.
+          command_timeout: 20m
+          script: |
+            set -e
+            cd /home/glpissh/docker/routemap
+            git -C app pull origin main
+            cd app
+            docker compose up -d --build
+            docker compose ps
+            # Migrations continuam MANUAIS, por decisão (§10.18 do HANDOFF: o
+            # entrypoint com migrate no start foi recusado). Havendo migration
+            # nova, rodar o §4a do DEPLOY.md depois deste deploy:
+            #   docker compose exec app \
+            #     node node_modules/prisma/build/index.js migrate deploy
