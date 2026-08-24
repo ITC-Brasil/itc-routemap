@@ -1306,6 +1306,31 @@ Decisão: **fica para depois do primeiro deploy**. Não implementado.
 
 ---
 
+## 10.19. `EBADENGINE` no `npm ci` — build-time, não runtime (2026-08-24)
+
+O `npm ci` avisa que `firebase-admin@14.2.0` e `kysely@0.29.3` pedem **Node
+>= 22**, e a imagem é `node:20-alpine`. **Não trocar a base agora.** O aviso é
+de **build-time e consultivo**: `engines` é metadado que o npm compara na
+instalação, não checagem de runtime, e o aviso aparece porque nosso `npm ci`
+instala devDeps (o `next build` precisa delas). `firebase-admin` já é
+devDependency e só o descartável `scripts/migrar-firestore.ts` o importa;
+`kysely` é transitivo do `better-auth`, que usamos com o adapter do **Prisma**.
+
+⚠️ **A ausência no `node_modules` do runner NÃO prova ausência no bundle.** A
+imagem exportada tem 7 pacotes (`client-only`, `detect-libc`, `next`, `react`,
+`react-dom`, `sharp`, `styled-jsx`) e nenhum dos dois — mas o Next bundla o
+código do `better-auth` (e do `kysely` junto) nos chunks do servidor. **O que
+sustenta a conclusão é o ensaio**, não a listagem: login por senha, OAuth com
+Google e `get-session` passaram todos em `node:20-alpine` (§10.16).
+
+**Caminho futuro:** subir para `node:22-alpine` **depois** do primeiro deploy,
+no mesmo passo em que o `scripts/migrar-firestore.ts` for descartado após o
+corte final (§10.8b) — aí o `firebase-admin` sai do build junto. Trocar agora
+invalidaria a validação toda (ensaio, build e `migrate deploy` foram em 20) para
+silenciar um aviso cosmético.
+
+---
+
 ## 11. PRÓXIMA AÇÃO IMEDIATA
 
 Aguardando **OK do usuário no grupo B da Frente 2** (§6). Com o OK: aplicar os 10
