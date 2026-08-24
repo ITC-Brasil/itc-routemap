@@ -1226,6 +1226,86 @@ validado, e serve se o host mudar para um com TLS próprio.
 
 ---
 
+## 10.18. Arquivos de referência do NoteScan — o que aprendemos (2026-08-24)
+
+Chegaram `Dockerfile`, `.dockerignore`, `docker-entrypoint.sh`, `ci.yml`,
+`deploy.yml`, `dependabot.yml` e `next.config.ts` de outro projeto do grupo
+(NoteScan). O `docker-entrypoint.sh` roda migrations no start do container com
+`node node_modules/prisma/build/index.js migrate deploy` — chamando o Prisma
+pelo **caminho do módulo**, sem `npx`. Isso motivou reavaliar o §10.5.
+
+### 1. Correção de causa: falta o PACOTE, não só o symlink
+
+O diagnóstico do ensaio estava **certo na conclusão** — `migrate deploy` e seed
+não rodam no runner standalone — e **impreciso na causa**. Não é (só) o
+`node_modules/.bin/prisma` ausente:
+
+- o standalone do Next empacota **apenas o que o código importa** (module
+  tracing). O CLI do Prisma não é importado por nada em `app/` ou `lib/`, então
+  o **pacote `prisma` inteiro não está lá**;
+- o NoteScan não resolve isso com symlink: ele copia o **`node_modules`
+  completo** do stage `deps` (`COPY --from=deps /app/node_modules
+  ./node_modules`, comentado no Dockerfile deles como "para garantir todas as
+  deps transitivas do Prisma CLI"). Com o pacote presente, o caminho do módulo
+  só contorna o `.bin/`, que o standalone realmente **não** recria.
+
+**Para o `migrate deploy` rodar no nosso runner** bastaria copiar do `deps` três
+pacotes — `prisma`, `@prisma/engines` e `@prisma/config` — ao custo de
+**~149 MB** (71 + 77 + 1, medidos em disco nesta máquina).
+
+### 2. Entrypoint com migrate no start: NÃO adotado
+
+A favor: elimina o passo manual, e réplica única aqui significa zero risco de
+duas instâncias migrando em paralelo. Contra: os ~149 MB, e `restart: always`
+transforma migrate falho em **crash loop** — o container reinicia em laço em vez
+de parar com o erro visível. Note que "migrate falho impede o container de
+subir" é, em si, o comportamento **correto**: app com schema desatualizado
+corrompe dado. O problema é o laço escondendo a causa.
+
+Decisão: **manter o one-off da imagem `builder`**, que já está ensaiado e
+escrito no `DEPLOY.md`. Nosso deploy é manual e raro. Revisitar depois do
+primeiro deploy real.
+
+### 3. O seed continua exigindo o one-off — e o motivo NÃO é o `tsx`
+
+Esta é a correção mais importante do §10.5. O `tsx` caberia pelo mesmo truque
+do caminho de módulo (`node node_modules/tsx/dist/cli.mjs`, ~13 MB com o
+`esbuild`). O bloqueio real é outro: `prisma/seed.ts` importa `../lib/prisma` e
+`../lib/better-auth` — **fonte TypeScript em `lib/`**, que o runner não copia e
+que arrastaria os transitivos junto. Copiar `lib/` para a imagem de produção só
+para semear é pior que o one-off.
+
+Exceção: `scripts/convidar.ts` é autocontido (só `dotenv` e `@prisma/client`) e
+rodaria no runner sem copiar fonte nenhuma.
+
+### 4. O que foi aproveitado do Dockerfile deles (commit `3a9efb6`)
+
+- **cache mount do BuildKit** no `npm ci` — ganho direto nos rebuilds do
+  servidor, custo zero;
+- **`NEXT_TELEMETRY_DISABLED=1`** no stage base.
+
+Avaliados e **não** aplicados: `apk add openssl` nos três stages (eles põem por
+causa dos engines do Prisma; o nosso ensaio de migrate passou em alpine sem
+ele — baixa prioridade, mas é candidato caso apareça erro de engine);
+`prisma.config.ts` (preparação para o Prisma 7, já anotada como dívida em
+§10.7); e o `.dockerignore` deles, que é **mais fraco** que o nosso — não ignora
+`.env*` genérico nem o storage state do Playwright, que contém token de sessão.
+
+### 5. ⚠️ `ci.yml` deles NÃO serve para nós — não adotar como está
+
+O `npm run test` do NoteScan é **teste unitário**. O nosso é **Playwright, com
+browser e banco populado**. Portar o workflow exigiria, no mínimo:
+
+- um **serviço Postgres** no job (`services:` do GitHub Actions) com healthcheck;
+- **`prisma migrate deploy` + um seed de teste** antes da suíte — os specs
+  assumem dado (§Frente 3, seed-teste ainda a propor);
+- **`npx playwright install --with-deps`** para browser e libs de sistema;
+- as `NEXT_PUBLIC_*` como secrets no build, senão o bundle sai com `undefined`.
+
+Decisão: **fica para depois do primeiro deploy**. Não implementado.
+
+---
+
 ## 11. PRÓXIMA AÇÃO IMEDIATA
 
 Aguardando **OK do usuário no grupo B da Frente 2** (§6). Com o OK: aplicar os 10
