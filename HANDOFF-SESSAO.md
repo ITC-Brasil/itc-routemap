@@ -1304,6 +1304,20 @@ browser e banco populado**. Portar o workflow exigiria, no mínimo:
 
 Decisão: **fica para depois do primeiro deploy**. Não implementado.
 
+### 6. Dois detalhes que reforçam as recusas acima
+
+- **Contra o entrypoint:** eles copiam o `node_modules` **inteiro** do stage
+  `deps` — e o `npm ci` de lá roda sem `--omit=dev`, então vai **devDependency
+  junto**. No nosso caso isso arrastaria o Playwright (`playwright-core` 13 MB +
+  `playwright` 5 MB + `@playwright/test` 1 MB, medidos; os browsers não estão no
+  `node_modules`) e mais 11 devDeps para a imagem de produção. O custo real é a
+  árvore dev+prod inteira, não os 149 MB do Prisma isolado.
+- **A favor do nosso `.dockerignore`:** o deles tem duas lacunas. Não usa padrão
+  genérico `.env*` — lista só `.env`, `.env.local`, `.env.development` e
+  `.env.test`, então **um `.env.docker` entraria na imagem**. E não ignora
+  storage state de teste, que no nosso caso (`tests/e2e/.auth/`) contém **token
+  de sessão válido**. O nosso cobre os dois.
+
 ---
 
 ## 10.19. `EBADENGINE` no `npm ci` — build-time, não runtime (2026-08-24)
