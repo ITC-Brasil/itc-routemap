@@ -1,0 +1,17 @@
+Renomeie cada arquivo removendo a extensao .txt final:
+  arquivo.svg.txt  ->  arquivo.svg
+
+O conteudo ja e SVG valido com animacao SMIL (ciclo de 4s).
+O .txt existe apenas porque este ambiente remove a animacao de arquivos .svg servidos.
+
+SIMBOLO (so o percurso):
+  routemap-simbolo-animado-teal / teal-claro / branco
+
+LOCKUP (simbolo + ITC + RouteMap):
+  routemap-lockup-animado-claro   -> fundo claro (nome bordo #491027)
+  routemap-lockup-animado-escuro  -> fundo escuro (nome #F4F6F6)
+  routemap-lockup-animado-branco  -> monocromatico branco, sobre teal
+
+FONTES: o lockup usa Space Grotesk 700 e IBM Plex Mono 500, carregadas por @import do Google Fonts
+dentro do proprio SVG. Isso funciona no navegador. Em editores offline (Figma, Illustrator) converta
+os textos em curvas ou instale as fontes antes de abrir.

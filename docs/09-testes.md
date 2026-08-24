@@ -7,7 +7,7 @@ O sistema usa **Playwright 1.61.1** para testes End-to-End (E2E).
 ## Estrutura dos testes
 
 ```
-e2e/
+tests/e2e/
 ├── tests/
 │   ├── 01-auth.spec.ts            # Autenticação e autorização
 │   ├── 02-calcular-rotas.spec.ts  # UI do calculador de rotas
@@ -75,7 +75,7 @@ npm run test:e2e:report
 
 ### `02-calcular-rotas.spec.ts` — UI do Calculador
 
-Esses testes usam `storageState: "e2e/.auth/user.json"` para autenticação e são pulados em CI.
+Esses testes usam `storageState: "tests/e2e/.auth/user.json"` para autenticação e são pulados em CI.
 
 | ID | Teste | Descrição |
 |----|-------|-----------|
@@ -114,10 +114,10 @@ Testa as API routes diretamente via HTTP:
 
 ## Autenticação nos testes
 
-O Playwright usa `storageState` para reutilizar uma sessão autenticada entre testes. O setup em `e2e/setup/` realiza o login uma vez e salva o estado:
+O Playwright usa `storageState` para reutilizar uma sessão autenticada entre testes. O setup em `tests/e2e/setup/` realiza o login uma vez e salva o estado:
 
 ```typescript
-// e2e/setup/auth.setup.ts
+// tests/e2e/setup/auth.setup.ts
 import { test as setup } from "@playwright/test"
 
 setup("authenticate", async ({ page }) => {
@@ -126,11 +126,11 @@ setup("authenticate", async ({ page }) => {
   await page.fill('[name="password"]', process.env.TEST_PASSWORD!)
   await page.click('button[type="submit"]')
   await page.waitForURL("/")
-  await page.context().storageState({ path: "e2e/.auth/user.json" })
+  await page.context().storageState({ path: "tests/e2e/.auth/user.json" })
 })
 ```
 
-O arquivo `e2e/.auth/user.json` está no `.gitignore` e não é commitado.
+O arquivo `tests/e2e/.auth/user.json` está no `.gitignore` e não é commitado.
 
 ---
 
@@ -142,7 +142,7 @@ O arquivo `e2e/.auth/user.json` está no `.gitignore` e não é commitado.
 {
   baseURL: "http://localhost:3000",
   use: {
-    storageState: "e2e/.auth/user.json",
+    storageState: "tests/e2e/.auth/user.json",
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
@@ -171,7 +171,7 @@ test.skip(!!process.env.CI, "Requer auth e Firebase real")
 
 ## Plano de testes completo
 
-O plano detalhado com todos os casos de teste, critérios de aceitação e status está documentado em `docs/plano-testes-ouro.md` (adicionado no commit `22f7513`). O plano cobre:
+O plano detalhado com todos os casos de teste, critérios de aceitação e status está documentado em `tests/PLANO-DE-TESTES.md`. O plano cobre:
 
 - Autenticação e autorização
 - CRUD de técnicos, projetos e localidades
@@ -185,8 +185,8 @@ O plano detalhado com todos os casos de teste, critérios de aceitação e statu
 
 ## Adicionando novos testes
 
-1. Crie um arquivo `e2e/tests/XX-nome.spec.ts`
+1. Crie um arquivo `tests/e2e/tests/XX-nome.spec.ts`
 2. Use `test.describe` para agrupar casos relacionados
-3. Se o teste requer login, adicione `test.use({ storageState: "e2e/.auth/user.json" })`
+3. Se o teste requer login, adicione `test.use({ storageState: "tests/e2e/.auth/user.json" })`
 4. Se o teste requer Firebase real (dados ao vivo), adicione `test.skip(!!process.env.CI, "...")`
 5. Prefixe IDs de teste com a categoria (AU, UI, HI, AD, ST…)

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { exigirSessaoApi } from "@/lib/session-server"
 import {
   calcularMatrizDeslocamento,
   MAX_PARES,
@@ -9,12 +10,12 @@ import {
   type ModoMatrix,
 } from "@/lib/google-routes"
 import { resolverAlocacao } from "@/lib/alocacao"
-import type { ModoTransporte } from "@/lib/firestore/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
 import {
   gerarJustificativaAlocacao,
   type ContextoAlocacao,
 } from "@/lib/gemini"
-import { gerarLoteId } from "@/lib/firestore/rotas"
+import { gerarLoteId } from "@/lib/rotas-utils"
 
 // ============================================================
 // TIPOS DO BODY
@@ -64,6 +65,11 @@ type RequestBody = {
  *   5. Devolve resposta rica pronta pra UI / persistência
  */
 export async function POST(request: Request) {
+  // Blindagem: sessao obrigatoria ANTES de qualquer escrita no banco ou
+  // chamada paga a API externa.
+  const { erro: erroSessao } = await exigirSessaoApi()
+  if (erroSessao) return erroSessao
+
   const inicio = Date.now()
 
   try {
@@ -288,6 +294,12 @@ export async function POST(request: Request) {
     return NextResponse.json({
       sucesso: true,
       loteId: gerarLoteId(),
+      // Momento do cálculo, gerado no SERVIDOR. O lote só ganha `criadoEm` no
+      // banco quando é confirmado, e a tela do Resultado precisa da data antes
+      // disso. No cliente não serve: o cálculo é restaurado do sessionStorage por
+      // até 2h, e `new Date()` na renderização mostraria a hora de agora para um
+      // cálculo de mais cedo — data errada é pior que data ausente.
+      criadoEmIso: new Date().toISOString(),
       modoPrincipal,
       modosCalculados,
       alocacoes: alocacoesRicas,

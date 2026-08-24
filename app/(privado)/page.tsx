@@ -4,17 +4,10 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   ArrowRight,
-  CalendarDays,
-  CheckCircle2,
   Clock,
-  MapPin,
-  Timer,
-  TrendingUp,
-  Users,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -24,9 +17,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useAuth } from "@/contexts/auth-context"
-import { listarTodosPontos } from "@/lib/firestore/pontos"
-import { listarTecnicos } from "@/lib/firestore/tecnicos"
-import { listarRotasPorStatus, type Rota } from "@/lib/firestore/rotas"
+import { listarTodosPontos } from "@/lib/actions/pontos"
+import { listarTecnicos } from "@/lib/actions/tecnicos"
+import { listarRotasPorStatus } from "@/lib/actions/rotas"
+import type { Rota } from "@/lib/db/rotas"
 import { IconeModo } from "@/lib/modos-transporte"
 import { formatarDuracao, nomeAmigavelModo } from "@/app/(privado)/historico/_components/historico-formatters"
 
@@ -36,7 +30,7 @@ import { formatarDuracao, nomeAmigavelModo } from "@/app/(privado)/historico/_co
 
 function isHoje(ts: Rota["criadoEm"]): boolean {
   if (!ts) return false
-  const d = ts.toDate()
+  const d = ts
   const hoje = new Date()
   return (
     d.getFullYear() === hoje.getFullYear() &&
@@ -47,7 +41,7 @@ function isHoje(ts: Rota["criadoEm"]): boolean {
 
 function isNestesMes(ts: Rota["criadoEm"]): boolean {
   if (!ts) return false
-  const d = ts.toDate()
+  const d = ts
   const hoje = new Date()
   return (
     d.getFullYear() === hoje.getFullYear() && d.getMonth() === hoje.getMonth()
@@ -87,6 +81,9 @@ export default function InicioPage() {
         )
         setRotasConfirmadas(rotas)
       } catch (err) {
+        // Navegar antes do fetch terminar aborta a server action ("Failed to
+        // fetch"). Após o unmount é ruído benigno — ignora sem logar.
+        if (cancelado) return
         console.error("Erro ao carregar dashboard:", err)
       } finally {
         if (!cancelado) setCarregando(false)
@@ -130,146 +127,167 @@ export default function InicioPage() {
 
   return (
     <div className="space-y-8">
-      {/* HEADER */}
-      <div>
-        <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          {saudacao}
-        </p>
-        <h1 className="mt-1 font-heading text-4xl">
-          {user?.displayName ?? "Administrador"}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {new Date().toLocaleDateString("pt-BR", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-        </p>
-      </div>
-
-      {/* KPIs */}
-      <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          Visão geral
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <CardKpi
-            icone={<MapPin className="h-5 w-5 text-primary" />}
-            valor={carregando ? "—" : String(pontosPendentes)}
-            label="Pontos pendentes"
-            descricao="aguardando alocação"
-            href="/calcular-rotas"
-            linkLabel="Calcular rotas"
-            destaque={pontosPendentes > 0}
-          />
-          <CardKpi
-            icone={<CheckCircle2 className="h-5 w-5 text-itc-sucesso" />}
-            valor={carregando ? "—" : String(pontosAgendados)}
-            label="Pontos agendados"
-            descricao="rotas confirmadas ativas"
-            href="/historico"
-            linkLabel="Ver histórico"
-          />
-          <CardKpi
-            icone={<Users className="h-5 w-5 text-primary" />}
-            valor={carregando ? "—" : String(tecnicosDisponiveis)}
-            label="Técnicos disponíveis"
-            descricao="com localização cadastrada"
-            href="/admin/tecnicos"
-            linkLabel="Gerenciar técnicos"
-          />
-          <CardKpi
-            icone={<CalendarDays className="h-5 w-5 text-primary" />}
-            valor={carregando ? "—" : String(rotasHoje.length)}
-            label="Rotas confirmadas hoje"
-            descricao="cronograma do dia"
-          />
-          <CardKpi
-            icone={<TrendingUp className="h-5 w-5 text-primary" />}
-            valor={carregando ? "—" : String(rotasNoMes.length)}
-            label="Alocações no mês"
-            descricao={`${new Date().toLocaleString("pt-BR", { month: "long" })} atual`}
-          />
-          <CardKpi
-            icone={<Timer className="h-5 w-5 text-primary" />}
-            valor={
-              carregando
-                ? "—"
-                : tempoMedioSeg > 0
-                  ? formatarDuracao(tempoMedioSeg)
-                  : "—"
-            }
-            label="Tempo médio"
-            descricao="de deslocamento no mês"
-          />
+      {/* HEADER — saudação em accent, nome em Archivo, régua inferior e a ação
+          primária do dia à direita (protótipo v2). */}
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b pb-[22px]">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+            {saudacao}
+          </p>
+          <h1 className="mt-2 font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em]">
+            {user?.name ?? "Administrador"}
+          </h1>
+          <p className="mt-1.5 text-sm tabular-nums text-muted-foreground">
+            {new Date().toLocaleDateString("pt-BR", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </p>
         </div>
-      </section>
+        <Button asChild className="h-11 gap-2 px-6 text-[15px]">
+          <Link href="/calcular-rotas">
+            Calcular rotas
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+      </header>
 
-      {/* CRONOGRAMA DO DIA */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Cronograma de hoje
-          </h2>
-          {rotasHoje.length > 0 && (
-            <Button asChild variant="ghost" size="sm" className="gap-1.5 text-xs">
+      {/* HERO — "Rodando agora" ocupa a largura e os indicadores do momento viram
+          uma coluna de tiles de 300px ao lado (protótipo v2).
+
+          A grade de seis cards de métrica saiu da posição de destaque: o que
+          importa ao abrir o sistema é o que está rodando, não seis números. Nenhum
+          dos seis se perdeu — quatro são os tiles desta coluna (os do "agora", com
+          link de ação) e dois vão para "Mês atual", que é o recorte deles. */}
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <section className="overflow-hidden rounded-xl border border-t-2 border-t-primary bg-card shadow-[var(--shadow-1)]">
+          <div className="flex items-center justify-between gap-4 border-b px-[22px] py-4">
+            <div className="flex items-center gap-2.5">
+              <span
+                aria-hidden="true"
+                className={`size-2 shrink-0 rounded-full ${
+                  rotasHoje.length > 0 ? "bg-ok" : "bg-muted-foreground/40"
+                }`}
+              />
+              <h2 className="text-[17px] font-semibold">Rodando agora</h2>
+              <span className="text-[13px] tabular-nums text-muted-foreground">
+                {rotasHoje.length}{" "}
+                {rotasHoje.length === 1 ? "rota em campo" : "rotas em campo"}
+              </span>
+            </div>
+            <Button asChild variant="ghost" size="sm" className="gap-1.5 text-[13px]">
               <Link href="/historico">
-                Ver histórico completo
-                <ArrowRight className="h-3.5 w-3.5" />
+                Histórico completo
+                <ArrowRight className="size-3.5" />
               </Link>
             </Button>
-          )}
-        </div>
+          </div>
 
-        {carregando ? (
-          <SkeletonCronograma />
-        ) : rotasHoje.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Clock className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
-              <p className="font-medium text-muted-foreground">
-                Nenhuma rota confirmada hoje
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground/70">
-                Calcule e confirme alocações para elas aparecerem aqui.
+          {carregando ? (
+            <SkeletonCronograma />
+          ) : rotasHoje.length === 0 ? (
+            <div className="px-[22px] py-12 text-center">
+              {/* Empty state diz o que fazer, não que está vazio. */}
+              <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-full bg-accent">
+                <Clock className="size-5 text-primary" />
+              </div>
+              <p className="font-heading text-lg">Nenhuma rota confirmada hoje</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Calcule e confirme alocações para vê-las aqui.
               </p>
               <Button asChild className="mt-4 gap-2" size="sm">
                 <Link href="/calcular-rotas">
                   Calcular rotas
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="size-4" />
                 </Link>
               </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-5">Técnico</TableHead>
-                    <TableHead>Destino</TableHead>
-                    <TableHead>Modo</TableHead>
-                    <TableHead className="pr-5 text-right">Tempo</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rotasHoje.map((rota) => (
-                    <LinhaRota key={rota.id} rota={rota} />
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-[22px]">Técnico</TableHead>
+                  <TableHead>Destino</TableHead>
+                  <TableHead>Modo</TableHead>
+                  <TableHead className="pr-[22px] text-right">Tempo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rotasHoje.map((rota) => (
+                  <LinhaRota key={rota.id} rota={rota} />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </section>
+
+        {/* Indicadores do AGORA — os que têm ação, em tiles compactos. */}
+        <div className="flex flex-col gap-3">
+          <TileKpi
+            valor={carregando ? "—" : String(pontosPendentes)}
+            label="Pontos pendentes"
+            acao="Calcular rotas"
+            href="/calcular-rotas"
+            zero={!carregando && pontosPendentes === 0}
+          />
+          <TileKpi
+            valor={carregando ? "—" : String(pontosAgendados)}
+            label="Pontos agendados"
+            acao="Ver histórico"
+            href="/historico"
+            zero={!carregando && pontosAgendados === 0}
+          />
+          <TileKpi
+            valor={carregando ? "—" : String(tecnicosDisponiveis)}
+            label="Técnicos disponíveis"
+            acao="Gerenciar técnicos"
+            href="/admin/tecnicos"
+            zero={!carregando && tecnicosDisponiveis === 0}
+          />
+          <TileKpi
+            valor={carregando ? "—" : String(rotasHoje.length)}
+            label="Rotas confirmadas hoje"
+            descricao="cronograma do dia"
+            zero={!carregando && rotasHoje.length === 0}
+          />
+        </div>
+      </div>
+
+      {/* MÊS ATUAL — os dois indicadores que são recorte do mês. */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h2 className="text-[17px] font-semibold">Mês atual</h2>
+          <span className="text-[13px] text-muted-foreground">
+            {new Date().toLocaleString("pt-BR", { month: "long" })} começou há{" "}
+            <span className="tabular-nums">{new Date().getDate() - 1}</span>{" "}
+            {new Date().getDate() - 1 === 1 ? "dia" : "dias"}
+          </span>
+        </div>
+        <div className="grid max-w-[620px] gap-3.5 sm:grid-cols-2">
+          <CardMes
+            valor={carregando ? "—" : String(rotasNoMes.length)}
+            label="Alocações no mês"
+            descricao="rotas confirmadas desde o dia 1º"
+            zero={!carregando && rotasNoMes.length === 0}
+          />
+          <CardMes
+            valor={
+              carregando || tempoMedioSeg === 0
+                ? "—"
+                : formatarDuracao(tempoMedioSeg)
+            }
+            label="Tempo médio de deslocamento"
+            descricao="por rota confirmada no mês"
+            zero={!carregando && tempoMedioSeg === 0}
+          />
+        </div>
       </section>
 
       {/* ACESSO RÁPIDO */}
       <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          Acesso rápido
-        </h2>
+        <h2 className="text-[17px] font-semibold">Acesso rápido</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <BotaoAtalho href="/calcular-rotas" label="Calcular Rotas" />
           <BotaoAtalho href="/historico" label="Histórico" />
@@ -285,51 +303,96 @@ export default function InicioPage() {
 // SUBCOMPONENTES
 // ============================================================
 
-function CardKpi({
-  icone,
+/**
+ * Tile de indicador do "agora" — coluna de 300px ao lado do que está rodando.
+ *
+ * Zerado recolhe: número e rótulo em `text-muted` e o link de ação sai, porque
+ * não há o que acionar sobre nada (system.md §5.5). O tile não desaparece — a
+ * ausência é informação.
+ */
+function TileKpi({
+  valor,
+  label,
+  acao,
+  href,
+  descricao,
+  zero,
+}: {
+  valor: string
+  label: string
+  acao?: string
+  href?: string
+  descricao?: string
+  zero?: boolean
+}) {
+  const mostrarAcao = acao && href && !zero
+  return (
+    <div className="flex items-center gap-4 rounded-xl border border-t-2 border-t-primary bg-card px-[18px] py-4 shadow-[var(--shadow-1)]">
+      <span
+        className={`min-w-[44px] font-heading text-[34px] font-bold leading-none tabular-nums ${
+          zero ? "text-muted-foreground" : ""
+        }`}
+      >
+        {valor}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p
+          className={`text-sm font-semibold leading-tight ${
+            zero ? "text-muted-foreground" : ""
+          }`}
+        >
+          {label}
+        </p>
+        {mostrarAcao ? (
+          <Link
+            href={href}
+            className="mt-0.5 inline-flex items-center gap-1 text-[12.5px] font-semibold text-primary hover:text-brand-hover"
+          >
+            {acao}
+            <ArrowRight className="size-3" />
+          </Link>
+        ) : (
+          descricao && (
+            <p className="mt-px text-[12.5px] text-muted-foreground">
+              {descricao}
+            </p>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Card de indicador do mês — mesma regra do zero. */
+function CardMes({
   valor,
   label,
   descricao,
-  href,
-  linkLabel,
-  destaque,
+  zero,
 }: {
-  icone: React.ReactNode
   valor: string
   label: string
   descricao: string
-  href?: string
-  linkLabel?: string
-  destaque?: boolean
+  zero?: boolean
 }) {
-  const classes = [
-    href ? "card-interactive" : "",
-    destaque ? "border-primary/40 bg-primary/5" : "",
-  ]
-    .filter(Boolean)
-    .join(" ")
-
   return (
-    <Card className={classes || undefined}>
-      <CardContent className="flex flex-col gap-3 p-5">
-        <div className="flex items-center gap-3">
-          <div className="rounded-full bg-primary/10 p-2.5">{icone}</div>
-          <div className="min-w-0 flex-1">
-            <p className="font-heading text-3xl leading-tight">{valor}</p>
-            <p className="text-xs font-medium text-foreground">{label}</p>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">{descricao}</p>
-        {href && linkLabel && (
-          <Button asChild variant="ghost" size="sm" className="h-7 justify-start gap-1 px-0 text-xs text-primary">
-            <Link href={href}>
-              {linkLabel}
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+    <div className="rounded-xl border border-t-2 border-t-primary bg-card px-[18px] py-4 shadow-[var(--shadow-1)]">
+      <p
+        className={`font-heading text-[26px] font-bold leading-none tabular-nums ${
+          zero ? "text-muted-foreground" : ""
+        }`}
+      >
+        {valor}
+      </p>
+      <p
+        className={`mt-1.5 text-[13px] font-semibold leading-tight ${
+          zero ? "text-muted-foreground" : ""
+        }`}
+      >
+        {label}
+      </p>
+      <p className="mt-px text-[12.5px] text-muted-foreground">{descricao}</p>
+    </div>
   )
 }
 
@@ -358,7 +421,7 @@ function LinhaRota({ rota }: { rota: Rota }) {
       </TableCell>
       <TableCell className="pr-5 text-right">
         {duracaoSeg != null ? (
-          <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+          <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold tabular-nums text-primary">
             {formatarDuracao(duracaoSeg)}
           </span>
         ) : (

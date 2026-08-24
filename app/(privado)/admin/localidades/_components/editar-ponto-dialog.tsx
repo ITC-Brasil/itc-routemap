@@ -16,9 +16,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Combobox } from "@/components/ui/combobox"
 import { Badge } from "@/components/ui/badge"
-import { atualizarPonto, type Ponto } from "@/lib/firestore/pontos"
-import type { Projeto } from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import { atualizarPonto } from "@/lib/actions/pontos"
+import type { Ponto } from "@/lib/db/pontos"
+import type { Projeto } from "@/lib/db/projetos"
+import { corTextoIdeal } from "@/lib/cores"
 
 const STATUSES_PADRAO = ["Pendente", "Atual", "Histórico"]
 

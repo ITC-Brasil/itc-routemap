@@ -1,0 +1,34 @@
+ITC RouteMap — pacote de identidade
+===================================
+
+Estrutura (mesma do pacote ITC NoteScan):
+
+exports/symbol/    simbolo isolado (viewBox 0 0 26 26)
+exports/lockup/    lockup horizontal (viewBox 0 0 275.42 64) e empilhado (0 0 214.62 148)
+exports/favicon/   favicons, icones de app e og-image
+
+Variantes cromaticas
+  color     ciano #008F95 + quase-preto #1B1B1B
+  mono      preto puro #000000
+  negative  branco puro #FFFFFF (fundo escuro)
+
+Metricas do lockup horizontal (herdadas do NoteScan)
+  simbolo       caixa 0-64 a esquerda (escala 2.4615 sobre o viewBox 26)
+  texto inicia  x=72
+  ITC           font-size 12, weight 600, letter-spacing 5.04, baseline y=19, textLength 34.28
+  RouteMap      font-size 40, weight 800, letter-spacing -1, baseline y=59, textLength 198.62
+  largura total 275.42 (metrica real de "RouteMap" em Archivo ExtraBold, sem distorcer glifo)
+
+Fonte: Archivo (fallback Helvetica, Arial, sans-serif). Para uso fora do navegador,
+instale a Archivo ou converta os textos em curvas.
+
+Arquivos animados
+  Vem com extensao .svg.txt — renomeie removendo o .txt final; o conteudo ja e SVG valido
+  com animacao SMIL (loop de 4s). O estado de repouso e identico ao simbolo estatico, entao
+  captura de tela, PDF e prefers-reduced-motion mostram a marca desenhada.
+
+PNGs
+  Todos rasterizados a partir da mesma geometria vetorial, nunca reamostrados de um PNG maior.
+  favicon.ico contem 16, 32 e 48 px.
+  apple-touch-icon / icon-192 / icon-512 usam simbolo branco sobre fundo ciano #008F95.
+  favicon-16/32/96 usam o simbolo colorido sobre fundo transparente.

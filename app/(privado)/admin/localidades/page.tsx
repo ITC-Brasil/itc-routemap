@@ -8,15 +8,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Combobox } from "@/components/ui/combobox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import {
-  listarProjetos,
-  type Projeto,
-} from "@/lib/firestore/projetos"
-import {
-  listarTodosPontos,
-  type Ponto,
-} from "@/lib/firestore/pontos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import { listarProjetos } from "@/lib/actions/projetos"
+import type { Projeto } from "@/lib/db/projetos"
+import { listarTodosPontos } from "@/lib/actions/pontos"
+import type { Ponto } from "@/lib/db/pontos"
 import { TabelaPontos } from "./_components/tabela-pontos"
 import { EditarPontoDialog } from "./_components/editar-ponto-dialog"
 
@@ -250,14 +245,18 @@ export default function LocalidadesPage() {
   // ====== RENDER ======
   return (
     <div className="space-y-8">
-      {/* HEADER */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+      {/* HEADER — o controle de sincronismo continua sendo a ação primária da
+          tela, ao lado do título. O protótipo não leu esta página, então filtros
+          e sincronismo foram preservados como estão; só os tokens mudaram. */}
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b pb-[22px]">
+        <div className="max-w-[620px]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
             Administração
           </p>
-          <h1 className="mt-1 font-heading text-4xl">Localidades</h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
+          <h1 className="mt-2 font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em]">
+            Localidades
+          </h1>
+          <p className="mt-2.5 text-pretty text-muted-foreground">
             Pontos de operação importados das planilhas Google Sheets de cada
             projeto. Use o botão Atualizar Pontos para sincronizar.
           </p>
@@ -265,15 +264,14 @@ export default function LocalidadesPage() {
         <Button
           onClick={handleAtualizarPontos}
           disabled={sincronizando || carregando}
-          size="lg"
-          className="gap-2"
+          className="h-11 gap-2 px-6 text-[15px]"
         >
           <RefreshCw
-            className={`h-4 w-4 ${sincronizando ? "animate-spin" : ""}`}
+            className={`size-4 ${sincronizando ? "animate-spin" : ""}`}
           />
           {sincronizando ? "Sincronizando..." : "Atualizar Pontos"}
         </Button>
-      </div>
+      </header>
 
       {/* CONTEÚDO PRINCIPAL */}
       {carregando ? (
@@ -428,10 +426,8 @@ function ConteudoPrincipal({
     <div className="space-y-8">
       {/* CARDS DE RESUMO */}
       <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          Resumo por projeto
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <h2 className="text-[17px] font-semibold">Resumo por projeto</h2>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {estatisticas.map((est) => (
             <CardResumoProjeto key={est.projetoId} estatistica={est} />
           ))}
@@ -441,11 +437,9 @@ function ConteudoPrincipal({
       {/* FILTROS */}
       <Card>
         <CardContent className="space-y-4 p-6">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Filter className="h-4 w-4" />
-            <h2 className="font-mono text-xs uppercase tracking-widest">
-              Filtros
-            </h2>
+          <div className="flex items-center gap-2">
+            <Filter className="size-4 text-muted-foreground" />
+            <h2 className="text-[17px] font-semibold">Filtros</h2>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
@@ -538,7 +532,7 @@ function ConteudoPrincipal({
 
       {/* TABELA DE PONTOS */}
       <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+        <h2 className="text-[17px] font-semibold tabular-nums">
           {pontosFiltrados.length}{" "}
           {pontosFiltrados.length === 1
             ? "ponto encontrado"
@@ -573,25 +567,15 @@ function CardResumoProjeto({
 }: {
   estatistica: EstatisticaProjeto
 }) {
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    e.currentTarget.style.setProperty("--card-mx", `${e.clientX - rect.left}px`)
-    e.currentTarget.style.setProperty("--card-my", `${e.clientY - rect.top}px`)
-  }
-
+  // O spotlight que seguia o mouse saiu com o BackgroundGrid: `.card-interactive`
+  // ficou só com a elevação e a barra lateral no hover.
   return (
-    <Card
-      onMouseMove={handleMouseMove}
-      className="card-interactive"
-    >
+    <Card className="card-interactive">
       <CardContent className="space-y-4 p-4">
         <div className="space-y-2">
           <span
-            className="inline-flex items-center rounded-md px-2.5 py-0.5 font-mono text-xs font-semibold"
-            style={{
-              backgroundColor: est.cor,
-              color: corTextoIdeal(est.cor),
-            }}
+            className="badge-cor-dado inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-xs font-semibold"
+            style={{ "--cor-dado": est.cor } as React.CSSProperties}
           >
             {est.sigla}
           </span>
@@ -599,7 +583,9 @@ function CardResumoProjeto({
         </div>
 
         <div className="space-y-0.5">
-          <p className="font-heading text-3xl leading-none">{est.totalPontos}</p>
+          <p className="font-heading text-3xl leading-none tabular-nums">
+            {est.totalPontos}
+          </p>
           <p className="text-xs text-muted-foreground">
             {est.totalPontos === 1 ? "ponto" : "pontos"} sincronizado
             {est.totalPontos === 1 ? "" : "s"}
@@ -611,7 +597,9 @@ function CardResumoProjeto({
             <span className="font-mono uppercase tracking-widest text-muted-foreground">
               UMs
             </span>
-            <span className="font-heading text-lg">{est.totalUms}</span>
+            <span className="font-heading text-lg tabular-nums">
+              {est.totalUms}
+            </span>
           </div>
 
           {est.contagemPorStatus.length > 0 && (
@@ -623,10 +611,13 @@ function CardResumoProjeto({
                 {est.contagemPorStatus.map(([status, count]) => (
                   <li
                     key={status}
-                    className="flex items-baseline justify-between"
+                    className="flex items-baseline justify-between gap-2"
                   >
-                    <span>{status}</span>
-                    <span className="font-medium">{count}</span>
+                    {/* O nome do status leva a cor dele também aqui: é a mesma
+                        informação da pílula da tabela, e ler duas codificações
+                        diferentes para o mesmo estado custa atenção. */}
+                    <span className={corDoStatus(status)}>{status}</span>
+                    <span className="font-medium tabular-nums">{count}</span>
                   </li>
                 ))}
               </ul>
@@ -698,6 +689,16 @@ function contarStatuses(pontos: Ponto[]): Array<[string, number]> {
     return a[0].localeCompare(b[0], "pt-BR")
   })
 }
+/**
+ * Classe de cor do status do ponto, no mesmo vocabulário da pílula da tabela
+ * (system.md §5.2): Pendente = warn, Agendado = accent, Histórico = muted.
+ */
+function corDoStatus(status: string): string {
+  if (status === "Pendente") return "text-warn"
+  if (status === "Agendado") return "text-primary"
+  return "text-muted-foreground"
+}
+
 // ============================================================
 // FILTROS
 // ============================================================

@@ -25,9 +25,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { LoteSumario } from "@/lib/firestore/lotes"
-import type { Projeto } from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import type { LoteSumario } from "@/lib/db/lotes"
+import type { Projeto } from "@/lib/db/projetos"
 import {
   formatarDataHora,
   formatarDistancia,
@@ -61,7 +60,7 @@ export function CardLote({ lote, projetos, onCancelar }: Props) {
           {/* Lado esquerdo: identificação */}
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+              <span className="font-mono text-xs uppercase tracking-widest tabular-nums text-muted-foreground">
                 Lote {loteIdCurto}
               </span>
               <StatusBadge lote={lote} />
@@ -76,11 +75,8 @@ export function CardLote({ lote, projetos, onCancelar }: Props) {
                 {projetosDoLote.map((projeto) => (
                   <span
                     key={projeto.id}
-                    className="inline-flex h-5 items-center rounded px-2 font-mono text-xs font-semibold"
-                    style={{
-                      backgroundColor: projeto.cor,
-                      color: corTextoIdeal(projeto.cor),
-                    }}
+                    className="badge-cor-dado inline-flex h-5 items-center rounded-full border px-2 font-mono text-xs font-semibold"
+                    style={{ "--cor-dado": projeto.cor } as React.CSSProperties}
                   >
                     {projeto.sigla}
                   </span>
@@ -173,32 +169,32 @@ export function CardLote({ lote, projetos, onCancelar }: Props) {
 // SUBCOMPONENTES
 // ============================================================
 
+/**
+ * Status do lote (system.md §5.2).
+ *
+ * Confirmada é sólida sobre tint; Cancelada é OUTLINE, sem preenchimento. A
+ * assimetria é deliberada: cancelado não deve competir com confirmado na
+ * varredura visual da lista. Antes as três variantes tinham o mesmo peso —
+ * fundo em 10% e borda em 30% —, e um lote cancelado chamava tanta atenção
+ * quanto um ativo.
+ */
 function StatusBadge({ lote }: { lote: LoteSumario }) {
   if (lote.statusLote === "Confirmada") {
     return (
-      <Badge
-        variant="outline"
-        className="border-itc-sucesso/30 bg-itc-sucesso/10 text-itc-sucesso"
-      >
+      <Badge variant="outline" className="border-ok bg-ok-tint text-ok">
         Confirmada
       </Badge>
     )
   }
   if (lote.statusLote === "Cancelada") {
     return (
-      <Badge
-        variant="outline"
-        className="border-destructive/30 bg-destructive/10 text-destructive"
-      >
+      <Badge variant="outline" className="border-err/40 bg-transparent text-err">
         Cancelada
       </Badge>
     )
   }
   return (
-    <Badge
-      variant="outline"
-      className="border-itc-atencao/30 bg-itc-atencao/10 text-itc-atencao"
-    >
+    <Badge variant="outline" className="border-warn bg-warn-tint text-warn">
       Mista
     </Badge>
   )
@@ -209,16 +205,16 @@ function StatusBadge({ lote }: { lote: LoteSumario }) {
 // ============================================================
 // Aparece SEMPRE em conjunto com o StatusBadge quando o lote teve
 // ao menos 1 swap manual antes da confirmação (origemDecisao !== "auto").
-// Cor accent (bordô do tema ITC) — distinguível dos demais sem ser
-// alarmante (não é erro, é uma informação extra).
+// Cor --info em outline (system.md §5.2): distinguível dos demais sem ser
+// alarmante — não é erro, é informação extra.
 
 function BadgeAjusteManual() {
   return (
     <Badge
       variant="outline"
-      className="gap-1 border-accent/40 bg-accent/10 text-accent"
+      className="gap-1 border-info/40 bg-transparent text-info"
     >
-      <Hand className="h-3 w-3" />
+      <Hand className="size-3" />
       Ajuste manual
     </Badge>
   )
@@ -230,9 +226,9 @@ function BadgeReotimizacao() {
   return (
     <Badge
       variant="outline"
-      className="gap-1 border-blue-300/50 bg-blue-50/40 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/20 dark:text-blue-400"
+      className="gap-1 border-info/40 bg-info-tint text-info"
     >
-      <RefreshCw className="h-3 w-3" />
+      <RefreshCw className="size-3" />
       Re-otimização
     </Badge>
   )
@@ -257,9 +253,9 @@ function Metrica({
           {label}
         </span>
       </div>
-      <p className="font-heading text-2xl leading-none">{valor}</p>
+      <p className="font-heading text-2xl leading-none tabular-nums">{valor}</p>
       {sublabel && (
-        <p className="text-xs text-muted-foreground">{sublabel}</p>
+        <p className="text-xs tabular-nums text-muted-foreground">{sublabel}</p>
       )}
     </div>
   )

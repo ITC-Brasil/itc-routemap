@@ -28,8 +28,7 @@ import { useCallback, useMemo, useState } from "react"
 import {
   AlertCircle,
   ArrowLeft,
-  Bike,
-  Car,
+  ArrowRight,
   Check,
   ChevronDown,
   ChevronUp,
@@ -41,6 +40,7 @@ import {
   Users,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { corTextoIdeal } from "@/lib/cores"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -59,8 +59,9 @@ import {
 import type {
   ModoTransporte,
   OrigemDecisao,
-} from "@/lib/firestore/rotas"
+} from "@/lib/rotas-utils"
 import { MapaAlocacao, type RotaData } from "./mapa-alocacao"
+import { MapaLote } from "./mapa-lote"
 import {
   IconeModo,
   MODOS_SELECIONAVEIS,
@@ -109,6 +110,11 @@ export type AlocacaoRica = {
 export type RespostaAlocacao = {
   sucesso: true
   loteId: string
+  /**
+   * ISO do momento do cálculo, do servidor. Opcional porque um cálculo restaurado
+   * do sessionStorage pode ter sido salvo antes deste campo existir.
+   */
+  criadoEmIso?: string
   modoPrincipal: ModoTransporte
   modosCalculados: ModoTransporte[]
   alocacoes: AlocacaoRica[]
@@ -175,16 +181,55 @@ interface Props {
   resultado: RespostaAlocacao
   onVoltar: () => void
   onConfirmar: (payload: PayloadConfirmacao) => void
+  /**
+   * Cor cadastrada de cada técnico, por id — o avatar do par (system.md §5.4).
+   *
+   * Vem por prop e não pela API: a página de Calcular Rotas já carrega os
+   * técnicos com `cor` para montar a lista de seleção, e este componente vive na
+   * mesma árvore. Acrescentar `cor` a `AlocacaoRica.origem` faria a resposta de
+   * `/api/routes/alocar` carregar um dado que ela não precisa conhecer.
+   */
+  coresPorTecnico?: Map<string, string>
+  /** Cor cadastrada de cada projeto, por id — marcador de destino no mapa. */
+  coresPorProjeto?: Map<string, string>
 }
 
 function chaveAlocacao(a: AlocacaoRica): string {
   return `${a.origem.id}|${a.destino.id}`
 }
 
+/** "2026-08-11T17:04:00Z" -> "11 ago 2026, 14:04" (fuso local). */
+function formatarDataHoraCurta(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return d
+    .toLocaleString("pt-BR", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+    .replace(".", "")
+}
+
+/** Iniciais para o avatar: "José Frederico" -> "JF". */
+function iniciaisDe(nome: string): string {
+  return nome
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((parte) => parte[0] ?? "")
+    .join("")
+    .toUpperCase()
+}
+
 export function ResultadoAlocacao({
   resultado,
   onVoltar,
   onConfirmar,
+  coresPorTecnico,
+  coresPorProjeto,
 }: Props) {
   // ====== 13.11 BLOCO 2: Estado de edição manual ======
   // null = sem edição (usa resultado.alocacoes original do algoritmo)
@@ -286,11 +331,21 @@ export function ResultadoAlocacao({
   )
 
   // ====== Helper pra obter duração efetiva de uma alocação ======
+  //
+  // A rota detalhada (rotaCache) tem precedência quando existe: vem do
+  // /api/routes/single, com horário de partida e passos do trajeto. Sem ela,
+  // vale a métrica que a alocação já trouxe da matriz.
+  //
+  // TRANSIT não é mais exceção. Antes esta função devolvia null para TRANSIT e
+  // descartava `aloc.metricas.TRANSIT`, que a API de alocação envia junto do
+  // resultado. Como `carregarRota` só roda quando o usuário expande o card ou
+  // troca de modo, o card ficava eternamente em "buscando…" sem nenhuma
+  // requisição em andamento, e o total do cabeçalho somava só os pares não-TRANSIT
+  // — mostrava 107 min onde o time gastava 247.
   const obterDuracaoSeg = useCallback(
     (aloc: AlocacaoRica, modo: ModoTransporte): number | null => {
       const cacheEntry = rotaCache.get(`${chaveAlocacao(aloc)}|${modo}`)
       if (cacheEntry?.estado === "ok") return cacheEntry.duracaoSegundos
-      if (modo === "TRANSIT") return null
       return aloc.metricas[modo]?.duracaoSegundos ?? null
     },
     [rotaCache],
@@ -577,14 +632,77 @@ export function ResultadoAlocacao({
   // ====== Render ======
   const alocacoesAtuais = obterAlocacoesAtuais()
 
+  // Pares para o mapa do lote. A polyline sai do cache de rota detalhada: onde o
+  // par já foi expandido, o caminho real; onde não, reta tracejada. Nenhuma
+  // chamada nova.
+  const paresNoMapa = alocacoesAtuais.map((a) => {
+    const chave = chaveAlocacao(a)
+    const modo = modosPorAloc.get(chave) ?? resultado.modoPrincipal
+    const entrada = rotaCache.get(`${chave}|${modo}`)
+    return {
+      chave,
+      tecnicoNome: a.origem.nome,
+      umNome: a.destino.umNome,
+      origem: { latitude: a.origem.latitude, longitude: a.origem.longitude },
+      destino: { latitude: a.destino.latitude, longitude: a.destino.longitude },
+      corTecnico: coresPorTecnico?.get(a.origem.id) ?? "#008F95",
+      corProjeto: coresPorProjeto?.get(a.destino.projetoId) ?? "#491027",
+      polyline: entrada?.estado === "ok" ? entrada.polyline : null,
+    }
+  })
+
   return (
     <div className="space-y-6">
-      {/* 13.11: banner muda se foi editado */}
-      {foiEditada ? (
-        <AvisoAlocacaoEditada onVoltarParaOtima={voltarParaOtima} />
-      ) : (
-        <JustificativaBanner texto={resultado.justificativaGemini} />
-      )}
+      {/* Cabeçalho da tela, com as duas ações no topo (protótipo v2): quem já
+          decidiu não precisa rolar a lista inteira para confirmar. */}
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b pb-[22px]">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+            Operação
+          </p>
+          <h1 className="mt-2 font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em]">
+            Resultado da alocação
+          </h1>
+          <p className="mt-1.5 font-mono text-[13px] font-semibold uppercase tabular-nums text-muted-foreground">
+            Lote {resultado.loteId.slice(0, 8)}
+            {resultado.criadoEmIso && (
+              <> · {formatarDataHoraCurta(resultado.criadoEmIso)}</>
+            )}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2.5">
+          <Button
+            variant="outline"
+            onClick={onVoltar}
+            className="h-11 gap-2 px-5 text-[15px]"
+          >
+            <ArrowLeft className="size-4" />
+            Voltar
+          </Button>
+          <Button
+            onClick={handleConfirmar}
+            disabled={alocacoesAtuais.length === 0}
+            className="h-11 gap-2 px-6 text-[15px]"
+          >
+            <Check className="size-4" />
+            Confirmar alocação
+          </Button>
+        </div>
+      </header>
+
+      {/* MAPA DO LOTE — elemento principal da tela. A distribuição geográfica de
+          uma alocação se entende num relance; ler par por par vem depois. */}
+      <section className="overflow-hidden rounded-xl border border-t-2 border-t-primary bg-card shadow-[var(--shadow-1)]">
+        <div className="flex items-center justify-between gap-4 border-b px-[22px] py-3.5">
+          <h2 className="text-[17px] font-semibold">Mapa do lote</h2>
+          <span className="text-[13px] text-muted-foreground">
+            {expandida
+              ? "Par destacado — feche o card para ver o lote inteiro"
+              : "Abra um par abaixo para destacá-lo no mapa"}
+          </span>
+        </div>
+        <MapaLote pares={paresNoMapa} chaveSelecionada={expandida} />
+      </section>
 
       <MetricasCards
         derivadas={metricasDerivadas}
@@ -594,17 +712,29 @@ export function ResultadoAlocacao({
         }
       />
 
-      {(resultado.tecnicosNaoAlocados.length > 0 ||
-        resultado.destinosNaoAlocados.length > 0) && (
-        <BannerSobras
-          tecnicos={resultado.tecnicosNaoAlocados}
-          destinos={resultado.destinosNaoAlocados}
-        />
-      )}
+      {/* Análise e sobras lado a lado, 1.7fr / 1fr — a análise é texto corrido e
+          precisa da largura; a sobra é uma lista curta de nomes. */}
+      <div className="grid items-stretch gap-3.5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+        {foiEditada ? (
+          <AvisoAlocacaoEditada onVoltarParaOtima={voltarParaOtima} />
+        ) : (
+          <JustificativaBanner texto={resultado.justificativaGemini} />
+        )}
+        {(resultado.tecnicosNaoAlocados.length > 0 ||
+          resultado.destinosNaoAlocados.length > 0) && (
+          <BannerSobras
+            tecnicos={resultado.tecnicosNaoAlocados}
+            destinos={resultado.destinosNaoAlocados}
+          />
+        )}
+      </div>
 
       <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          Alocações ({alocacoesAtuais.length})
+        <h2 className="text-[17px] font-semibold">
+          Pares de alocação{" "}
+          <span className="font-medium tabular-nums text-muted-foreground">
+            ({alocacoesAtuais.length})
+          </span>
         </h2>
         <div className="space-y-3">
           {alocacoesAtuais.map((aloc, i) => {
@@ -625,6 +755,8 @@ export function ResultadoAlocacao({
                 expandido={expandido}
                 rotaEntry={rotaEntry}
                 duracaoSeg={obterDuracaoSeg(aloc, modo)}
+                corTecnico={coresPorTecnico?.get(aloc.origem.id)}
+                corProjeto={coresPorProjeto?.get(aloc.destino.projetoId)}
                 onExpandir={() => handleExpandir(aloc)}
                 onTrocarModo={(m) => handleTrocarModo(aloc, m)}
                 // Q1: contexto pra explicação algorítmica + justificativa global
@@ -641,13 +773,6 @@ export function ResultadoAlocacao({
         </div>
       </section>
 
-      <BotoesAcao
-        onVoltar={onVoltar}
-        onConfirmar={handleConfirmar}
-        totalAlocados={alocacoesAtuais.length}
-        foiEditada={foiEditada}
-        onVoltarParaOtima={voltarParaOtima}
-      />
     </div>
   )
 }
@@ -1038,6 +1163,8 @@ function LinhaAlocacao({
   modo,
   expandido,
   rotaEntry,
+  corTecnico,
+  corProjeto,
   duracaoSeg,
   onExpandir,
   onTrocarModo,
@@ -1053,6 +1180,8 @@ function LinhaAlocacao({
   modo: ModoTransporte
   expandido: boolean
   rotaEntry: RotaCacheEntry | undefined
+  corTecnico: string | undefined
+  corProjeto: string | undefined
   duracaoSeg: number | null
   onExpandir: () => void
   onTrocarModo: (m: ModoTransporte) => void
@@ -1064,12 +1193,15 @@ function LinhaAlocacao({
   onSwap: (keyOutra: string) => void
 }) {
   const duracaoMin = duracaoSeg != null ? Math.round(duracaoSeg / 60) : null
-  const distanciaKm =
+  // Mesmo raciocínio de obterDuracaoSeg: a matriz também traz distância para
+  // TRANSIT, então não há motivo para descartá-la e mostrar "—".
+  const distanciaMetros =
     rotaEntry?.estado === "ok"
-      ? (rotaEntry.distanciaMetros / 1000).toFixed(1)
-      : modo !== "TRANSIT"
-        ? ((alocacao.metricas[modo]?.distanciaMetros ?? 0) / 1000).toFixed(1)
-        : null
+      ? rotaEntry.distanciaMetros
+      : alocacao.metricas[modo]?.distanciaMetros
+  const distanciaKm =
+    distanciaMetros != null ? (distanciaMetros / 1000).toFixed(1) : null
+
 
   const explicacao = gerarExplicacaoAlgoritmica({
     tecnicoNome: alocacao.origem.nome,
@@ -1083,58 +1215,97 @@ function LinhaAlocacao({
   return (
     <Card className="card-interactive">
       <CardContent className="space-y-4 p-5">
-        {/* Header — sempre visível */}
-        <div className="grid gap-4 md:grid-cols-[auto_1fr_1fr_auto_auto] md:items-center">
-          <div className="hidden h-10 w-10 items-center justify-center rounded-full bg-muted font-mono text-sm font-semibold text-muted-foreground md:flex">
+        {/* O PAR DE ALOCAÇÃO — elemento assinatura (system.md §5.1).
+            Três zonas: técnico · rota · destino. A zona central é o conector,
+            com a distância acima e duração + modo abaixo — a duração sem o modo
+            é ambígua, então os dois andam juntos. Antes as informações eram
+            colunas soltas e o tempo era uma pílula no canto, o que não deixava
+            claro que o número é o custo DAQUELE deslocamento. */}
+        <div className="grid gap-5 md:grid-cols-[auto_minmax(0,1fr)_210px_minmax(0,1fr)_auto] md:items-center">
+          <div className="hidden size-10 items-center justify-center rounded-full bg-muted font-mono text-sm font-semibold text-muted-foreground md:flex">
             {ordem}
           </div>
 
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Técnico
-            </p>
-            <p className="truncate font-medium" title={alocacao.origem.nome}>
-              {alocacao.origem.nome}
-            </p>
-            <p
-              className="truncate text-xs text-muted-foreground"
-              title={alocacao.origem.endereco}
+          {/* Zona 1 — técnico */}
+          <div className="flex min-w-0 items-center gap-3">
+            <div
+              className="flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+              style={{
+                backgroundColor: corTecnico ?? "var(--muted)",
+                color: corTecnico
+                  ? corTextoIdeal(corTecnico)
+                  : "var(--muted-foreground)",
+              }}
+              aria-hidden="true"
             >
-              {alocacao.origem.endereco}
-            </p>
+              {iniciaisDe(alocacao.origem.nome)}
+            </div>
+            <div className="flex min-w-0 flex-col">
+              <span
+                className="truncate font-semibold"
+                title={alocacao.origem.nome}
+              >
+                {alocacao.origem.nome}
+              </span>
+              <span
+                className="truncate text-[13px] text-muted-foreground"
+                title={alocacao.origem.endereco}
+              >
+                {alocacao.origem.endereco}
+              </span>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Destino
-            </p>
+          {/* Zona 2 — a rota. Skeleton enquanto a métrica não chega; nunca
+              texto de espera no lugar de um número. */}
+          <div className="flex flex-col items-center gap-1.5">
+            {distanciaKm != null ? (
+              <span className="text-sm font-semibold tabular-nums">
+                {distanciaKm} km
+              </span>
+            ) : (
+              <span
+                aria-label="calculando distância"
+                className="h-[13px] w-[88px] animate-pulse rounded bg-skeleton"
+              />
+            )}
+            <span className="flex w-full items-center">
+              <span className="h-px flex-1 bg-border" />
+              <ArrowRight className="size-3.5 shrink-0 text-primary" />
+            </span>
+            {duracaoMin != null ? (
+              <span className="flex items-center gap-1.5 text-[13px] tabular-nums text-muted-foreground">
+                <IconeModo modo={modo} className="size-3.5" />
+                {duracaoMin} min · {nomeAmigavelModo(modo)}
+              </span>
+            ) : (
+              <span
+                aria-label="calculando duração"
+                className="h-[11px] w-16 animate-pulse rounded bg-skeleton"
+              />
+            )}
+          </div>
+
+          {/* Zona 3 — destino */}
+          <div className="flex min-w-0 flex-col gap-0.5">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="font-mono">
                 {alocacao.destino.projetoSigla}
               </Badge>
-              <span className="font-medium">{alocacao.destino.umNome}</span>
+              <span className="font-semibold">{alocacao.destino.umNome}</span>
               <span className="text-sm text-muted-foreground">
                 · {alocacao.destino.raNome}
               </span>
             </div>
             <p
-              className="truncate text-xs text-muted-foreground"
+              className="truncate text-[13px] text-muted-foreground"
               title={alocacao.destino.endereco}
             >
               {alocacao.destino.endereco}
             </p>
-          </div>
-
-          {/* Tempo atual no modo selecionado */}
-          <div className="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">
-            <IconeModo modo={modo} className="h-4 w-4" />
-            {duracaoMin != null ? (
-              <span>{duracaoMin} min</span>
-            ) : modo === "TRANSIT" ? (
-              <span className="text-xs">buscando…</span>
-            ) : (
-              <span className="text-xs">calculando…</span>
-            )}
+            <p className="text-[13px] font-medium tabular-nums text-muted-foreground">
+              C{alocacao.destino.ciclo} · E{alocacao.destino.etapa}
+            </p>
           </div>
 
           {/* Botão expandir/colapsar */}
@@ -1146,11 +1317,11 @@ function LinhaAlocacao({
           >
             {expandido ? (
               <>
-                <ChevronUp className="h-4 w-4" /> Fechar
+                <ChevronUp className="size-4" /> Fechar
               </>
             ) : (
               <>
-                <ChevronDown className="h-4 w-4" /> Detalhar
+                <ChevronDown className="size-4" /> Detalhar
               </>
             )}
           </Button>
@@ -1201,6 +1372,8 @@ function LinhaAlocacao({
             <div className="flex flex-col gap-4 lg:flex-row">
               <div className={modo === "TRANSIT" && rotaEntry?.estado === "ok" ? "lg:w-1/2" : "w-full"}>
                 <MapaAlocacao
+                  corTecnico={corTecnico}
+                  corProjeto={corProjeto}
                   origem={{
                     latitude: alocacao.origem.latitude,
                     longitude: alocacao.origem.longitude,
@@ -1310,52 +1483,6 @@ function SeletorModo({
     </div>
   )
 }
-// ============================================================
-// BOTÕES DE AÇÃO (rodapé)
-// ============================================================
-
-function BotoesAcao({
-  onVoltar,
-  onConfirmar,
-  totalAlocados,
-  foiEditada,
-  onVoltarParaOtima,
-}: {
-  onVoltar: () => void
-  onConfirmar: () => void
-  totalAlocados: number
-  foiEditada: boolean
-  onVoltarParaOtima: () => void
-}) {
-  return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-      <Button variant="outline" onClick={onVoltar} className="gap-2">
-        <ArrowLeft className="h-4 w-4" />
-        Voltar para seleção
-      </Button>
-      {foiEditada && (
-        <Button
-          variant="outline"
-          onClick={onVoltarParaOtima}
-          className="gap-2"
-        >
-          <RotateCcw className="h-4 w-4" />
-          Voltar pra ótima
-        </Button>
-      )}
-      <Button
-        onClick={onConfirmar}
-        disabled={totalAlocados === 0}
-        size="lg"
-        className="gap-2"
-      >
-        <Check className="h-4 w-4" />
-        Confirmar alocação
-      </Button>
-    </div>
-  )
-}
-
 // ============================================================
 // HELPERS
 // ============================================================

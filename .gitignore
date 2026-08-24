@@ -42,8 +42,18 @@ yarn-error.log*
 next-env.d.ts
 
 # playwright
-e2e/.auth/
+tests/e2e/.auth/
 playwright-report/
 test-results/
 
 graphify-out/
+
+/lib/generated/prisma
+
+# docker
+.env.docker
+!.env.docker.example
+nginx/certs/
+
+# graphify
+.graphify/

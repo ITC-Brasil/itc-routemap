@@ -1,0 +1,2023 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@200;300&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<style>
+  :root{
+    --bg-base:#F5F0E8; --bg-surface:#FBF8F1; --bg-muted:#EBE4D8; --border:#DDD6C9;
+    --text-base:#1A2020; --text-muted:#697272;
+    --accent:#008F95; --accent-hover:#007A80; --accent-pressed:#006C72;
+    --accent-light:#E0F4F5; --accent-dark:#003C3F; --accent-fg:#FFFFFF;
+    --bordo:#491027;
+    --ok:#1A7F3C; --warn:#CC7A00; --err:#C0392B; --info:#1565C0;
+    --ok-tint:rgba(26,127,60,0.13); --warn-tint:rgba(204,122,0,0.13);
+    --err-tint:rgba(192,57,43,0.13); --info-tint:rgba(21,101,192,0.10);
+    --shadow-1:0 1px 2px rgba(26,32,32,0.05);
+    --shadow-2:0 10px 34px rgba(26,32,32,0.09);
+    --track:#E6DFD2;
+    --skeleton:rgba(26,32,32,0.07);
+    --rail-bg:#FBF8F1; --rail-border:#DDD6C9; --rail-fg:#697272; --rail-fg-strong:#1A2020; --rail-hover:rgba(26,32,32,0.06);
+  }
+  [data-theme="dark"]{
+    --bg-base:#141918; --bg-surface:#1E2422; --bg-muted:#2A302E; --border:#333B39;
+    --text-base:#F4F6F6; --text-muted:#8E9A98;
+    --accent:#30A5AB; --accent-hover:#46B5BA; --accent-pressed:#268A8F;
+    --accent-light:rgba(48,165,171,0.16); --accent-dark:#0C2C2E; --accent-fg:#08201F;
+    --bordo:#7A2A45;
+    --ok:#3DA35D; --warn:#D98E2B; --err:#D75A4A; --info:#4B93DB;
+    --ok-tint:rgba(61,163,93,0.15); --warn-tint:rgba(217,142,43,0.15);
+    --err-tint:rgba(215,90,74,0.15); --info-tint:rgba(75,147,219,0.14);
+    --shadow-1:0 1px 2px rgba(0,0,0,0.35);
+    --shadow-2:0 12px 42px rgba(0,0,0,0.5);
+    --track:#2E3634;
+    --skeleton:rgba(255,255,255,0.08);
+    --rail-bg:#101615; --rail-border:#2A3230; --rail-fg:#8E9A98; --rail-fg-strong:#FFFFFF; --rail-hover:rgba(255,255,255,0.07);
+  }
+  *{box-sizing:border-box}
+  body{margin:0}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{color:var(--accent-hover)}
+  button{font:inherit}
+  button,input,select,textarea{border-radius:10px}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .leaflet-container{font-family:Inter,sans-serif;background:transparent}
+  .itc-tt{font:500 12px/1.4 Inter,sans-serif}
+  @media (max-width:1240px){
+    [data-r="hero"]{grid-template-columns:minmax(0,1fr) !important}
+    [data-r="hero"] [data-r="tiles"]{display:grid !important;grid-template-columns:repeat(2,1fr)}
+    [data-r="week"]{grid-template-columns:minmax(0,1fr) !important}
+    [data-r="quad"]{grid-template-columns:repeat(2,1fr) !important}
+    [data-r="split"]{grid-template-columns:minmax(0,1fr) !important}
+  }
+  @media (max-width:1040px){
+    [data-r="two"]{grid-template-columns:minmax(0,1fr) !important}
+    [data-r="par"]{grid-template-columns:minmax(0,1fr) 180px 24px !important}
+    [data-r="par"] [data-r="par-dest"]{grid-column:1 / -1}
+  }
+  @keyframes itcShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+  @keyframes itcSpin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+</style>
+</helmet>
+
+<div data-theme="{{ theme }}" style="min-height:100vh;background:var(--bg-base);color:var(--text-base);font-family:Inter,sans-serif;font-size:15px;line-height:1.5">
+
+  <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="Login" style="min-height:100vh;display:grid;grid-template-columns:minmax(320px,1fr) minmax(420px,1fr)">
+    <div style="background:#101615;padding:56px 56px 44px;display:flex;flex-direction:column;justify-content:space-between;gap:48px">
+      <svg viewBox="0 0 275.42 64" role="img" aria-label="ITC RouteMap" style="height:38px;width:163px;flex:0 0 auto;align-self:flex-start;display:block" fill="none"><defs><linearGradient id="rmAzul" x1="0" y1="64" x2="64" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4BBAC0"></stop><stop offset="0.55" stop-color="#3FA6D8"></stop><stop offset="1" stop-color="#4B7BDB"></stop></linearGradient></defs><g transform="scale(2.4615)"><path d="M4 21V7l9 8 9-8v14" stroke="url(#rmAzul)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="53" stroke-dashoffset="0"><animate attributeName="stroke-dashoffset" values="0;0;53;0;0" keyTimes="0;0.12;0.13;0.72;1" dur="4s" repeatCount="indefinite"></animate></path><circle cx="4" cy="21" r="2.6" fill="url(#rmAzul)"><animate attributeName="opacity" values="1;1;0;1;1" keyTimes="0;0.12;0.13;0.17;1" dur="4s" repeatCount="indefinite"></animate></circle><circle r="1.7" fill="#7FD3E6" opacity="0"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.13;0.14;0.70;0.74;1" dur="4s" repeatCount="indefinite"></animate><animateMotion dur="4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.13;0.72;1" calcMode="linear" path="M4 21V7l9 8 9-8v14"></animateMotion></circle><circle cx="22" cy="21" r="2.6" fill="none" stroke="url(#rmAzul)" stroke-width="2.2"><animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;0.12;0.13;0.72;0.78;1" dur="4s" repeatCount="indefinite"></animate><animate attributeName="r" values="2.6;2.6;4.2;2.6;2.6" keyTimes="0;0.72;0.78;0.86;1" dur="4s" repeatCount="indefinite"></animate></circle></g><text x="72" y="19" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="5.04" textLength="34.28" lengthAdjust="spacing" fill="#FFFFFF">ITC</text><text x="72" y="59" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="40" font-weight="800" letter-spacing="-1" textLength="198.62" lengthAdjust="spacingAndGlyphs" fill="#FFFFFF">RouteMap</text></svg>
+      <div style="display:flex;flex-direction:column;gap:20px;max-width:460px">
+        <h1 style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:42px;line-height:1.1;letter-spacing:-0.02em;color:#F4F6F6;text-wrap:balance">Cada técnico na unidade móvel mais perto de casa.</h1>
+        <p style="margin:0;font-size:16px;line-height:1.55;color:#8E9A98;text-wrap:pretty">Distâncias reais do Google Routes e alocação ótima pelo algoritmo Húngaro — o time inteiro resolvido numa rodada.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="height:2px;width:64px;background:#008F95"></div>
+        <span style="font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#5E6A68">Grupo ITC Brasil</span>
+      </div>
+    </div>
+
+    <div style="background:var(--bg-base);display:flex;align-items:center;justify-content:center;padding:48px 40px">
+      <div style="width:100%;max-width:376px;display:flex;flex-direction:column;gap:28px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <h2 style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:26px;line-height:1.2;letter-spacing:-0.01em">Entrar</h2>
+          <p style="margin:0;font-size:14px;color:var(--text-muted)">Use seu e-mail corporativo.</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <label for="lg-email" style="font-size:12px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted)">E-mail corporativo</label>
+            <input id="lg-email" type="email" placeholder="nome@grupoitcbrasil.com.br" style="height:46px;border:1px solid var(--border);border-bottom:2px solid var(--accent);background:var(--bg-surface);color:var(--text-base);font:inherit;font-size:15px;padding:0 14px;width:100%" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <label for="lg-senha" style="font-size:12px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted)">Senha</label>
+            <input id="lg-senha" type="password" placeholder="••••••••" style="height:46px;border:1px solid var(--border);border-bottom:2px solid var(--accent);background:var(--bg-surface);color:var(--text-base);font:inherit;font-size:15px;padding:0 14px;width:100%" />
+          </div>
+          <button type="button" onClick="{{ entrar }}" style="height:46px;border:none;background:var(--accent);color:var(--accent-fg);font-size:15px;font-weight:600;cursor:pointer;letter-spacing:0.01em" style-hover="background:var(--accent-hover)" style-active="background:var(--accent-pressed)">Entrar</button>
+        </div>
+        <p style="margin:0;font-size:13px;line-height:1.45;color:var(--text-muted);text-wrap:pretty">Acesso por convite. Solicite liberação ao administrador do sistema.</p>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+  <div style="min-height:100vh;display:flex;align-items:stretch">
+
+    <aside style="flex:0 0 92px;width:92px;background:var(--rail-bg);border-right:1px solid var(--rail-border);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;align-items:center;padding:18px 0 16px;gap:22px">
+      <span title="ITC RouteMap" style="width:46px;height:46px;flex:0 0 46px;border-radius:10px;background:#008F95;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 26 26" aria-hidden="true" style="width:28px;height:28px;display:block" fill="none"><path d="M4 21V7l9 8 9-8v14" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /><circle cx="4" cy="21" r="2.6" fill="#FFFFFF" /><circle cx="22" cy="21" r="2.6" fill="none" stroke="#FFFFFF" stroke-width="2.4" /></svg></span>
+      <nav style="flex:1;display:flex;flex-direction:column;gap:6px;width:100%;align-items:center">
+        <sc-for list="{{ navItems }}" as="nav" hint-placeholder-count="5">
+          <button type="button" onClick="{{ nav.onClick }}" title="{{ nav.label }}" style="width:76px;border:none;background:{{ nav.bg }};color:{{ nav.fg }};border-radius:10px;padding:11px 4px 9px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font-size:10px;font-weight:600;line-height:1.2;text-align:center;letter-spacing:0.01em" style-hover="background:var(--rail-hover)">
+            {{ nav.icone }}
+            <span>{{ nav.short }}</span>
+          </button>
+        </sc-for>
+      </nav>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+        <button type="button" onClick="{{ toggleTheme }}" aria-label="Alternar tema" style="width:38px;height:38px;border-radius:9px;border:1px solid var(--rail-border);background:transparent;color:var(--rail-fg);cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="color:var(--rail-fg-strong);border-color:var(--accent)">
+          {{ themeIcon }}
+        </button>
+        <div title="Matheus Santos" style="width:38px;height:38px;border-radius:9999px;background:var(--bordo);color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">MS</div>
+      </div>
+    </aside>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+    <main style="flex:1;width:100%;max-width:1400px;padding:40px 44px 56px">
+
+      <sc-if value="{{ isInicio }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Início" style="display:flex;flex-direction:column;gap:28px">
+
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--border)">
+          <div>
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent)">Boa tarde</p>
+            <h1 style="margin:8px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:38px;line-height:1.1;letter-spacing:-0.02em">Matheus Santos</h1>
+            <p style="margin:6px 0 0;font-size:14px;color:var(--text-muted);font-variant-numeric:tabular-nums">quinta-feira, 6 de agosto de 2026</p>
+          </div>
+          <button type="button" onClick="{{ irCalcular }}" style="height:46px;padding:0 24px;border:none;background:var(--accent);color:var(--accent-fg);font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap" style-hover="background:var(--accent-hover)" style-active="background:var(--accent-pressed)">Calcular rotas</button>
+        </div>
+
+        <div data-r="hero" style="display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start">
+
+          <section style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);overflow:hidden">
+            <div style="padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:8px;height:8px;border-radius:9999px;background:var(--ok)"></span>
+                <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px;line-height:1.3">Rodando agora</h2>
+                <span style="font-size:13px;color:var(--text-muted);font-variant-numeric:tabular-nums">3 rotas em campo</span>
+              </div>
+              <a href="#" style="font-size:13px;font-weight:600">Histórico completo →</a>
+            </div>
+            <sc-for list="{{ cronograma }}" as="r" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:minmax(0,1.15fr) 150px minmax(0,1.25fr);gap:18px;padding:16px 22px;align-items:center;border-bottom:1px solid var(--border)" style-hover="background:var(--bg-base)">
+                <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                  <div style="width:36px;height:36px;flex:0 0 36px;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:{{ r.cor }};color:{{ r.corTexto }}">{{ r.iniciais }}</div>
+                  <div style="min-width:0">
+                    <p style="margin:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.tecnico }}</p>
+                    <p style="margin:1px 0 0;font-size:13px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.origem }}</p>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+                  <span style="font-size:15px;font-weight:700;font-variant-numeric:tabular-nums">{{ r.tempo }}</span>
+                  <span style="width:100%;display:flex;align-items:center">
+                    <span style="flex:1;height:1px;background:var(--border)"></span>
+                    <span style="width:5px;height:5px;border-radius:9999px;background:var(--accent)"></span>
+                  </span>
+                  <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted)">{{ r.modoIcone }}{{ r.modo }}</span>
+                </div>
+                <div style="min-width:0;display:flex;flex-direction:column;gap:4px">
+                  <span style="align-self:flex-start;font-size:11px;font-weight:600;letter-spacing:0.04em;padding:2px 8px;border-radius:9999px;background:{{ r.projetoBg }};color:{{ r.projetoFg }};border:1px solid {{ r.projetoBorder }}">{{ r.projeto }} · {{ r.um }}</span>
+                  <span style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.destino }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </section>
+
+          <div data-r="tiles" style="display:flex;flex-direction:column;gap:12px">
+            <sc-for list="{{ kpisTopo }}" as="k" hint-placeholder-count="4">
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:16px 18px;display:flex;align-items:center;gap:16px">
+                <span style="font-family:Archivo,sans-serif;font-weight:700;font-size:34px;line-height:1;font-variant-numeric:tabular-nums;color:{{ k.valueColor }};min-width:44px">{{ k.valor }}</span>
+                <div style="min-width:0;flex:1">
+                  <p style="margin:0;font-size:14px;font-weight:600;line-height:1.3">{{ k.label }}</p>
+                  <sc-if value="{{ k.acao }}" hint-placeholder-val="{{ true }}">
+                    <button type="button" onClick="{{ k.onAcao }}" style="margin-top:3px;border:none;background:transparent;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;padding:0" style-hover="color:var(--accent-hover)">{{ k.acao }} →</button>
+                  </sc-if>
+                  <sc-if value="{{ k.semAcao }}" hint-placeholder-val="{{ false }}">
+                    <p style="margin:1px 0 0;font-size:12.5px;color:var(--text-muted)">{{ k.descricao }}</p>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <section style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px;line-height:1.3">Semana passada</h2>
+            <span style="font-size:13px;color:var(--text-muted)">24 – 30 de julho, semana fechada</span>
+          </div>
+
+          <div data-r="week" style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px;align-items:stretch">
+
+            <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:20px 22px;display:flex;flex-direction:column;gap:18px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px">
+                <div>
+                  <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Tempo médio de deslocamento</p>
+                  <p style="margin:5px 0 0;display:flex;align-items:baseline;gap:8px"><span style="font-family:Archivo,sans-serif;font-weight:700;font-size:30px;line-height:1;font-variant-numeric:tabular-nums">45 min</span><span style="font-size:13px;font-weight:600;color:var(--ok)">−6 min vs. semana anterior</span></p>
+                </div>
+              </div>
+              <div style="position:relative;height:112px;display:flex;align-items:flex-end;gap:10px;padding-right:100px;margin-bottom:24px">
+                <div style="position:absolute;left:0;right:0;bottom:{{ metaBottom }};height:0;pointer-events:none">
+                  <span style="position:absolute;left:0;right:98px;bottom:0;border-top:1px dashed var(--warn)"></span>
+                  <span style="position:absolute;right:0;bottom:-6px;width:92px;font-size:10.5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--warn);line-height:1;white-space:nowrap">meta 42 min</span>
+                </div>
+                <sc-for list="{{ semana }}" as="b" hint-placeholder-count="6">
+                  <div style="position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;justify-content:flex-end">
+                    <span style="font-size:11px;font-weight:600;line-height:1;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ b.v }}</span>
+                    <div style="width:100%;max-width:38px;height:{{ b.h }};background:var(--accent);border-radius:3px 3px 0 0"></div>
+                    <span style="position:absolute;top:100%;left:0;right:0;margin-top:8px;text-align:center;font-size:11px;font-weight:600;line-height:1;color:var(--text-muted)">{{ b.d }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:20px 22px;display:flex;flex-direction:column;gap:18px">
+              <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Alocações por projeto</p>
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <sc-for list="{{ porProjeto }}" as="p" hint-placeholder-count="3">
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+                      <span style="font-size:13px;font-weight:600">{{ p.nome }}</span>
+                      <span style="font-size:13px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ p.rotulo }}</span>
+                    </div>
+                    <div style="height:9px;border-radius:9999px;background:var(--track);overflow:hidden">
+                      <div style="height:100%;width:{{ p.pct }};background:{{ p.cor }};border-radius:9999px"></div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:baseline;gap:12px;margin-top:8px">
+            <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px;line-height:1.3">Mês atual</h2>
+            <span style="font-size:13px;color:var(--text-muted)">agosto começou há 6 dias</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;max-width:620px">
+            <sc-for list="{{ kpisMes }}" as="k" hint-placeholder-count="2">
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:16px 18px">
+                <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:26px;line-height:1;font-variant-numeric:tabular-nums;color:{{ k.valueColor }}">{{ k.valor }}</p>
+                <p style="margin:6px 0 0;font-size:13px;font-weight:600;line-height:1.3">{{ k.label }}</p>
+                <p style="margin:1px 0 0;font-size:12.5px;color:var(--text-muted)">{{ k.descricao }}</p>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px;line-height:1.3">Acesso rápido</h2>
+          <div data-r="quad" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+            <sc-for list="{{ atalhos }}" as="a" hint-placeholder-count="4">
+              <button type="button" onClick="{{ a.onClick }}" style="height:52px;padding:0 18px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-base);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px" style-hover="border-color:var(--accent);color:var(--accent)">
+                {{ a.label }}<span style="color:var(--text-muted)">→</span>
+              </button>
+            </sc-for>
+          </div>
+        </section>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isSelecao }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Calcular Rotas" style="display:flex;flex-direction:column;gap:24px">
+
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--border)">
+          <div style="max-width:620px">
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent)">Operação</p>
+            <h1 style="margin:8px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:38px;line-height:1.1;letter-spacing:-0.02em">Calcular Rotas</h1>
+            <p style="margin:10px 0 0;color:var(--text-muted);text-wrap:pretty">O sistema sugere qual técnico vai para qual UM a partir da distância entre a casa de cada um e o destino, usando Google Routes e o algoritmo Húngaro.</p>
+          </div>
+          <div style="display:flex;gap:32px;padding-bottom:4px">
+            <div>
+              <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:34px;line-height:1;font-variant-numeric:tabular-nums">5</p>
+              <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted)">técnicos disponíveis</p>
+            </div>
+            <div style="width:1px;background:var(--border)"></div>
+            <div>
+              <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:34px;line-height:1;font-variant-numeric:tabular-nums">4</p>
+              <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted)">UMs aguardando alocação</p>
+            </div>
+          </div>
+        </div>
+
+        <div data-r="two" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);display:flex;flex-direction:column">
+            <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border)">
+              <h3 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px">Técnicos <span style="color:var(--text-muted);font-weight:500;font-variant-numeric:tabular-nums">{{ contTec }}</span></h3>
+              <div style="display:flex;gap:4px">
+                <button type="button" onClick="{{ todosTec }}" style="border:none;background:transparent;color:var(--accent);font-size:13px;font-weight:600;padding:6px 10px;border-radius:8px;cursor:pointer" style-hover="background:var(--accent-light)">Todos</button>
+                <button type="button" onClick="{{ limparTec }}" style="border:none;background:transparent;color:var(--accent);font-size:13px;font-weight:600;padding:6px 10px;border-radius:8px;cursor:pointer" style-hover="background:var(--accent-light)">Limpar</button>
+              </div>
+            </div>
+            <div style="padding:12px;display:flex;flex-direction:column;gap:6px">
+              <sc-for list="{{ tecnicos }}" as="t" hint-placeholder-count="5">
+                <button type="button" onClick="{{ t.onToggle }}" aria-pressed="{{ t.checked }}" style="text-align:left;display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px;border:1px solid {{ t.borderColor }};background:{{ t.bg }};cursor:pointer;color:var(--text-base)" style-hover="border-color:var(--accent)">
+                  <span style="width:19px;height:19px;flex:0 0 19px;border-radius:4px;border:1px solid {{ t.boxBorder }};background:{{ t.boxBg }};color:var(--accent-fg);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">{{ t.mark }}</span>
+                  <span style="width:38px;height:38px;flex:0 0 38px;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:{{ t.cor }};color:{{ t.corTexto }}">{{ t.iniciais }}</span>
+                  <span style="min-width:0;flex:1;display:flex;flex-direction:column;gap:1px">
+                    <span style="display:flex;align-items:center;gap:8px">
+                      <span style="font-weight:600">{{ t.nome }}</span>
+                      <sc-if value="{{ t.pausado }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;color:var(--warn);border:1px solid var(--warn);padding:1px 7px;border-radius:9999px">Pausado</span>
+                      </sc-if>
+                    </span>
+                    <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.endereco }}</span>
+                  </span>
+                  <span style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text-muted);white-space:nowrap">{{ t.modoIcone }}{{ t.modo }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);display:flex;flex-direction:column">
+            <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border)">
+              <h3 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px">Unidades móveis <span style="color:var(--text-muted);font-weight:500;font-variant-numeric:tabular-nums">{{ contUm }}</span></h3>
+              <div style="display:flex;gap:4px">
+                <button type="button" onClick="{{ todosUm }}" style="border:none;background:transparent;color:var(--accent);font-size:13px;font-weight:600;padding:6px 10px;border-radius:8px;cursor:pointer" style-hover="background:var(--accent-light)">Todos</button>
+                <button type="button" onClick="{{ limparUm }}" style="border:none;background:transparent;color:var(--accent);font-size:13px;font-weight:600;padding:6px 10px;border-radius:8px;cursor:pointer" style-hover="background:var(--accent-light)">Limpar</button>
+              </div>
+            </div>
+            <div style="padding:12px;display:flex;flex-direction:column;gap:6px">
+              <sc-for list="{{ ums }}" as="u" hint-placeholder-count="4">
+                <button type="button" onClick="{{ u.onToggle }}" aria-pressed="{{ u.checked }}" style="text-align:left;display:flex;align-items:flex-start;gap:12px;padding:12px;border-radius:9px;border:1px solid {{ u.borderColor }};background:{{ u.bg }};cursor:pointer;color:var(--text-base)" style-hover="border-color:var(--accent)">
+                  <span style="width:19px;height:19px;flex:0 0 19px;margin-top:2px;border-radius:4px;border:1px solid {{ u.boxBorder }};background:{{ u.boxBg }};color:var(--accent-fg);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">{{ u.mark }}</span>
+                  <span style="min-width:0;flex:1;display:flex;flex-direction:column;gap:3px">
+                    <span style="display:flex;align-items:center;gap:8px">
+                      <span style="font-size:11px;font-weight:600;letter-spacing:0.04em;padding:2px 8px;border-radius:9999px;background:{{ u.projetoBg }};color:{{ u.projetoFg }};border:1px solid {{ u.projetoBorder }}">{{ u.projeto }}</span>
+                      <span style="font-weight:600">{{ u.nome }}</span>
+                    </span>
+                    <span style="font-size:15px">{{ u.cidade }}</span>
+                    <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ u.endereco }}</span>
+                    <span style="font-size:12.5px;font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ u.ciclo }}</span>
+                  </span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;padding:16px 20px;border-radius:12px;border:1px solid var(--info);background:var(--info-tint)">
+          <span style="color:var(--info);font-weight:700;line-height:1.5">i</span>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <p style="margin:0;font-weight:600">Re-otimização inteligente ativa</p>
+            <p style="margin:0;font-size:13px;line-height:1.45;color:var(--text-muted);max-width:700px;text-wrap:pretty">2 técnicos selecionados têm rota ativa. Se houver melhora de 5 minutos ou mais, as oportunidades aparecem antes da confirmação. Sincronize as planilhas antes de calcular.</p>
+          </div>
+        </div>
+
+        <div style="position:sticky;bottom:0;z-index:10;background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-2);padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
+          <div>
+            <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:22px;line-height:1.2;font-variant-numeric:tabular-nums">{{ resumoPares }}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:{{ avisoCor }};text-wrap:pretty">{{ avisoTexto }}</p>
+          </div>
+          <button type="button" onClick="{{ calcular }}" style="height:48px;padding:0 26px;border:none;background:var(--accent);color:var(--accent-fg);font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap" style-hover="background:var(--accent-hover)" style-active="background:var(--accent-pressed)">Calcular alocação ótima</button>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isCalculando }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Calculando" style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:96px 32px;display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center">
+        <svg viewBox="0 0 26 26" aria-hidden="true" style="width:56px;height:56px;display:block" fill="none"><path d="M4 21V7l9 8 9-8v14" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="53" stroke-dashoffset="0"><animate attributeName="stroke-dashoffset" values="0;0;53;0;0" keyTimes="0;0.10;0.11;0.74;1" dur="2.6s" repeatCount="indefinite"></animate></path><circle cx="4" cy="21" r="2.6" fill="var(--accent)"><animate attributeName="opacity" values="1;1;0;1;1" keyTimes="0;0.10;0.11;0.15;1" dur="2.6s" repeatCount="indefinite"></animate></circle><circle r="1.7" fill="var(--accent)" opacity="0"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.11;0.12;0.72;0.76;1" dur="2.6s" repeatCount="indefinite"></animate><animateMotion dur="2.6s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.11;0.74;1" calcMode="linear" path="M4 21V7l9 8 9-8v14"></animateMotion></circle><circle cx="22" cy="21" r="2.6" fill="none" stroke="var(--accent)" stroke-width="2.2"><animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;0.10;0.11;0.74;0.80;1" dur="2.6s" repeatCount="indefinite"></animate><animate attributeName="r" values="2.6;2.6;4.2;2.6;2.6" keyTimes="0;0.74;0.80;0.88;1" dur="2.6s" repeatCount="indefinite"></animate></circle></svg>
+        <div style="max-width:460px;display:flex;flex-direction:column;gap:8px">
+          <h2 style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:26px;line-height:1.2">Calculando alocação ótima</h2>
+          <p style="margin:0;font-size:15px;color:var(--text-muted);text-wrap:pretty">Consultando Google Routes para 20 pares (carro, moto e a pé) e executando o algoritmo Húngaro.</p>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isResultado }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Resultado da alocação" style="display:flex;flex-direction:column;gap:22px">
+
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--border)">
+          <div>
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent)">Operação</p>
+            <h1 style="margin:8px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:38px;line-height:1.1;letter-spacing:-0.02em">Resultado da alocação</h1>
+            <p style="margin:6px 0 0;font-size:13px;font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums">Lote 7401CC7D · 6 ago 2026, 14:32</p>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button type="button" onClick="{{ voltarSelecao }}" style="height:46px;padding:0 20px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-base);font-size:15px;font-weight:600;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">← Voltar</button>
+            <button type="button" onClick="{{ confirmar }}" style="height:46px;padding:0 24px;border:none;background:var(--accent);color:var(--accent-fg);font-size:15px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)" style-active="background:var(--accent-pressed)">Confirmar alocação</button>
+          </div>
+        </div>
+
+        <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);overflow:hidden">
+          <div style="padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--border)">
+            <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px">Mapa do lote</h2>
+            <span style="font-size:13px;color:var(--text-muted)">{{ mapaDica }}</span>
+          </div>
+          <x-import component-from-global-scope="itc-route-map" from="./itc-map.js" pairs-json="{{ mapaJson }}" selected="{{ mapaSel }}" theme="{{ theme }}" height="460" hint-size="100%,460px"></x-import>
+        </div>
+
+        <div data-r="quad" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+          <sc-for list="{{ metricas }}" as="m" hint-placeholder-count="4">
+            <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:18px 20px;display:flex;flex-direction:column;gap:5px">
+              <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums">{{ m.valor }}</p>
+              <p style="margin:0;font-size:13px;line-height:1.4;color:var(--text-muted)">{{ m.label }}</p>
+            </div>
+          </sc-for>
+        </div>
+
+        <div data-r="split" style="display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;align-items:stretch">
+          <div style="padding:18px 22px;border-radius:12px;border:1px solid var(--accent);background:var(--accent-light);display:flex;flex-direction:column;gap:7px">
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent)">Análise da alocação</p>
+            <p style="margin:0;text-wrap:pretty">A distribuição concentrou os deslocamentos curtos no eixo sul: Paulo Ricardo cobre Santa Maria a partir de Jardim Ingá e Ana Beatriz assume Recanto das Emas, evitando duas travessias longas pelo Plano Piloto. O par mais caro do lote é Brazlândia, sem técnico próximo disponível nesta rodada.</p>
+          </div>
+          <div style="padding:18px 22px;border-radius:12px;border:1px solid var(--warn);background:var(--warn-tint);display:flex;flex-direction:column;gap:7px">
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--warn)">Sobras na alocação</p>
+            <p style="margin:0;font-size:15px;text-wrap:pretty">Carla Menezes ficou sem UM — há 4 destinos para 5 técnicos selecionados.</p>
+          </div>
+        </div>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px;line-height:1.3">Pares de alocação</h2>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <sc-for list="{{ pares }}" as="p" hint-placeholder-count="4">
+              <div style="background:var(--bg-surface);border:1px solid {{ p.borderColor }};border-left:3px solid {{ p.cor }};border-radius:12px;box-shadow:var(--shadow-1);overflow:hidden">
+                <button type="button" onClick="{{ p.onToggle }}" aria-expanded="{{ p.expanded }}" style="width:100%;text-align:left;background:transparent;border:none;cursor:pointer;color:var(--text-base);padding:16px 20px;display:grid;grid-template-columns:minmax(0,1fr) 210px minmax(0,1fr) 24px;gap:20px;align-items:center" data-r="par">
+                  <span style="display:flex;align-items:center;gap:12px;min-width:0">
+                    <span style="width:40px;height:40px;flex:0 0 40px;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;background:{{ p.cor }};color:{{ p.corTexto }}">{{ p.iniciais }}</span>
+                    <span style="min-width:0;display:flex;flex-direction:column;gap:1px">
+                      <span style="font-weight:600">{{ p.tecnico }}</span>
+                      <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.origem }}</span>
+                    </span>
+                  </span>
+
+                  <span style="display:flex;flex-direction:column;align-items:center;gap:5px">
+                    <sc-if value="{{ p.loading }}" hint-placeholder-val="{{ false }}">
+                      <span style="width:88px;height:13px;border-radius:4px;background:linear-gradient(90deg,var(--bg-muted),var(--skeleton),var(--bg-muted));background-size:200% 100%;animation:itcShimmer 1.4s linear infinite"></span>
+                    </sc-if>
+                    <sc-if value="{{ p.ready }}" hint-placeholder-val="{{ true }}">
+                      <span style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">{{ p.distancia }}</span>
+                    </sc-if>
+                    <span style="width:100%;display:flex;align-items:center;gap:0">
+                      <span style="flex:1;height:1px;background:var(--border)"></span>
+                      <span style="color:var(--accent);font-size:12px;line-height:1">▶</span>
+                    </span>
+                    <sc-if value="{{ p.loading }}" hint-placeholder-val="{{ false }}">
+                      <span style="width:64px;height:11px;border-radius:4px;background:linear-gradient(90deg,var(--bg-muted),var(--skeleton),var(--bg-muted));background-size:200% 100%;animation:itcShimmer 1.4s linear infinite"></span>
+                    </sc-if>
+                    <sc-if value="{{ p.ready }}" hint-placeholder-val="{{ true }}">
+                      <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ p.modoIcone }}{{ p.duracao }} · {{ p.modo }}</span>
+                    </sc-if>
+                  </span>
+
+                  <span data-r="par-dest" style="min-width:0;display:flex;flex-direction:column;gap:3px">
+                    <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <span style="font-size:11px;font-weight:600;letter-spacing:0.04em;white-space:nowrap;padding:2px 8px;border-radius:9999px;background:{{ p.projetoBg }};color:{{ p.projetoFg }};border:1px solid {{ p.projetoBorder }}">{{ p.projeto }}</span>
+                      <span style="font-weight:600;white-space:nowrap">{{ p.um }}</span>
+                      <sc-if value="{{ p.manual }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;color:var(--info);border:1px solid var(--info);padding:1px 7px;border-radius:9999px">Ajuste manual</span>
+                      </sc-if>
+                    </span>
+                    <span>{{ p.cidade }}</span>
+                    <span style="font-size:13px;font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ p.ciclo }} · {{ p.plus }}</span>
+                  </span>
+
+                  <span style="color:var(--text-muted);justify-self:end">{{ p.chevron }}</span>
+                </button>
+
+                <sc-if value="{{ p.expanded }}" hint-placeholder-val="{{ false }}">
+                  <div style="border-top:1px solid var(--border);padding:20px;display:flex;flex-direction:column;gap:18px;background:var(--bg-base)">
+                    <div style="display:flex;flex-direction:column;gap:8px">
+                      <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Modo de transporte</p>
+                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <sc-for list="{{ p.modos }}" as="mo" hint-placeholder-count="4">
+                          <button type="button" onClick="{{ mo.onClick }}" style="display:flex;align-items:center;gap:8px;height:38px;padding:0 14px;border-radius:8px;border:1px solid {{ mo.borderColor }};background:{{ mo.bg }};color:{{ mo.fg }};font-size:14px;font-weight:{{ mo.weight }};cursor:pointer" style-hover="border-color:var(--accent)">
+                            {{ mo.icone }}{{ mo.label }}<span style="font-variant-numeric:tabular-nums;color:var(--text-muted)">{{ mo.tempo }}</span>
+                          </button>
+                        </sc-for>
+                      </div>
+                    </div>
+
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Por que este par</p>
+                      <p style="margin:0;font-size:15px;max-width:820px;text-wrap:pretty">{{ p.explicacao }}</p>
+                    </div>
+
+                    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+                      <div style="display:flex;flex-direction:column;gap:6px;min-width:220px">
+                        <label style="font-size:12px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted)">Trocar técnico por</label>
+                        <div role="listbox" aria-label="Trocar técnico" style="height:40px;border:1px solid var(--border);background:var(--bg-surface);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:14px;color:var(--text-muted)"><span>Selecionar técnico</span><span>▾</span></div>
+                      </div>
+                      <div style="display:flex;flex-direction:column;gap:6px;min-width:220px">
+                        <label style="font-size:12px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted)">Trocar UM por</label>
+                        <div role="listbox" aria-label="Trocar UM" style="height:40px;border:1px solid var(--border);background:var(--bg-surface);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:14px;color:var(--text-muted)"><span>Selecionar UM</span><span>▾</span></div>
+                      </div>
+                      <div style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--text-muted);font-variant-numeric:tabular-nums;padding-bottom:8px">
+                        <span>Origem {{ p.coordOrigem }}</span>
+                        <span>Destino {{ p.coordDestino }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isHistorico }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Histórico" style="display:flex;flex-direction:column;gap:24px">
+
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--border)">
+          <div style="max-width:620px">
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent)">Administração</p>
+            <h1 style="margin:8px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:38px;line-height:1.1;letter-spacing:-0.02em">Histórico de Alocações</h1>
+            <p style="margin:10px 0 0;color:var(--text-muted);text-wrap:pretty">Todos os lotes de alocação confirmados, agrupados por rodada. Abra um lote para ver as rotas individuais ou cancele lotes inteiros.</p>
+          </div>
+          <button type="button" onClick="{{ recarregar }}" style="height:42px;padding:0 18px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-base);font-size:14px;font-weight:600;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">Recarregar</button>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 18px;background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1)">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Filtros</span>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <sc-for list="{{ filtrosStatus }}" as="f" hint-placeholder-count="4">
+              <button type="button" onClick="{{ f.onClick }}" style="height:32px;padding:0 14px;border-radius:9999px;border:1px solid {{ f.borderColor }};background:{{ f.bg }};color:{{ f.fg }};font-size:13px;font-weight:{{ f.weight }};cursor:pointer" style-hover="border-color:var(--accent)">{{ f.label }}</button>
+            </sc-for>
+          </div>
+          <div style="position:relative">
+            <button type="button" onClick="{{ onToggleSelTec }}" aria-haspopup="listbox" aria-expanded="{{ selTecAberto }}" aria-label="Filtrar por técnico" style="height:32px;min-width:210px;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-base);color:var(--text-base);font-size:13px;font-weight:500;padding:0 8px 0 12px;cursor:pointer" style-hover="border-color:var(--accent)">
+              <span>{{ fTecnicoLabel }}</span>
+              <span style="display:flex;color:var(--text-muted)">{{ iconeChevron }}</span>
+            </button>
+            <sc-if value="{{ selTecAberto }}" hint-placeholder-val="{{ false }}">
+              <span>
+                <button type="button" aria-label="Fechar" onClick="{{ onToggleSelTec }}" style="position:fixed;inset:0;z-index:40;border:none;border-radius:0;background:transparent;cursor:default"></button>
+                <div role="listbox" style="position:absolute;z-index:41;top:calc(100% + 6px);left:0;min-width:100%;padding:4px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-2);display:flex;flex-direction:column;gap:2px;max-height:280px;overflow-y:auto">
+                  <sc-for list="{{ opcoesTecnico }}" as="o" hint-placeholder-count="4">
+                    <button type="button" role="option" aria-selected="{{ o.marcado }}" onClick="{{ o.onPick }}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;white-space:nowrap;padding:7px 10px;border:none;border-radius:7px;background:{{ o.bg }};color:var(--text-base);font-size:13.5px;cursor:pointer" style-hover="background:var(--bg-muted)">
+                      <span>{{ o.label }}</span>
+                      <sc-if value="{{ o.marcado }}" hint-placeholder-val="{{ false }}">
+                        <span style="display:flex;color:var(--accent)">{{ o.check }}</span>
+                      </sc-if>
+                    </button>
+                  </sc-for>
+                </div>
+              </span>
+            </sc-if>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:18px 20px">
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Lotes</p>
+            <p style="margin:8px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:34px;line-height:1;font-variant-numeric:tabular-nums">{{ totalLotes }}</p>
+          </div>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--ok);border-radius:12px;box-shadow:var(--shadow-1);padding:18px 20px">
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Rotas confirmadas</p>
+            <p style="margin:8px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:34px;line-height:1;font-variant-numeric:tabular-nums;color:var(--ok)">{{ totalConfirmadas }}</p>
+          </div>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--err);border-radius:12px;box-shadow:var(--shadow-1);padding:18px 20px">
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Rotas canceladas</p>
+            <p style="margin:8px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:34px;line-height:1;font-variant-numeric:tabular-nums;color:var(--err)">{{ totalCanceladas }}</p>
+          </div>
+        </div>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">{{ contagemLotes }}</p>
+
+          <sc-if value="{{ semLotes }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;padding:56px 24px;text-align:center;color:var(--text-muted)">Nenhum lote bate com os filtros aplicados.</div>
+          </sc-if>
+
+          <sc-if value="{{ temLotes }}" hint-placeholder-val="{{ true }}">
+          <div data-r="two" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px">
+            <sc-for list="{{ lotes }}" as="l" hint-placeholder-count="4">
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid {{ l.statusCor }};border-radius:12px;box-shadow:var(--shadow-1);padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span style="font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);font-variant-numeric:tabular-nums">Lote {{ l.id }}</span>
+                    <span style="font-size:11px;font-weight:600;letter-spacing:0.04em;padding:2px 9px;border-radius:9999px;color:{{ l.statusCor }};background:{{ l.statusTint }};border:1px solid {{ l.statusCor }}">{{ l.status }}</span>
+                    <sc-if value="{{ l.ajusteManual }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:2px 8px;border-radius:9999px;color:var(--bordo);border:1px solid var(--bordo)">Ajuste manual</span>
+                    </sc-if>
+                    <sc-if value="{{ l.reotimizacao }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:2px 8px;border-radius:9999px;color:var(--info);border:1px solid var(--info)">Re-otimização</span>
+                    </sc-if>
+                  </div>
+                  <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:19px;line-height:1.2;font-variant-numeric:tabular-nums">{{ l.data }}</p>
+                  <div style="display:flex;gap:5px;flex-wrap:wrap">
+                    <sc-for list="{{ l.chips }}" as="c" hint-placeholder-count="2">
+                      <span style="font-size:11px;font-weight:600;letter-spacing:0.04em;padding:2px 8px;border-radius:9999px;background:{{ c.bg }};color:{{ c.fg }};border:1px solid {{ c.border }}">{{ c.sigla }}</span>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding-top:14px;border-top:1px solid var(--border)">
+                  <div>
+                    <p style="margin:0;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Rotas</p>
+                    <p style="margin:4px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:22px;line-height:1;font-variant-numeric:tabular-nums">{{ l.qtdRotas }}</p>
+                    <p style="margin:3px 0 0;font-size:12px;color:var(--text-muted)">{{ l.subRotas }}</p>
+                  </div>
+                  <div>
+                    <p style="margin:0;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Tempo total</p>
+                    <p style="margin:4px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:22px;line-height:1;font-variant-numeric:tabular-nums">{{ l.tempoTotal }}</p>
+                    <p style="margin:3px 0 0;font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ l.distanciaTotal }}</p>
+                  </div>
+                  <div>
+                    <p style="margin:0;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Técnicos</p>
+                    <p style="margin:4px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:22px;line-height:1;font-variant-numeric:tabular-nums" title="{{ l.tecnicosLista }}">{{ l.qtdTecnicos }}</p>
+                    <p style="margin:3px 0 0;font-size:12px;color:var(--text-muted)">{{ l.modoPredominante }}</p>
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:8px">
+                  <button type="button" onClick="{{ l.onAbrir }}" style="flex:1;height:40px;border:1px solid var(--border);background:transparent;color:var(--text-base);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" style-hover="border-color:var(--accent);color:var(--accent)">Abrir detalhes <span>→</span></button>
+                  <button type="button" onClick="{{ l.onCancelar }}" disabled="{{ l.semRotasAtivas }}" title="Cancelar lote" style="height:40px;padding:0 14px;border:1px solid var(--border);background:transparent;color:{{ l.cancelarCor }};font-size:14px;font-weight:600;cursor:{{ l.cancelarCursor }};opacity:{{ l.cancelarOpacidade }}" style-hover="border-color:var(--err)">Cancelar lote</button>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+        </section>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isLoteDetalhe }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Detalhe do lote" style="display:flex;flex-direction:column;gap:22px">
+
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--border)">
+          <div>
+            <button type="button" onClick="{{ voltarHistorico }}" style="border:none;background:transparent;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;padding:0" style-hover="color:var(--accent-hover)">← Histórico</button>
+            <p style="margin:10px 0 0;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);font-variant-numeric:tabular-nums">Lote {{ loteId }}</p>
+            <h1 style="margin:8px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:38px;line-height:1.1;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">{{ loteData }}</h1>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px">
+              <span style="font-size:11px;font-weight:600;letter-spacing:0.04em;padding:3px 10px;border-radius:9999px;color:{{ loteStatusCor }};background:{{ loteStatusTint }};border:1px solid {{ loteStatusCor }}">{{ loteStatus }}</span>
+              <sc-if value="{{ loteAjuste }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:3px 9px;border-radius:9999px;color:var(--bordo);border:1px solid var(--bordo)">Ajuste manual</span>
+              </sc-if>
+              <sc-if value="{{ loteReotim }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:3px 9px;border-radius:9999px;color:var(--info);border:1px solid var(--info)">Re-otimização</span>
+              </sc-if>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button type="button" onClick="{{ copiarLote }}" style="height:44px;padding:0 20px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-base);font-size:15px;font-weight:600;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">Copiar para WhatsApp</button>
+            <button type="button" onClick="{{ cancelarLote }}" disabled="{{ loteSemRotasAtivas }}" style="height:44px;padding:0 20px;border:1px solid {{ loteCancelarCor }};background:transparent;color:{{ loteCancelarCor }};font-size:15px;font-weight:600;cursor:{{ loteCancelarCursor }};opacity:{{ loteCancelarOpacidade }}" style-hover="background:var(--err-tint)">Cancelar lote</button>
+          </div>
+        </div>
+
+        <sc-if value="{{ loteTemJustificativa }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:16px 20px;border-radius:12px;border:1px solid var(--bordo);background:var(--bg-surface);display:flex;flex-direction:column;gap:6px">
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--bordo)">Justificativa do lote</p>
+            <p style="margin:0;text-wrap:pretty">{{ loteJustificativa }}</p>
+          </div>
+        </sc-if>
+
+        <div data-r="quad" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:18px 20px">
+            <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums">{{ loteQtdRotas }}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted)">Rotas no lote</p>
+            <p style="margin:2px 0 0;font-size:12.5px;color:var(--text-muted)">{{ loteSubRotas }}</p>
+          </div>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:18px 20px">
+            <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums">{{ loteTempo }}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted)">Tempo total agregado</p>
+            <p style="margin:2px 0 0;font-size:12.5px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ loteDistancia }}</p>
+          </div>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:18px 20px">
+            <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums">{{ loteTempoMedio }}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted)">Tempo médio por técnico</p>
+            <p style="margin:2px 0 0;font-size:12.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ loteTecnicos }}">entre {{ loteQtdTecnicos }} técnicos</p>
+          </div>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:18px 20px">
+            <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:28px;line-height:1.1">{{ loteModoPredominante }}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted)">Modo predominante</p>
+          </div>
+        </div>
+
+        <sc-if value="{{ loteTemMapa }}" hint-placeholder-val="{{ true }}">
+        <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);overflow:hidden">
+          <div style="padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--border)">
+            <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px">Rotas confirmadas no mapa</h2>
+            <span style="font-size:13px;color:var(--text-muted)">Rotas canceladas não são plotadas</span>
+          </div>
+          <x-import component-from-global-scope="itc-route-map" from="./itc-map.js" pairs-json="{{ loteMapaJson }}" theme="{{ theme }}" height="400" hint-size="100%,400px"></x-import>
+        </div>
+        </sc-if>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px;line-height:1.3">Rotas do lote</h2>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);overflow-x:auto">
+            <div style="display:grid;grid-template-columns:36px minmax(0,1.2fr) minmax(0,1fr) 120px 110px 120px;gap:16px;min-width:900px;padding:12px 20px;background:var(--bg-muted);font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">
+              <span>#</span><span>Técnico</span><span>Destino</span><span>Duração</span><span>Distância</span><span>Status</span>
+            </div>
+            <sc-for list="{{ loteRotas }}" as="r" hint-placeholder-count="4">
+              <div style="min-width:900px;border-top:1px solid var(--border);opacity:{{ r.opacidade }}">
+              <div style="display:grid;grid-template-columns:36px minmax(0,1.2fr) minmax(0,1fr) 120px 110px 120px;gap:16px;padding:14px 20px 6px;align-items:center">
+                <span style="font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ r.idx }}</span>
+                <span style="display:flex;align-items:center;gap:10px;min-width:0">
+                  <span style="width:32px;height:32px;flex:0 0 32px;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;background:{{ r.cor }};color:{{ r.corTexto }}">{{ r.iniciais }}</span>
+                  <span style="min-width:0;display:flex;flex-direction:column">
+                    <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.tecnico }}</span>
+                    <span style="font-size:12.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.origem }}</span>
+                  </span>
+                </span>
+                <span style="min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <span style="display:flex;align-items:center;gap:7px">
+                    <span style="font-size:10.5px;font-weight:600;letter-spacing:0.04em;padding:1px 7px;border-radius:9999px;background:{{ r.projetoBg }};color:{{ r.projetoFg }};border:1px solid {{ r.projetoBorder }}">{{ r.projeto }}</span>
+                    <span style="font-weight:600;font-size:14px">{{ r.um }}</span>
+                  </span>
+                  <span style="font-size:12.5px;color:var(--text-muted)">{{ r.cidade }}</span>
+                </span>
+                <span style="display:flex;flex-direction:column;gap:2px">
+                  <span style="font-weight:600;font-size:14px;font-variant-numeric:tabular-nums">{{ r.duracao }}</span>
+                  <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted)">{{ r.modoIcone }}{{ r.modo }}</span>
+                </span>
+                <span style="font-size:14px;font-variant-numeric:tabular-nums;color:var(--text-muted)">{{ r.distancia }}</span>
+                <span style="justify-self:start;font-size:11px;font-weight:600;letter-spacing:0.04em;padding:2px 9px;border-radius:9999px;color:{{ r.statusCor }};background:{{ r.statusTint }};border:1px solid {{ r.statusCor }}">{{ r.status }}</span>
+              </div>
+              <div style="padding:0 20px 14px 72px;display:flex;align-items:flex-start;justify-content:space-between;gap:20px">
+                <span style="font-size:13px;line-height:1.45;color:var(--text-muted);text-wrap:pretty;max-width:760px">{{ r.explicacao }}</span>
+                <button type="button" onClick="{{ r.onCopiar }}" style="flex:0 0 auto;height:30px;padding:0 12px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:12.5px;font-weight:600;cursor:pointer;border-radius:7px" style-hover="border-color:var(--accent);color:var(--accent)">Copiar rota</button>
+              </div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isEstatisticas }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Estatísticas" style="display:flex;flex-direction:column;gap:24px">
+
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--border)">
+          <div style="max-width:640px">
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent)">Indicadores</p>
+            <h1 style="margin:8px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:38px;line-height:1.1;letter-spacing:-0.02em">Estatísticas</h1>
+            <p style="margin:10px 0 0;color:var(--text-muted);text-wrap:pretty">Indicadores gerenciais derivados das rotas confirmadas: desempenho por técnico, frequência de UMs e distribuição por modo de transporte.</p>
+          </div>
+          <button type="button" onClick="{{ recarregar }}" style="height:42px;padding:0 18px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-base);font-size:14px;font-weight:600;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">Recarregar</button>
+        </div>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <h2 style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Ranking de técnicos por desempenho</h2>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);overflow-x:auto">
+            <div style="display:grid;grid-template-columns:36px minmax(0,1.4fr) 130px 120px 120px minmax(0,0.9fr);gap:16px;min-width:900px;padding:12px 20px;background:var(--bg-muted);font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">
+              <span>#</span><span>Técnico</span><span style="text-align:right">UMs atendidas</span><span style="text-align:right">Tempo total</span><span style="text-align:right">Tempo médio</span><span>Modo principal</span>
+            </div>
+            <sc-for list="{{ rankingTecnicos }}" as="t" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:36px minmax(0,1.4fr) 130px 120px 120px minmax(0,0.9fr);gap:16px;min-width:900px;padding:14px 20px;align-items:center;border-top:1px solid var(--border)" style-hover="background:var(--bg-base)">
+                <span style="font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ t.pos }}</span>
+                <span style="display:flex;align-items:center;gap:10px;min-width:0">
+                  <span style="width:30px;height:30px;flex:0 0 30px;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;background:{{ t.cor }};color:{{ t.corTexto }}">{{ t.iniciais }}</span>
+                  <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.nome }}</span>
+                </span>
+                <span style="text-align:right;font-family:Archivo,sans-serif;font-weight:700;font-size:19px;line-height:1;font-variant-numeric:tabular-nums">{{ t.ums }}</span>
+                <span style="text-align:right;font-size:14px;font-variant-numeric:tabular-nums">{{ t.tempoTotal }}</span>
+                <span style="text-align:right;font-size:14px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ t.tempoMedio }}</span>
+                <span style="display:flex;align-items:center;gap:7px;font-size:14px;color:var(--text-muted)">{{ t.modoIcone }}{{ t.modo }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <h2 style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">UMs por frequência de atendimento</h2>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);overflow-x:auto">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 170px 160px;gap:16px;min-width:780px;padding:12px 20px;background:var(--bg-muted);font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">
+              <span>UM</span><span>Referência</span><span style="text-align:right">Visitas confirmadas</span><span>Última visita</span>
+            </div>
+            <sc-for list="{{ rankingUMs }}" as="u" hint-placeholder-count="4">
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 170px 160px;gap:16px;min-width:780px;padding:14px 20px;align-items:center;border-top:1px solid var(--border)" style-hover="background:var(--bg-base)">
+                <span style="display:flex;align-items:center;gap:8px;min-width:0">
+                  <span style="font-size:10.5px;font-weight:600;letter-spacing:0.04em;padding:1px 7px;border-radius:9999px;background:{{ u.projetoBg }};color:{{ u.projetoFg }};border:1px solid {{ u.projetoBorder }}">{{ u.projeto }}</span>
+                  <span style="font-weight:600">{{ u.nome }}</span>
+                </span>
+                <span style="font-size:14px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ u.ra }}</span>
+                <span style="text-align:right;font-family:Archivo,sans-serif;font-weight:700;font-size:19px;line-height:1;font-variant-numeric:tabular-nums">{{ u.visitas }}</span>
+                <span style="font-size:14px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ u.ultima }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <h2 style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Distribuição por modo de transporte</h2>
+          <div data-r="quad" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+            <sc-for list="{{ distribuicaoModos }}" as="m" hint-placeholder-count="4">
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+                <span style="display:flex;align-items:center;gap:9px;color:var(--accent);font-size:14px;font-weight:600">{{ m.icone }}<span style="color:var(--text-base)">{{ m.modo }}</span></span>
+                <div>
+                  <p style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:26px;line-height:1;font-variant-numeric:tabular-nums">{{ m.qtd }}</p>
+                  <p style="margin:4px 0 0;font-size:12.5px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ m.sufixo }}</p>
+                </div>
+                <div style="height:8px;border-radius:9999px;background:var(--track);overflow:hidden">
+                  <div style="height:100%;width:{{ m.pct }};background:var(--accent);border-radius:9999px"></div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Administração" style="display:flex;flex-direction:column;gap:24px">
+
+        <div style="display:flex;flex-direction:column;gap:20px;border-bottom:1px solid var(--border)">
+          <div style="max-width:640px">
+            <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent)">Cadastros</p>
+            <h1 style="margin:8px 0 0;font-family:Archivo,sans-serif;font-weight:700;font-size:38px;line-height:1.1;letter-spacing:-0.02em">Administração</h1>
+            <p style="margin:10px 0 0;color:var(--text-muted);text-wrap:pretty">Pontos sincronizados da planilha, projetos, unidades móveis e técnicos do Grupo ITC Brasil.</p>
+          </div>
+          <nav style="display:flex;gap:4px;flex-wrap:wrap">
+            <sc-for list="{{ adminTabs }}" as="t" hint-placeholder-count="4">
+              <button type="button" onClick="{{ t.onClick }}" style="height:42px;padding:0 16px;border:none;border-bottom:2px solid {{ t.borderColor }};background:{{ t.bg }};color:{{ t.fg }};font-size:14px;font-weight:{{ t.weight }};cursor:pointer;border-radius:8px 8px 0 0" style-hover="color:var(--accent)">{{ t.label }}</button>
+            </sc-for>
+          </nav>
+        </div>
+
+        <sc-if value="{{ isTabLocalidades }}" hint-placeholder-val="{{ true }}">
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+            <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px">Localidades</h2>
+            <button type="button" onClick="{{ recarregar }}" style="height:38px;padding:0 16px;border:none;background:var(--accent);color:var(--accent-fg);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Atualizar pontos</button>
+          </div>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);overflow-x:auto">
+            <div style="display:grid;grid-template-columns:90px 110px minmax(0,1fr) minmax(0,1.6fr) 100px 110px 150px;gap:16px;min-width:1080px;padding:12px 20px;background:var(--bg-muted);font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">
+              <span>Projeto</span><span>UM</span><span>RA</span><span>Endereço</span><span>Plus Code</span><span>Status</span><span style="text-align:right">Ações</span>
+            </div>
+            <sc-for list="{{ pontos }}" as="p" hint-placeholder-count="8">
+              <div style="display:grid;grid-template-columns:90px 110px minmax(0,1fr) minmax(0,1.6fr) 100px 110px 150px;gap:16px;min-width:1080px;padding:13px 20px;align-items:center;border-top:1px solid var(--border)" style-hover="background:var(--bg-base)">
+                <span style="justify-self:start;font-size:10.5px;font-weight:600;letter-spacing:0.04em;padding:2px 8px;border-radius:9999px;background:{{ p.projetoBg }};color:{{ p.projetoFg }};border:1px solid {{ p.projetoBorder }}">{{ p.projeto }}</span>
+                <span style="font-weight:600;font-size:14px">{{ p.um }}</span>
+                <span style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.ra }}</span>
+                <span style="font-size:13.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ p.endereco }}">{{ p.endereco }}</span>
+                <span style="font-size:12.5px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ p.plus }}</span>
+                <span style="justify-self:start;font-size:11px;font-weight:600;letter-spacing:0.04em;padding:2px 9px;border-radius:9999px;color:{{ p.statusCor }};background:{{ p.statusTint }};border:1px solid {{ p.statusBorder }}">{{ p.status }}</span>
+                <span style="justify-self:end;display:flex;gap:6px;align-items:center">
+                  <a href="{{ p.linkMaps }}" target="_blank" rel="noopener noreferrer" title="Abrir no Google Maps" style="height:30px;padding:0 11px;border:1px solid var(--border);display:flex;align-items:center;font-size:12.5px;font-weight:600;border-radius:7px" style-hover="border-color:var(--accent)">Maps</a>
+                  <button type="button" onClick="{{ p.onEditar }}" style="height:30px;padding:0 11px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:12.5px;font-weight:600;cursor:pointer;border-radius:7px" style-hover="border-color:var(--accent);color:var(--accent)">Editar</button>
+                </span>
+              </div>
+            </sc-for>
+            <div style="padding:12px 20px;border-top:1px solid var(--border);font-size:13px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ contagemPontos }}</div>
+          </div>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ isTabProjetos }}" hint-placeholder-val="{{ false }}">
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+            <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px">Projetos</h2>
+            <button type="button" onClick="{{ novoProjeto }}" style="height:38px;padding:0 16px;border:none;background:var(--accent);color:var(--accent-fg);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Cadastrar projeto</button>
+          </div>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);overflow-x:auto">
+            <div style="display:grid;grid-template-columns:120px minmax(0,1fr) 120px 190px;gap:16px;min-width:700px;padding:12px 20px;background:var(--bg-muted);font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">
+              <span>Sigla</span><span>Nome do projeto</span><span style="text-align:right">UMs</span><span style="text-align:right">Ações</span>
+            </div>
+            <sc-for list="{{ projetosAdmin }}" as="p" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:120px minmax(0,1fr) 120px 190px;gap:16px;min-width:700px;padding:14px 20px;align-items:center;border-top:1px solid var(--border)" style-hover="background:var(--bg-base)">
+                <span style="justify-self:start;font-size:12px;font-weight:600;letter-spacing:0.04em;padding:4px 11px;border-radius:6px;background:{{ p.cor }};color:{{ p.corTexto }}">{{ p.sigla }}</span>
+                <span style="font-weight:600">{{ p.nome }}</span>
+                <span style="text-align:right;font-size:14px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ p.qtdUms }}</span>
+                <span style="justify-self:end;display:flex;gap:6px">
+                  <button type="button" onClick="{{ p.onEditar }}" style="height:32px;padding:0 12px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;border-radius:7px" style-hover="border-color:var(--accent);color:var(--accent)">Editar</button>
+                  <button type="button" onClick="{{ p.onDeletar }}" style="height:32px;padding:0 12px;border:1px solid var(--border);background:transparent;color:var(--err);font-size:13px;font-weight:600;cursor:pointer;border-radius:7px" style-hover="border-color:var(--err);background:var(--err-tint)">Deletar</button>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ isTabUms }}" hint-placeholder-val="{{ false }}">
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+            <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px">Unidades Móveis</h2>
+            <button type="button" onClick="{{ novaUm }}" style="height:38px;padding:0 16px;border:none;background:var(--accent);color:var(--accent-fg);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Cadastrar UM</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <sc-for list="{{ gruposUm }}" as="g" hint-placeholder-count="3">
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);overflow-x:auto">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border)">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <span style="font-size:12px;font-weight:600;letter-spacing:0.04em;padding:4px 11px;border-radius:6px;background:{{ g.cor }};color:{{ g.corTexto }}">{{ g.sigla }}</span>
+                    <span style="font-weight:600">{{ g.nome }}</span>
+                  </div>
+                  <span style="font-size:12.5px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ g.contagem }}</span>
+                </div>
+                <sc-for list="{{ g.itens }}" as="u" hint-placeholder-count="2">
+                  <div style="display:grid;grid-template-columns:130px minmax(0,1fr) minmax(0,1.4fr) 100px 190px;gap:16px;min-width:840px;padding:13px 20px;align-items:center;border-top:1px solid var(--border)" style-hover="background:var(--bg-base)">
+                    <span style="font-weight:600;font-size:14px">{{ u.nome }}</span>
+                    <span style="font-size:14px">{{ u.cidade }}</span>
+                    <span style="font-size:13.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ u.endereco }}</span>
+                    <span style="font-size:12.5px;font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ u.ciclo }}</span>
+                    <span style="justify-self:end;display:flex;gap:6px">
+                      <button type="button" onClick="{{ u.onEditar }}" style="height:30px;padding:0 11px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:12.5px;font-weight:600;cursor:pointer;border-radius:7px" style-hover="border-color:var(--accent);color:var(--accent)">Editar</button>
+                      <button type="button" onClick="{{ u.onDeletar }}" style="height:30px;padding:0 11px;border:1px solid var(--border);background:transparent;color:var(--err);font-size:12.5px;font-weight:600;cursor:pointer;border-radius:7px" style-hover="border-color:var(--err);background:var(--err-tint)">Deletar</button>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <p style="margin:0;text-align:center;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">{{ contagemUms }}</p>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ isTabTecnicos }}" hint-placeholder-val="{{ false }}">
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+            <h2 style="margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:17px">Técnicos</h2>
+            <button type="button" onClick="{{ novoTecnico }}" style="height:38px;padding:0 16px;border:none;background:var(--accent);color:var(--accent-fg);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Cadastrar técnico</button>
+          </div>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid var(--accent);border-radius:12px;box-shadow:var(--shadow-1);overflow:hidden">
+            <sc-for list="{{ tecnicosAdmin }}" as="t" hint-placeholder-count="5">
+              <div style="border-top:1px solid var(--border);opacity:{{ t.opacidade }}">
+                <button type="button" onClick="{{ t.onToggle }}" aria-expanded="{{ t.aberto }}" style="width:100%;text-align:left;border:none;background:transparent;color:var(--text-base);padding:14px 20px;display:flex;align-items:center;gap:12px;cursor:pointer" style-hover="background:var(--bg-base)">
+                  <span style="width:36px;height:36px;flex:0 0 36px;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:{{ t.cor }};color:{{ t.corTexto }}">{{ t.iniciais }}</span>
+                  <span style="min-width:0;flex:1;display:flex;flex-direction:column;gap:2px">
+                    <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <span style="font-weight:600">{{ t.nome }}</span>
+                      <sc-if value="{{ t.pausado }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:2px 8px;border-radius:9999px;color:var(--warn);background:var(--warn-tint)">Pausado</span>
+                      </sc-if>
+                      <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;background:var(--bg-muted);color:var(--text-muted)">{{ t.modoIcone }}{{ t.modo }}</span>
+                    </span>
+                    <span style="font-size:12.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.endereco }}</span>
+                  </span>
+                  <span style="color:var(--text-muted);font-size:12px">{{ t.chevron }}</span>
+                </button>
+
+                <sc-if value="{{ t.aberto }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:0 20px 20px 68px;display:flex;flex-direction:column;gap:16px;background:var(--bg-base)">
+                    <div style="display:flex;flex-direction:column;gap:10px;padding:16px 18px;border:1px solid var(--border);background:var(--bg-surface);border-radius:10px">
+                      <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px">
+                        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Endereço</span>
+                        <span style="font-size:14px">{{ t.endereco }}</span>
+                      </div>
+                      <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px">
+                        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Ponto de referência</span>
+                        <span style="font-size:14px">{{ t.pontoRef }}</span>
+                      </div>
+                      <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px">
+                        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Plus Code</span>
+                        <span style="font-size:14px;font-variant-numeric:tabular-nums">{{ t.plus }}</span>
+                      </div>
+                      <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px">
+                        <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Coordenadas</span>
+                        <span style="font-size:14px;font-variant-numeric:tabular-nums">{{ t.coordenadas }}</span>
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                      <button type="button" onClick="{{ t.onEditar }}" style="height:34px;padding:0 14px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-base);font-size:13px;font-weight:600;cursor:pointer;border-radius:7px" style-hover="border-color:var(--accent);color:var(--accent)">Editar</button>
+                      <sc-if value="{{ t.ativo }}" hint-placeholder-val="{{ true }}">
+                        <button type="button" onClick="{{ t.onPausar }}" style="height:34px;padding:0 14px;border:1px solid var(--warn);background:transparent;color:var(--warn);font-size:13px;font-weight:600;cursor:pointer;border-radius:7px" style-hover="background:var(--warn-tint)">Pausar</button>
+                      </sc-if>
+                      <sc-if value="{{ t.pausado }}" hint-placeholder-val="{{ false }}">
+                        <button type="button" onClick="{{ t.onReativar }}" style="height:34px;padding:0 14px;border:1px solid var(--ok);background:transparent;color:var(--ok);font-size:13px;font-weight:600;cursor:pointer;border-radius:7px" style-hover="background:var(--ok-tint)">Reativar</button>
+                      </sc-if>
+                      <button type="button" onClick="{{ t.onDeletar }}" style="height:34px;padding:0 14px;border:1px solid var(--border);background:transparent;color:var(--err);font-size:13px;font-weight:600;cursor:pointer;border-radius:7px" style-hover="border-color:var(--err);background:var(--err-tint)">Deletar</button>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <p style="margin:0;text-align:center;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">{{ contagemTecnicos }}</p>
+        </section>
+        </sc-if>
+      </div>
+      </sc-if>
+
+    </main>
+
+    <footer style="border-top:1px solid var(--border)">
+      <div style="max-width:1400px;padding:16px 44px;display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:13px;color:var(--text-muted)">
+        <span>ITC RouteMap · Grupo ITC Brasil</span>
+        <span style="font-variant-numeric:tabular-nums">© 2026</span>
+      </div>
+    </footer>
+    </div>
+
+    <sc-if value="{{ modalAberto }}" hint-placeholder-val="{{ false }}">
+      <div role="dialog" aria-modal="true" aria-label="{{ modalTitulo }}" style="position:fixed;inset:0;z-index:60;background:rgba(16,22,21,0.55);display:flex;align-items:center;justify-content:center;padding:32px">
+        <div style="width:100%;max-width:520px;max-height:86vh;overflow-y:auto;background:var(--bg-surface);border:1px solid var(--border);border-top:2px solid {{ modalConfirmCor }};border-radius:12px;box-shadow:var(--shadow-2);padding:26px 28px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <h2 style="margin:0;font-family:Archivo,sans-serif;font-weight:700;font-size:22px;line-height:1.2;letter-spacing:-0.01em">{{ modalTitulo }}</h2>
+              <sc-if value="{{ modalTemChip }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:11px;font-weight:600;letter-spacing:0.04em;padding:3px 10px;border-radius:9999px;background:{{ modalChipBg }};color:{{ modalChipFg }};border:1px solid {{ modalChipBorder }}">{{ modalChip }}</span>
+              </sc-if>
+            </div>
+            <sc-if value="{{ modalTemNomeItem }}" hint-placeholder-val="{{ false }}">
+              <p style="margin:0;font-weight:600">{{ modalNomeItem }}</p>
+            </sc-if>
+            <p style="margin:0;font-size:14px;line-height:1.5;color:var(--text-muted);text-wrap:pretty">{{ modalDescricao }}</p>
+          </div>
+
+          <sc-if value="{{ modalTemBullets }}" hint-placeholder-val="{{ false }}">
+            <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:7px;font-size:14px;line-height:1.5">
+              <sc-for list="{{ modalBullets }}" as="b" hint-placeholder-count="2">
+                <li>{{ b }}</li>
+              </sc-for>
+            </ul>
+          </sc-if>
+
+          <sc-if value="{{ modalTemCampos }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-wrap:wrap;gap:14px">
+              <sc-for list="{{ modalCampos }}" as="c" hint-placeholder-count="3">
+                <div style="flex:1 1 {{ c.base }};min-width:150px;display:flex;flex-direction:column;gap:6px">
+                  <sc-if value="{{ c.temSeparador }}" hint-placeholder-val="{{ false }}">
+                    <span style="display:block;margin-top:6px;padding-top:14px;border-top:1px solid var(--border);font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">{{ c.separador }}</span>
+                  </sc-if>
+                  <label style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted)">{{ c.label }}</label>
+
+                  <sc-if value="{{ c.isTexto }}" hint-placeholder-val="{{ true }}">
+                    <input type="text" placeholder="{{ c.placeholder }}" defaultValue="{{ c.valor }}" style="height:42px;border:1px solid var(--border);border-bottom:2px solid var(--accent);background:var(--bg-base);color:var(--text-base);font:inherit;font-size:14px;padding:0 12px;width:100%" />
+                  </sc-if>
+                  <sc-if value="{{ c.isArea }}" hint-placeholder-val="{{ false }}">
+                    <textarea rows="4" placeholder="{{ c.placeholder }}" style="border:1px solid var(--border);border-bottom:2px solid var(--accent);background:var(--bg-base);color:var(--text-base);font:inherit;font-size:14px;padding:10px 12px;width:100%;resize:vertical"></textarea>
+                  </sc-if>
+                  <sc-if value="{{ c.isSelect }}" hint-placeholder-val="{{ false }}">
+                    <span style="position:relative;display:block">
+                      <button type="button" onClick="{{ c.onToggleSel }}" aria-haspopup="listbox" aria-expanded="{{ c.selAberto }}" style="width:100%;height:42px;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-base);color:var(--text-base);font-size:14px;padding:0 10px 0 12px;cursor:pointer;text-align:left" style-hover="border-color:var(--accent)">
+                        <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.selValor }}</span>
+                        <span style="display:flex;color:var(--text-muted)">{{ c.iconeChevron }}</span>
+                      </button>
+                      <sc-if value="{{ c.selAberto }}" hint-placeholder-val="{{ false }}">
+                        <span>
+                          <button type="button" aria-label="Fechar" onClick="{{ c.onToggleSel }}" style="position:fixed;inset:0;z-index:70;border:none;border-radius:0;background:transparent;cursor:default"></button>
+                          <span role="listbox" style="position:absolute;z-index:71;top:calc(100% + 6px);left:0;width:100%;padding:4px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-2);display:flex;flex-direction:column;gap:2px;max-height:240px;overflow-y:auto">
+                            <sc-for list="{{ c.opcoesSel }}" as="o" hint-placeholder-count="3">
+                              <button type="button" role="option" aria-selected="{{ o.marcado }}" onClick="{{ o.onPick }}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;padding:8px 10px;border:none;border-radius:7px;background:{{ o.bg }};color:var(--text-base);font-size:14px;cursor:pointer" style-hover="background:var(--bg-muted)">
+                                <span>{{ o.label }}</span>
+                                <sc-if value="{{ o.marcado }}" hint-placeholder-val="{{ false }}">
+                                  <span style="display:flex;color:var(--accent)">{{ o.check }}</span>
+                                </sc-if>
+                              </button>
+                            </sc-for>
+                          </span>
+                        </span>
+                      </sc-if>
+                    </span>
+                  </sc-if>
+                  <sc-if value="{{ c.isReadonly }}" hint-placeholder-val="{{ false }}">
+                    <input type="text" readOnly="{{ true }}" defaultValue="{{ c.valor }}" style="height:42px;border:1px solid var(--border);background:var(--bg-muted);color:var(--text-muted);font:inherit;font-size:14px;padding:0 12px;width:100%;font-variant-numeric:tabular-nums" />
+                  </sc-if>
+                  <sc-if value="{{ c.isAcao }}" hint-placeholder-val="{{ false }}">
+                    <span style="display:flex;gap:8px">
+                      <input type="text" placeholder="{{ c.placeholder }}" style="flex:1;min-width:0;height:42px;border:1px solid var(--border);border-bottom:2px solid var(--accent);background:var(--bg-base);color:var(--text-base);font:inherit;font-size:14px;padding:0 12px" />
+                      <button type="button" style="flex:0 0 auto;height:42px;padding:0 14px;border:1px solid var(--border);background:var(--bg-base);color:var(--text-base);font-size:13px;font-weight:600;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">{{ c.acaoLabel }}</button>
+                    </span>
+                  </sc-if>
+                  <sc-if value="{{ c.isCor }}" hint-placeholder-val="{{ false }}">
+                    <span style="display:flex;flex-direction:column;gap:6px">
+                      <span style="display:flex;align-items:center;gap:8px">
+                        <input type="color" aria-label="Seletor de cor" value="{{ c.corValor }}" onChange="{{ c.onCorPicker }}" style="height:42px;width:58px;flex:0 0 58px;padding:4px;border:1px solid var(--border);border-radius:10px;background:transparent;cursor:pointer" />
+                        <input type="text" value="{{ c.corValor }}" onChange="{{ c.onCorTexto }}" maxLength="7" placeholder="#008F95" style="flex:1;min-width:0;height:42px;border:1px solid var(--border);border-bottom:2px solid var(--accent);border-radius:10px;background:var(--bg-base);color:var(--text-base);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;padding:0 12px" />
+                        <button type="button" onClick="{{ c.onSugerir }}" aria-label="Sugerir cor" title="Sugerir cor aleatória" style="flex:0 0 42px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:10px;background:var(--bg-base);color:var(--text-base);cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">{{ c.iconeShuffle }}</button>
+                      </span>
+                      <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--text-muted)">Use o seletor, digite o código hex ou clique em sugerir.</span>
+                    </span>
+                  </sc-if>
+
+                  <sc-if value="{{ c.temHint }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:12px;line-height:1.4;color:var(--text-muted);text-wrap:pretty">{{ c.hint }}</span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ modalTemAlerta }}" hint-placeholder-val="{{ false }}">
+            <p style="margin:0;padding:14px 16px;border:1px solid var(--info);background:var(--info-tint);font-size:13px;line-height:1.5;border-radius:9px;text-wrap:pretty">{{ modalAlerta }}</p>
+          </sc-if>
+          <sc-if value="{{ modalTemAviso }}" hint-placeholder-val="{{ false }}">
+            <p style="margin:0;padding:14px 16px;border:1px solid var(--warn);background:var(--warn-tint);font-size:13px;line-height:1.5;border-radius:9px;text-wrap:pretty">{{ modalAviso }}</p>
+          </sc-if>
+
+          <sc-if value="{{ modalTemNota }}" hint-placeholder-val="{{ false }}">
+            <p style="margin:0;font-size:13px;line-height:1.5;color:var(--text-muted);text-wrap:pretty">{{ modalNota }}</p>
+          </sc-if>
+
+          <div style="display:flex;justify-content:flex-end;gap:10px;padding-top:4px">
+            <button type="button" onClick="{{ fecharModal }}" style="height:42px;padding:0 18px;border:1px solid var(--border);background:transparent;color:var(--text-base);font-size:14px;font-weight:600;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">{{ modalCancelLabel }}</button>
+            <button type="button" onClick="{{ modalConfirmar }}" style="height:42px;padding:0 20px;border:none;background:{{ modalConfirmCor }};color:#FFFFFF;font-size:14px;font-weight:600;cursor:pointer" style-hover="opacity:0.9">{{ modalConfirmLabel }}</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+      <div role="status" style="position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:12px;padding:12px 18px;border-radius:9999px;background:var(--text-base);color:var(--bg-surface);box-shadow:var(--shadow-2)">
+        <span style="width:20px;height:20px;border-radius:9999px;background:var(--ok);color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:12px">✓</span>
+        <span style="font-size:14px;font-weight:500">{{ toast }}</span>
+      </div>
+    </sc-if>
+
+  </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const ICONS = {
+  DRIVE: '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/>',
+  TWO_WHEELER: '<circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>',
+  TRANSIT: '<path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/>',
+  WALK: '<circle cx="12" cy="5" r="1"/><path d="m9 20 3-6 3 6"/><path d="m6 8 6 2 6-2"/><path d="M12 10v4"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  chevron: '<path d="m6 9 6 6 6-6"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  shuffle: '<path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>',
+  pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  home: '<path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2Z"/>',
+  history: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M7.5 16v-4M12 16V8M16.5 16v-6"/>',
+  route: '<circle cx="6" cy="18.5" r="2.6"/><circle cx="18" cy="5.5" r="2.6"/><path d="M8.6 18.5h4.4a4 4 0 0 0 4-4V8.1"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.1 14.4a1.5 1.5 0 0 0 .3 1.7l.1.1a1.9 1.9 0 1 1-2.6 2.6l-.1-.1a1.5 1.5 0 0 0-1.7-.3 1.5 1.5 0 0 0-.9 1.4v.2a1.9 1.9 0 1 1-3.8 0v-.1a1.5 1.5 0 0 0-1-1.4 1.5 1.5 0 0 0-1.7.3l-.1.1a1.9 1.9 0 1 1-2.6-2.6l.1-.1a1.5 1.5 0 0 0 .3-1.7 1.5 1.5 0 0 0-1.4-.9H3.8a1.9 1.9 0 1 1 0-3.8h.1a1.5 1.5 0 0 0 1.4-1 1.5 1.5 0 0 0-.3-1.7l-.1-.1a1.9 1.9 0 1 1 2.6-2.6l.1.1a1.5 1.5 0 0 0 1.7.3h.1a1.5 1.5 0 0 0 .9-1.4V3.8a1.9 1.9 0 1 1 3.8 0v.1a1.5 1.5 0 0 0 .9 1.4 1.5 1.5 0 0 0 1.7-.3l.1-.1a1.9 1.9 0 1 1 2.6 2.6l-.1.1a1.5 1.5 0 0 0-.3 1.7v.1a1.5 1.5 0 0 0 1.4.9h.2a1.9 1.9 0 1 1 0 3.8h-.1a1.5 1.5 0 0 0-1.4.9Z"/>',
+};
+
+const MODO_KEY_POR_LABEL = {
+  "Carro": "DRIVE",
+  "Moto": "TWO_WHEELER",
+  "Transporte público": "TRANSIT",
+  "A pé": "WALK",
+};
+
+function icon(kind, size) {
+  return React.createElement("svg", {
+    width: size, height: size, viewBox: "0 0 24 24", fill: "none",
+    stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round",
+    "aria-hidden": true, style: { flex: "0 0 auto", display: "block" },
+    dangerouslySetInnerHTML: { __html: ICONS[kind] || "" },
+  });
+}
+
+const PROJETOS = {
+  BSBIA: "#2E6FBF",
+  GDF: "#B7791F",
+  NOR: "#7A2A45",
+};
+
+const TECNICOS = [
+  { id: "t1", nome: "Paulo Ricardo", endereco: "Jardim Ingá, GO", cor: "#C0392B", modo: "Carro", pontoRef: "Próximo ao Terminal do Jardim Ingá", plus: "P2CX+4M" },
+  { id: "t2", nome: "Matheus Santos", endereco: "Ceilândia Norte, DF", cor: "#1565C0", modo: "Carro", pontoRef: "QNM 34, atrás do Centro Olímpico", plus: "5V7H+9C" },
+  { id: "t3", nome: "Ana Beatriz Lima", endereco: "Águas Claras, DF", cor: "#7A2A45", modo: "Moto", pontoRef: "Rua 25 Norte, ao lado do Parque", plus: "5X2R+G8" },
+  { id: "t4", nome: "João da Silva", endereco: "Planaltina, DF", cor: "#CC7A00", modo: "Carro", pontoRef: "Setor Tradicional, esquina com a praça", plus: "9927+VQ" },
+  { id: "t5", nome: "Carla Menezes", endereco: "Gama Leste, DF", cor: "#1A7F3C", modo: "Transporte público", pontoRef: "Q. 30, em frente à escola classe", plus: "XW5J+2P" },
+];
+
+const MODOS_LISTA = ["Carro", "Moto", "Transporte público", "A pé"];
+
+const UMS = [
+  { id: "u1", projeto: "BSBIA", nome: "BSBIA01", cidade: "Santa Maria", endereco: "Q. 210 Conj. C, Santa Maria Sul", ciclo: "C2 · E7" },
+  { id: "u2", projeto: "BSBIA", nome: "BSBIA04", cidade: "Recanto das Emas", endereco: "Q. 307 Conj. 12, Recanto das Emas", ciclo: "C2 · E3" },
+  { id: "u3", projeto: "GDF", nome: "GDFUM02", cidade: "Sobradinho II", endereco: "AR 11 Conj. 4, Sobradinho II", ciclo: "C1 · E9" },
+  { id: "u4", projeto: "NOR", nome: "NOR07", cidade: "Brazlândia", endereco: "Setor Tradicional Q. 8, Brazlândia", ciclo: "C3 · E1" },
+];
+
+const PARES = [
+  {
+    id: "p1", tec: "t1", um: "u1", distancia: "24,7 km", duracao: "36 min", modo: "Carro",
+    plus: "3Q69+77", coordOrigem: "-16,2856000, -47,9761000", coordDestino: "-15,8331000, -48,0575000",
+    explicacao: "Esta é a rota mais curta do lote (4 rotas no total) — 36 min de deslocamento via carro, 8 min abaixo da média (44 min). O algoritmo escolheu Paulo Ricardo → BSBIA01 porque essa combinação tinha o menor custo de tempo dentre as opções possíveis para esta UM.",
+    modos: [ { k: "DRIVE", label: "Carro", tempo: "36 min" }, { k: "TWO_WHEELER", label: "Moto", tempo: "31 min" }, { k: "TRANSIT", label: "Transporte público", tempo: "1h 48min" }, { k: "WALK", label: "A pé", tempo: "5h 12min" } ],
+  },
+  {
+    id: "p2", tec: "t3", um: "u2", distancia: "18,2 km", duracao: "27 min", modo: "Moto",
+    plus: "2Q4X+M9", coordOrigem: "-15,8402000, -48,0261000", coordDestino: "-15,9067000, -48,0644000",
+    explicacao: "Esta é a 2ª rota mais curta do lote (4 rotas no total) — 27 min de deslocamento via moto, 17 min abaixo da média (44 min). O algoritmo escolheu Ana Beatriz Lima → BSBIA04 porque essa combinação tinha o menor custo de tempo dentre as opções possíveis para esta UM.",
+    modos: [ { k: "DRIVE", label: "Carro", tempo: "33 min" }, { k: "TWO_WHEELER", label: "Moto", tempo: "27 min" }, { k: "TRANSIT", label: "Transporte público", tempo: "1h 22min" }, { k: "WALK", label: "A pé", tempo: "3h 41min" } ],
+  },
+  {
+    id: "p3", tec: "t4", um: "u3", distancia: "31,4 km", duracao: "42 min", modo: "Carro", manual: true,
+    plus: "4RCJ+2V", coordOrigem: "-15,6222000, -47,6489000", coordDestino: "-15,6531000, -47,7889000",
+    explicacao: "Esta combinação João da Silva → GDFUM02 foi escolhida manualmente, fora da sugestão do algoritmo. São 42 min de deslocamento via carro, 2 min abaixo da média do lote (44 min).",
+    modos: [ { k: "DRIVE", label: "Carro", tempo: "42 min" }, { k: "TWO_WHEELER", label: "Moto", tempo: "38 min" }, { k: "TRANSIT", label: "Transporte público", tempo: "2h 06min" }, { k: "WALK", label: "A pé", tempo: "6h 24min" } ],
+  },
+  {
+    id: "p4", tec: "t2", um: "u4", distancia: "42,9 km", duracao: "1h 12min", modo: "Carro", loading: true,
+    plus: "3P5W+HC", coordOrigem: "-15,8114000, -48,1069000", coordDestino: "-15,6689000, -48,2000000",
+    explicacao: "Esta é a rota mais longa do lote (4 rotas no total) — 72 min de deslocamento via carro, 28 min acima da média (44 min). Nenhum técnico mais próximo estava disponível nesta rodada.",
+    modos: [ { k: "DRIVE", label: "Carro", tempo: "1h 12min" }, { k: "TWO_WHEELER", label: "Moto", tempo: "1h 04min" }, { k: "TRANSIT", label: "Transporte público", tempo: "—" }, { k: "WALK", label: "A pé", tempo: "8h 50min" } ],
+  },
+];
+
+const NAV = [
+  { key: "inicio", label: "Início", short: "Início", ic: "home" },
+  { key: "historico", label: "Histórico", short: "Histórico", ic: "history" },
+  { key: "estatisticas", label: "Estatísticas", short: "Estatísticas", ic: "chart" },
+  { key: "calcular", label: "Calcular Rotas", short: "Calcular", ic: "route" },
+  { key: "admin", label: "Administração", short: "Admin", ic: "settings" },
+];
+
+const SEMANA = [
+  { d: "Seg", v: 51 }, { d: "Ter", v: 46 }, { d: "Qua", v: 44 },
+  { d: "Qui", v: 39 }, { d: "Sex", v: 48 }, { d: "Sáb", v: 42 },
+];
+const META_MIN = 42;
+
+const POR_PROJETO = [
+  { nome: "BSBIA", v: 18 }, { nome: "GDF", v: 9 }, { nome: "NOR", v: 5 },
+];
+
+const TEC_COORD = {
+  t1: [-16.2856, -47.9761], t2: [-15.8114, -48.1069], t3: [-15.8402, -48.0261],
+  t4: [-15.6222, -47.6489], t5: [-16.0206, -48.0619],
+};
+const UM_COORD = {
+  u1: [-15.8331, -48.0575], u2: [-15.9067, -48.0644],
+  u3: [-15.6531, -47.7889], u4: [-15.6689, -48.2000],
+};
+
+const LOTES = [
+  { id: "7401CC7D", data: "06 ago 2026, 14:32", dataCurta: "6 ago 2026", ajusteManual: true, reotimizacao: false,
+    rotas: [
+      { tec: "t1", um: "u1", modo: "DRIVE", seg: 2160, m: 24700, st: "Confirmada" },
+      { tec: "t3", um: "u2", modo: "TWO_WHEELER", seg: 1620, m: 18200, st: "Confirmada" },
+      { tec: "t4", um: "u3", modo: "DRIVE", seg: 2520, m: 31400, st: "Confirmada" },
+      { tec: "t2", um: "u4", modo: "DRIVE", seg: 4320, m: 42900, st: "Confirmada" },
+    ] },
+  { id: "5B92AA10", data: "05 ago 2026, 09:14", dataCurta: "5 ago 2026", ajusteManual: false, reotimizacao: false,
+    rotas: [
+      { tec: "t3", um: "u1", modo: "TWO_WHEELER", seg: 1740, m: 19600, st: "Confirmada" },
+      { tec: "t5", um: "u2", modo: "TRANSIT", seg: 2880, m: 14300, st: "Confirmada" },
+      { tec: "t4", um: "u3", modo: "DRIVE", seg: 1140, m: 24500, st: "Confirmada" },
+    ] },
+  { id: "2F17DE44", data: "04 ago 2026, 16:05", dataCurta: "4 ago 2026", ajusteManual: false, reotimizacao: true,
+    rotas: [
+      { tec: "t2", um: "u1", modo: "DRIVE", seg: 2040, m: 26100, st: "Confirmada" },
+      { tec: "t1", um: "u2", modo: "DRIVE", seg: 3300, m: 44800, st: "Confirmada" },
+      { tec: "t4", um: "u3", modo: "DRIVE", seg: 2460, m: 30900, st: "Confirmada" },
+      { tec: "t3", um: "u4", modo: "TWO_WHEELER", seg: 4020, m: 41900, st: "Cancelada" },
+    ] },
+  { id: "9C03B1E5", data: "01 ago 2026, 08:41", dataCurta: "1 ago 2026", ajusteManual: false, reotimizacao: false,
+    rotas: [
+      { tec: "t2", um: "u4", modo: "DRIVE", seg: 4260, m: 42100, st: "Cancelada" },
+      { tec: "t5", um: "u1", modo: "TRANSIT", seg: 3900, m: 21600, st: "Cancelada" },
+    ] },
+  { id: "A6D45F82", data: "30 jul 2026, 15:20", dataCurta: "30 jul 2026", ajusteManual: true, reotimizacao: false,
+    rotas: [
+      { tec: "t1", um: "u2", modo: "DRIVE", seg: 3180, m: 43200, st: "Confirmada" },
+      { tec: "t3", um: "u1", modo: "TWO_WHEELER", seg: 1680, m: 19100, st: "Confirmada" },
+      { tec: "t4", um: "u3", modo: "DRIVE", seg: 2400, m: 30200, st: "Confirmada" },
+      { tec: "t2", um: "u4", modo: "DRIVE", seg: 4500, m: 44600, st: "Confirmada" },
+    ] },
+];
+
+const PONTOS = [
+  { um: "BSBIA01", projeto: "BSBIA", ra: "Santa Maria", uf: "DF", endereco: "Q. 210 Conj. C, Santa Maria Sul, Brasília — DF", ref: "Ao lado do CEF 02", plus: "3Q69+77", status: "Pendente", lat: -15.8331, lng: -48.0575, linha: 14, ciclo: 2, etapa: 7 },
+  { um: "BSBIA04", projeto: "BSBIA", ra: "Recanto das Emas", uf: "DF", endereco: "Q. 307 Conj. 12, Recanto das Emas, Brasília — DF", ref: "Em frente à UBS 3", plus: "2Q4X+M9", status: "Pendente", lat: -15.9067, lng: -48.0644, linha: 9, ciclo: 2, etapa: 3 },
+  { um: "BSBIA07", projeto: "BSBIA", ra: "Ceilândia", uf: "DF", endereco: "QNN 13 Conj. F, Ceilândia Sul, Brasília — DF", ref: "Próximo ao Centro Olímpico", plus: "3P8V+4R", status: "Atual", lat: -15.8280, lng: -48.1104, linha: 21, ciclo: 1, etapa: 5 },
+  { um: "GDFUM02", projeto: "GDF", ra: "Sobradinho II", uf: "DF", endereco: "AR 11 Conj. 4, Sobradinho II, Brasília — DF", ref: "Esquina com a feira permanente", plus: "4RCJ+2V", status: "Pendente", lat: -15.6531, lng: -47.7889, linha: 6, ciclo: 1, etapa: 9 },
+  { um: "GDFUM05", projeto: "GDF", ra: "Planaltina", uf: "DF", endereco: "Setor Residencial Leste Q. 3, Planaltina — DF", ref: "Ao lado da praça central", plus: "5R2M+8H", status: "Atual", lat: -15.6222, lng: -47.6489, linha: 11, ciclo: 3, etapa: 2 },
+  { um: "NOR07", projeto: "NOR", ra: "Brazlândia", uf: "DF", endereco: "Setor Tradicional Q. 8, Brazlândia, Brasília — DF", ref: "Atrás do mercado municipal", plus: "3P5W+HC", status: "Pendente", lat: -15.6689, lng: -48.2000, linha: 4, ciclo: 3, etapa: 1 },
+  { um: "NOR11", projeto: "NOR", ra: "Gama", uf: "DF", endereco: "Q. 24 Setor Leste, Gama, Brasília — DF", ref: "Em frente à escola classe", plus: "2PQ6+G4", status: "Histórico", lat: -16.0206, lng: -48.0619, linha: 17, ciclo: 2, etapa: 8 },
+  { um: "NOR14", projeto: "NOR", ra: "Samambaia", uf: "DF", endereco: "QN 415 Conj. 2, Samambaia Norte, Brasília — DF", ref: "Ao lado do posto de saúde", plus: "3P7J+9X", status: "Atual", lat: -15.8695, lng: -48.0925, linha: 25, ciclo: 1, etapa: 4 },
+];
+
+const PROJETOS_INFO = [
+  { sigla: "BSBIA", nome: "Brasília Inteligência Artificial" },
+  { sigla: "GDF", nome: "Governo do Distrito Federal" },
+  { sigla: "NOR", nome: "Norte Operações Regionais" },
+];
+
+const ADMIN_TABS = [
+  { key: "localidades", label: "Localidades" },
+  { key: "projetos", label: "Projetos" },
+  { key: "ums", label: "Unidades Móveis" },
+  { key: "tecnicos", label: "Técnicos" },
+];
+
+function formatarDuracao(segundos) {
+  if (!segundos || segundos < 0) return "0min";
+  const h = Math.floor(segundos / 3600);
+  const m = Math.floor((segundos % 3600) / 60);
+  if (h === 0) return m + "min";
+  if (m === 0) return h + "h";
+  return h + "h " + m + "min";
+}
+function formatarDistancia(metros) {
+  if (!metros || metros < 0) return "0 km";
+  const km = metros / 1000;
+  if (km < 10) return km.toFixed(1).replace(".", ",") + " km";
+  return Math.round(km) + " km";
+}
+function nomeAmigavelModo(modo) {
+  return { DRIVE: "Carro", WALK: "A pé", TRANSIT: "Transporte público", BICYCLE: "Bicicleta", TWO_WHEELER: "Moto" }[modo] || modo;
+}
+
+function resumirLote(lote) {
+  const confirmadas = lote.rotas.filter((r) => r.st === "Confirmada").length;
+  const canceladas = lote.rotas.filter((r) => r.st === "Cancelada").length;
+  const status = canceladas === 0 ? "Confirmada" : confirmadas === 0 ? "Cancelada" : "Mista";
+  const seg = lote.rotas.reduce((a, r) => a + r.seg, 0);
+  const metros = lote.rotas.reduce((a, r) => a + r.m, 0);
+  const nomes = [];
+  const projetos = [];
+  const contModo = {};
+  lote.rotas.forEach((r) => {
+    const t = TECNICOS.find((x) => x.id === r.tec);
+    if (t && nomes.indexOf(t.nome) === -1) nomes.push(t.nome);
+    const u = UMS.find((x) => x.id === r.um);
+    if (u && projetos.indexOf(u.projeto) === -1) projetos.push(u.projeto);
+    contModo[r.modo] = (contModo[r.modo] || 0) + 1;
+  });
+  let modoPredominante = "DRIVE", top = 0;
+  Object.keys(contModo).forEach((k) => { if (contModo[k] > top) { top = contModo[k]; modoPredominante = k; } });
+  return { status, confirmadas, canceladas, seg, metros, nomes, projetos, modoPredominante };
+}
+
+function lum(hex) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const f = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+function textoIdeal(hex) {
+  return lum(hex) > 0.45 ? "#1A2020" : "#FFFFFF";
+}
+function ajustar(hex, dark) {
+  const h = hex.replace("#", "");
+  const to = (v) => Math.max(0, Math.min(255, Math.round(v)));
+  let r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  const f = dark ? 1.55 : 0.78;
+  r = to(dark ? r + (255 - r) * 0.45 : r * f);
+  g = to(dark ? g + (255 - g) * 0.45 : g * f);
+  b = to(dark ? b + (255 - b) * 0.45 : b * f);
+  return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
+}
+function rgba(hex, a) {
+  const h = hex.replace("#", "");
+  return "rgba(" + parseInt(h.slice(0, 2), 16) + "," + parseInt(h.slice(2, 4), 16) + "," + parseInt(h.slice(4, 6), 16) + "," + a + ")";
+}
+function iniciais(nome) {
+  const ign = ["de", "do", "da", "dos", "das", "e"];
+  const p = nome.split(/\s+/).filter((x) => x && ign.indexOf(x.toLowerCase()) === -1);
+  if (!p.length) return "?";
+  if (p.length === 1) return p[0][0].toUpperCase();
+  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+}
+function coord(str) {
+  const parts = String(str).split(", ");
+  return [parseFloat(parts[0].replace(",", ".")), parseFloat(parts[1].replace(",", "."))];
+}
+
+const CAMPOS_FORM = {
+  projeto: [
+    { label: "Nome do projeto", placeholder: "Ex: QDFM" },
+    { label: "Sigla", placeholder: "Ex: ITC", hint: "Até 10 caracteres. Será exibida em badge colorida." },
+    { label: "Cor de identificação", tipo: "cor", cor: "#008F95" },
+    { separador: "Integração Google Sheets", label: "URL da planilha", placeholder: "https://docs.google.com/spreadsheets/d/..." },
+    { label: "Abas a sincronizar", tipo: "area", placeholder: "BSBIA01\nBSBIA02\nBSBIA03", hint: "Uma aba por linha. Pode ser uma por UM do projeto (ex: BSBIA01, BSBIA02). Sensível a maiúsculas/minúsculas." },
+  ],
+  um: [
+    { label: "Nome da UM", placeholder: "Ex: Ônibus 1, Carreta Alpha", hint: "Nome único pra identificar a unidade." },
+    { label: "Projeto vinculado", tipo: "select", opcoes: ["Selecione um projeto", "BSBIA — Brasília Inteligência Artificial", "GDF — Governo do Distrito Federal", "NOR — Norte Operações Regionais"] },
+    { label: "Cor de identificação", tipo: "cor", cor: "#008F95" },
+  ],
+  tecnico: [
+    { label: "Nome completo", placeholder: "Ex: Matheus Santos" },
+    { label: "Cor de identificação", tipo: "cor", cor: "#C0392B" },
+    { label: "Plus Code da residência", tipo: "acao", placeholder: "Ex: 3Q69+77 Brasília", acaoLabel: "Obter Coordenadas", hint: "Cole o Plus Code do Google Maps e clique em \u201cObter Coordenadas\u201d." },
+    { label: "Endereço residencial", placeholder: "Ex: QNN 15, Conjunto B, Lote 24, Ceilândia Norte", hint: "Endereço completo da residência do técnico." },
+    { label: "Ponto de referência", placeholder: "Ex: Ao lado do Mercado Central", hint: "Opcional. Ajuda em entregas ou visitas." },
+    { label: "Modo de transporte principal", tipo: "select", opcoes: ["Selecione o modo...", "Carro", "Moto", "Transporte público", "A pé"], hint: "Opcional. Usado como sugestão padrão no cálculo de rotas." },
+  ],
+};
+
+const TITULOS_FORM = {
+  projeto: { criar: "Cadastrar Projeto", editar: "Editar Projeto", descCriar: "Cadastre um novo projeto com sua planilha de pontos vinculada.", descEditar: "Atualize as informações do projeto.", alerta: "Importante: compartilhe a planilha com o Service Account do sistema (como Leitor). Sem isso, o sistema não conseguirá ler os pontos." },
+  um: { criar: "Cadastrar UM", editar: "Editar UM", descCriar: "Cadastre uma nova Unidade Móvel vinculada a um projeto.", descEditar: "Atualize as informações da Unidade Móvel." },
+  tecnico: { criar: "Cadastrar Técnico", editar: "Editar Técnico", descCriar: "Cadastre um novo técnico com endereço residencial e coordenadas.", descEditar: "Atualize as informações do técnico." },
+};
+
+const STATUSES_PONTO = ["Pendente", "Atual", "Histórico"];
+
+class Component extends DCLogic {
+  state = {
+    screen: "login",
+    theme: "light",
+    selTec: ["t1", "t2", "t3", "t4", "t5"],
+    selUm: ["u1", "u2", "u3", "u4"],
+    expandido: "p1",
+    modos: { p1: "DRIVE", p2: "TWO_WHEELER", p3: "DRIVE", p4: "DRIVE" },
+    toast: null,
+    adminTab: "localidades",
+    loteAberto: null,
+    tecAberto: null,
+    pausados: ["t5"],
+    modal: null,
+    fStatus: "todos",
+    fTecnico: "todos",
+    selAberto: null,
+    formCor: {},
+    formSel: {},
+  };
+
+  toggleSel = (id) => this.setState((st) => ({ selAberto: st.selAberto === id ? null : id }));
+  setSel = (label, valor) => this.setState((st) => ({ formSel: { ...st.formSel, [label]: valor }, selAberto: null }));
+  setCor = (label, hex) => this.setState((st) => ({ formCor: { ...st.formCor, [label]: hex } }));
+  sugerirCor = (label) => {
+    const P = ["#008F95", "#2E6FBF", "#B7791F", "#7A2A45", "#1A7F3C", "#C0392B", "#1565C0", "#CC7A00", "#00696E", "#8A2244"];
+    this.setCor(label, P[Math.floor(Math.random() * P.length)]);
+  };
+
+  componentWillUnmount() {
+    if (this._t) clearTimeout(this._t);
+    if (this._tt) clearTimeout(this._tt);
+  }
+
+  go = (screen) => this.setState({ screen });
+
+  avisar = (texto) => {
+    if (this._tt) clearTimeout(this._tt);
+    this.setState({ modal: null, toast: texto });
+    this._tt = setTimeout(() => this.setState({ toast: null }), 3400);
+  };
+
+  abrirForm = (entidade, nome) => {
+    const t = TITULOS_FORM[entidade];
+    const sucesso = {
+      projeto: nome ? "Projeto atualizado com sucesso!" : "Projeto criado com sucesso!",
+      um: nome ? "UM atualizada com sucesso!" : "UM cadastrada com sucesso!",
+      tecnico: nome ? "Técnico atualizado com sucesso!" : "Técnico cadastrado com sucesso!",
+    }[entidade];
+    this.setState({ formCor: {}, formSel: {}, selAberto: null, modal: {
+      tipo: "form",
+      titulo: nome ? t.editar : t.criar,
+      descricao: nome ? t.descEditar : t.descCriar,
+      campos: CAMPOS_FORM[entidade],
+      alerta: t.alerta || "",
+      confirmLabel: nome ? "Salvar alterações" : "Cadastrar",
+      confirmCor: "var(--accent)", cancelLabel: "Cancelar",
+      onConfirm: () => this.avisar(sucesso),
+    } });
+  };
+
+  abrirEditarPonto = (p) => {
+    this.setState({ formCor: {}, formSel: {}, selAberto: null, modal: {
+      tipo: "form",
+      titulo: "Editar ponto",
+      chip: p.projeto,
+      descricao: "Linha " + p.linha + " da aba " + p.um + " · Ciclo " + p.ciclo + " / Etapa " + p.etapa,
+      campos: [
+        { label: "Status", tipo: "select", opcoes: STATUSES_PONTO, valor: p.status },
+        { label: "Região Administrativa", valor: p.ra, meia: true },
+        { label: "UF", valor: p.uf, meia: true },
+        { label: "Endereço", valor: p.endereco },
+        { label: "Referência", valor: p.ref, placeholder: "Ex: Ao lado do CEF 02" },
+        { label: "Plus Code (não editável)", valor: p.plus, tipo: "readonly" },
+        { label: "Link do Google Maps", valor: p.linkMaps, placeholder: "https://maps.app.goo.gl/..." },
+        { label: "Latitude", valor: String(p.lat), placeholder: "-15.7942", meia: true },
+        { label: "Longitude", valor: String(p.lng), placeholder: "-47.8825", meia: true },
+      ],
+      aviso: "⚠ Edições manuais são sobrescritas na próxima sincronização se a mesma linha for alterada na planilha de origem.",
+      confirmLabel: "Salvar alterações", confirmCor: "var(--accent)", cancelLabel: "Cancelar",
+      onConfirm: () => this.avisar("Ponto atualizado."),
+    } });
+  };
+
+  abrirCancelarLote = (lote, resumo) => {
+    const n = resumo.confirmadas;
+    const pl = n === 1 ? "" : "s";
+    this.setState({ modal: {
+      tipo: "cancelarLote", titulo: "Cancelar lote de alocação",
+      descricao: "Esta ação vai:",
+      bullets: [
+        "Marcar " + n + " rota" + pl + " ativa" + pl + " como Cancelada",
+        "Liberar até " + n + " ponto" + pl + ", voltando o status de Agendado → Pendente",
+      ],
+      nota: "Pontos que já foram marcados como Atual ou Histórico não serão afetados. A operação é atômica — ou tudo, ou nada.",
+      confirmLabel: "Cancelar lote", confirmCor: "var(--err)", cancelLabel: "Voltar",
+      onConfirm: () => this.avisar("Lote cancelado · " + n + " rota" + pl + " cancelada" + pl + " · " + n + " ponto" + pl + " liberado" + pl),
+    } });
+  };
+
+  abrirDelete = (titulo, nomeItem, descricao, sucesso) => {
+    this.setState({ modal: {
+      tipo: "delete", titulo, nomeItem, descricao,
+      confirmLabel: "Deletar", confirmCor: "var(--err)", cancelLabel: "Cancelar",
+      onConfirm: () => this.avisar(sucesso),
+    } });
+  };
+
+  badge = (projeto) => {
+    const dark = this.state.theme === "dark";
+    const base = PROJETOS[projeto] || "#697272";
+    return { bg: rgba(base, 0.16), fg: ajustar(base, dark), border: rgba(base, 0.3) };
+  };
+
+  renderVals() {
+    const s = this.state;
+    const dark = s.theme === "dark";
+    const screen = s.screen;
+    const selTec = s.selTec, selUm = s.selUm;
+
+    const navItems = NAV.map((n) => {
+      const active = n.key === screen || (n.key === "calcular" && (screen === "calculando" || screen === "resultado"));
+      return {
+        label: n.label,
+        short: n.short,
+        icone: icon(n.ic, 20),
+        bg: active ? "var(--accent)" : "transparent",
+        fg: active ? "var(--accent-fg)" : "var(--rail-fg)",
+        onClick: () => this.go(n.key),
+      };
+    });
+
+    const kpisAll = [
+      { valor: "4", label: "Pontos pendentes", descricao: "aguardando alocação", acao: "Calcular rotas", zero: false, onAcao: () => this.go("calcular") },
+      { valor: "12", label: "Pontos agendados", descricao: "rotas confirmadas ativas", acao: "Ver histórico", zero: false, onAcao: () => this.go("historico") },
+      { valor: "5", label: "Técnicos disponíveis", descricao: "com localização cadastrada", acao: "Gerenciar técnicos", zero: false, onAcao: () => this.go("admin") },
+      { valor: "3", label: "Rotas confirmadas hoje", descricao: "cronograma do dia", acao: null, zero: false },
+      { valor: "0", label: "Alocações no mês", descricao: "agosto atual", acao: null, zero: true },
+      { valor: "0", label: "Tempo médio", descricao: "de deslocamento no mês", acao: null, zero: true },
+    ].map((k) => ({
+      ...k,
+      semAcao: !k.acao,
+      valueColor: k.zero ? "var(--text-muted)" : "var(--accent)",
+    }));
+
+    const cronograma = [
+      { tec: "t1", um: "u1", modo: "Carro", tempo: "36 min" },
+      { tec: "t3", um: "u2", modo: "Moto", tempo: "27 min" },
+      { tec: "t4", um: "u3", modo: "Carro", tempo: "42 min" },
+    ].map((r) => {
+      const t = TECNICOS.find((x) => x.id === r.tec);
+      const u = UMS.find((x) => x.id === r.um);
+      const b = this.badge(u.projeto);
+      return {
+        tecnico: t.nome, origem: t.endereco, cor: t.cor, corTexto: textoIdeal(t.cor), iniciais: iniciais(t.nome),
+        projeto: u.projeto, um: u.nome, destino: u.cidade + " · " + u.ciclo,
+        projetoBg: b.bg, projetoFg: b.fg, projetoBorder: b.border,
+        modo: r.modo, modoIcone: icon(MODO_KEY_POR_LABEL[r.modo], 14), tempo: r.tempo,
+      };
+    });
+
+    const atalhos = [
+      { label: "Calcular Rotas", onClick: () => this.go("calcular") },
+      { label: "Histórico", onClick: () => this.go("historico") },
+      { label: "Localidades", onClick: () => this.go("admin") },
+      { label: "Técnicos", onClick: () => this.go("admin") },
+    ];
+
+    const tecnicos = TECNICOS.map((t) => {
+      const checked = selTec.indexOf(t.id) !== -1;
+      return {
+        ...t, checked, iniciais: iniciais(t.nome), corTexto: textoIdeal(t.cor),
+        modoIcone: icon(MODO_KEY_POR_LABEL[t.modo], 14),
+        mark: checked ? "✓" : "",
+        boxBg: checked ? "var(--accent)" : "var(--bg-surface)",
+        boxBorder: checked ? "var(--accent)" : "var(--border)",
+        bg: checked ? "var(--accent-light)" : "var(--bg-surface)",
+        borderColor: checked ? "var(--accent)" : "var(--border)",
+        pausado: s.pausados.indexOf(t.id) !== -1,
+        onToggle: () => this.setState((p) => ({
+          selTec: p.selTec.indexOf(t.id) === -1 ? p.selTec.concat(t.id) : p.selTec.filter((x) => x !== t.id),
+        })),
+      };
+    });
+
+    const ums = UMS.map((u) => {
+      const checked = selUm.indexOf(u.id) !== -1;
+      const b = this.badge(u.projeto);
+      return {
+        ...u, checked,
+        mark: checked ? "✓" : "",
+        boxBg: checked ? "var(--accent)" : "var(--bg-surface)",
+        boxBorder: checked ? "var(--accent)" : "var(--border)",
+        bg: checked ? "var(--accent-light)" : "var(--bg-surface)",
+        borderColor: checked ? "var(--accent)" : "var(--border)",
+        projetoBg: b.bg, projetoFg: b.fg, projetoBorder: b.border,
+        onToggle: () => this.setState((p) => ({
+          selUm: p.selUm.indexOf(u.id) === -1 ? p.selUm.concat(u.id) : p.selUm.filter((x) => x !== u.id),
+        })),
+      };
+    });
+
+    const nT = selTec.length, nU = selUm.length;
+    const pode = nT > 0 && nU > 0;
+    const diferem = nT !== nU;
+    const menor = Math.min(nT, nU);
+
+    const pares = PARES.map((p) => {
+      const t = TECNICOS.find((x) => x.id === p.tec);
+      const u = UMS.find((x) => x.id === p.um);
+      const b = this.badge(u.projeto);
+      const expanded = s.expandido === p.id;
+      const modoAtivo = s.modos[p.id];
+      const modos = p.modos.map((m) => {
+        const on = m.k === modoAtivo;
+        return {
+          label: m.label, icone: icon(m.k, 16), tempo: m.tempo,
+          bg: on ? "var(--accent-light)" : "var(--bg-surface)",
+          fg: on ? "var(--accent)" : "var(--text-base)",
+          borderColor: on ? "var(--accent)" : "var(--border)",
+          weight: on ? 600 : 500,
+          onClick: () => this.setState((prev) => ({ modos: { ...prev.modos, [p.id]: m.k } })),
+        };
+      });
+      const sel = p.modos.find((m) => m.k === modoAtivo) || p.modos[0];
+      return {
+        ...p,
+        tecnico: t.nome, origem: t.endereco, cor: t.cor, corTexto: textoIdeal(t.cor), iniciais: iniciais(t.nome),
+        projeto: u.projeto, um: u.nome, cidade: u.cidade, ciclo: u.ciclo,
+        projetoBg: b.bg, projetoFg: b.fg, projetoBorder: b.border,
+        duracao: sel.tempo, modo: sel.label, modoIcone: icon(sel.k, 14),
+        loading: !!p.loading, ready: !p.loading,
+        manual: !!p.manual,
+        expanded, chevron: expanded ? "▲" : "▼",
+        borderColor: expanded ? "var(--accent)" : "var(--border)",
+        modos,
+        onToggle: () => this.setState((prev) => ({ expandido: prev.expandido === p.id ? null : p.id })),
+      };
+    });
+
+    const mapa = PARES.map((p) => {
+      const t = TECNICOS.find((x) => x.id === p.tec);
+      const u = UMS.find((x) => x.id === p.um);
+      const o = coord(p.coordOrigem), d = coord(p.coordDestino);
+      return {
+        id: p.id, tecnico: t.nome, origemLabel: t.endereco, cor: t.cor,
+        um: u.nome, destinoLabel: u.endereco, corProjeto: PROJETOS[u.projeto] || "#697272",
+        duracao: p.duracao, oLat: o[0], oLng: o[1], dLat: d[0], dLng: d[1],
+      };
+    });
+
+    // ── Histórico ────────────────────────────────────────────
+    const nomesTecnicos = [];
+    LOTES.forEach((l) => resumirLote(l).nomes.forEach((n) => { if (nomesTecnicos.indexOf(n) === -1) nomesTecnicos.push(n); }));
+    nomesTecnicos.sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+    const CORES_STATUS = { Confirmada: "var(--ok)", Cancelada: "var(--err)", Mista: "var(--warn)" };
+    const TINTS_STATUS = { Confirmada: "var(--ok-tint)", Cancelada: "var(--err-tint)", Mista: "var(--warn-tint)" };
+
+    const lotesBrutos = LOTES.map((l) => ({ ...l, r: resumirLote(l) }));
+    const lotesFiltrados = lotesBrutos.filter((l) => {
+      if (s.fStatus !== "todos" && l.r.status !== s.fStatus) return false;
+      if (s.fTecnico !== "todos" && l.r.nomes.indexOf(s.fTecnico) === -1) return false;
+      return true;
+    });
+
+    const statsHist = lotesFiltrados.reduce((acc, l) => ({
+      totalLotes: acc.totalLotes + 1,
+      confirmadas: acc.confirmadas + l.r.confirmadas,
+      canceladas: acc.canceladas + l.r.canceladas,
+    }), { totalLotes: 0, confirmadas: 0, canceladas: 0 });
+
+    const lotes = lotesFiltrados.map((l) => ({
+      id: l.id, data: l.data,
+      status: l.r.status, statusCor: CORES_STATUS[l.r.status], statusTint: TINTS_STATUS[l.r.status],
+      ajusteManual: l.ajusteManual, reotimizacao: l.reotimizacao,
+      chips: l.r.projetos.map((p) => {
+        const b = this.badge(p);
+        return { sigla: p, bg: b.bg, fg: b.fg, border: b.border };
+      }),
+      qtdRotas: String(l.rotas.length),
+      subRotas: l.r.status === "Mista" ? l.r.confirmadas + " ok · " + l.r.canceladas + " canc." : l.rotas.length + (l.rotas.length === 1 ? " ponto" : " pontos"),
+      tempoTotal: formatarDuracao(l.r.seg), distanciaTotal: formatarDistancia(l.r.metros),
+      qtdTecnicos: String(l.r.nomes.length), modoPredominante: nomeAmigavelModo(l.r.modoPredominante),
+      tecnicosLista: l.r.nomes.join(", "),
+      semRotasAtivas: l.r.confirmadas === 0,
+      cancelarCor: l.r.confirmadas > 0 ? "var(--err)" : "var(--text-muted)",
+      cancelarCursor: l.r.confirmadas > 0 ? "pointer" : "not-allowed",
+      cancelarOpacidade: l.r.confirmadas > 0 ? 1 : 0.45,
+      onCancelar: () => { if (l.r.confirmadas > 0) this.abrirCancelarLote(l, l.r); },
+      onAbrir: () => this.setState({ screen: "loteDetalhe", loteAberto: l.id }),
+    }));
+
+    const filtrosStatus = ["todos", "Confirmada", "Cancelada", "Mista"].map((v) => {
+      const on = s.fStatus === v;
+      return {
+        valor: v, label: v === "todos" ? "Todos" : v === "Confirmada" ? "Confirmadas" : v === "Cancelada" ? "Canceladas" : "Mistas",
+        bg: on ? "var(--accent)" : "transparent", fg: on ? "var(--accent-fg)" : "var(--text-muted)",
+        borderColor: on ? "var(--accent)" : "var(--border)", weight: on ? 600 : 500,
+        onClick: () => this.setState({ fStatus: v }),
+      };
+    });
+    const opcoesTecnico = [{ valor: "todos", label: "Todos os técnicos" }].concat(nomesTecnicos.map((n) => ({ valor: n, label: n }))).map((o) => ({
+      valor: o.valor, label: o.label,
+      marcado: o.valor === s.fTecnico,
+      bg: o.valor === s.fTecnico ? "var(--accent-light)" : "transparent",
+      check: icon("check", 15),
+      onPick: () => this.setState({ fTecnico: o.valor, selAberto: null }),
+    }));
+
+    // ── Detalhe do lote ──────────────────────────────────────
+    const loteRaw = LOTES.find((l) => l.id === s.loteAberto) || LOTES[0];
+    const loteR = resumirLote(loteRaw);
+    const loteRotas = loteRaw.rotas.map((r, i) => {
+      const t = TECNICOS.find((x) => x.id === r.tec);
+      const u = UMS.find((x) => x.id === r.um);
+      const b = this.badge(u.projeto);
+      const cancelada = r.st === "Cancelada";
+      return {
+        idx: String(i + 1), tecnico: t.nome, origem: t.endereco, cor: t.cor, corTexto: textoIdeal(t.cor), iniciais: iniciais(t.nome),
+        um: u.nome, cidade: u.cidade, projeto: u.projeto, projetoBg: b.bg, projetoFg: b.fg, projetoBorder: b.border,
+        duracao: formatarDuracao(r.seg), distancia: formatarDistancia(r.m),
+        modo: nomeAmigavelModo(r.modo), modoIcone: icon(r.modo, 14),
+        status: r.st, statusCor: CORES_STATUS[r.st], statusTint: TINTS_STATUS[r.st],
+        opacidade: cancelada ? 0.55 : 1,
+        explicacao: cancelada
+          ? "Rota cancelada antes da execução — o ponto voltou para Pendente."
+          : t.nome + " → " + u.nome + " foi o par de menor custo de tempo disponível para esta UM nesta rodada (" + formatarDuracao(r.seg) + " via " + nomeAmigavelModo(r.modo).toLowerCase() + ").",
+        onCopiar: () => this.avisar("Rota copiada. Cole no WhatsApp."),
+      };
+    });
+    const loteMapa = loteRaw.rotas.filter((r) => r.st === "Confirmada").map((r, i) => {
+      const t = TECNICOS.find((x) => x.id === r.tec);
+      const u = UMS.find((x) => x.id === r.um);
+      const o = TEC_COORD[r.tec], d = UM_COORD[r.um];
+      return {
+        id: loteRaw.id + "-" + i, tecnico: t.nome, origemLabel: t.endereco, cor: t.cor,
+        um: u.nome, destinoLabel: u.endereco, corProjeto: PROJETOS[u.projeto] || "#697272",
+        duracao: formatarDuracao(r.seg), oLat: o[0], oLng: o[1], dLat: d[0], dLng: d[1],
+      };
+    });
+
+    // ── Estatísticas (derivadas das rotas confirmadas) ───────
+    const confirmadas = [];
+    LOTES.forEach((l) => l.rotas.forEach((r) => { if (r.st === "Confirmada") confirmadas.push({ ...r, dataCurta: l.dataCurta }); }));
+
+    const mapaTec = {};
+    confirmadas.forEach((r) => {
+      const t = TECNICOS.find((x) => x.id === r.tec);
+      if (!mapaTec[r.tec]) mapaTec[r.tec] = { nome: t.nome, cor: t.cor, ums: [], seg: 0, modos: {} };
+      const e = mapaTec[r.tec];
+      if (e.ums.indexOf(r.um) === -1) e.ums.push(r.um);
+      e.seg += r.seg;
+      e.modos[r.modo] = (e.modos[r.modo] || 0) + 1;
+    });
+    const rankingTecnicos = Object.keys(mapaTec).map((id) => {
+      const e = mapaTec[id];
+      let top = "DRIVE", n = 0;
+      Object.keys(e.modos).forEach((k) => { if (e.modos[k] > n) { n = e.modos[k]; top = k; } });
+      return {
+        id, nome: e.nome, cor: e.cor, corTexto: textoIdeal(e.cor), iniciais: iniciais(e.nome),
+        ums: String(e.ums.length), tempoTotal: formatarDuracao(e.seg),
+        tempoMedio: formatarDuracao(e.ums.length ? Math.round(e.seg / e.ums.length) : 0),
+        modo: nomeAmigavelModo(top), modoIcone: icon(top, 14),
+      };
+    }).sort((a, b) => Number(b.ums) - Number(a.ums)).map((t, i) => ({ ...t, pos: String(i + 1) }));
+
+    const mapaUm = {};
+    confirmadas.forEach((r) => {
+      const u = UMS.find((x) => x.id === r.um);
+      if (!mapaUm[r.um]) mapaUm[r.um] = { nome: u.nome, ra: u.cidade, projeto: u.projeto, visitas: 0, ultima: "" };
+      mapaUm[r.um].visitas += 1;
+      if (!mapaUm[r.um].ultima) mapaUm[r.um].ultima = r.dataCurta;
+    });
+    const rankingUMs = Object.keys(mapaUm).map((id) => {
+      const e = mapaUm[id];
+      const b = this.badge(e.projeto);
+      return { nome: e.nome, ra: e.ra, projeto: e.projeto, projetoBg: b.bg, projetoFg: b.fg, projetoBorder: b.border, visitas: String(e.visitas), ultima: e.ultima };
+    }).sort((a, b) => Number(b.visitas) - Number(a.visitas));
+
+    const contModos = {};
+    confirmadas.forEach((r) => { contModos[r.modo] = (contModos[r.modo] || 0) + 1; });
+    const totalConf = confirmadas.length;
+    const distribuicaoModos = ["DRIVE", "TWO_WHEELER", "TRANSIT", "WALK"].map((k) => {
+      const qtd = contModos[k] || 0;
+      const pct = totalConf ? Math.round((qtd / totalConf) * 100) : 0;
+      return { modo: nomeAmigavelModo(k), icone: icon(k, 18), qtd: String(qtd), sufixo: (qtd === 1 ? "rota" : "rotas") + " · " + pct + "%", pct: pct + "%" };
+    });
+
+    // ── Administração ────────────────────────────────────────
+    const adminTabs = ADMIN_TABS.map((t) => {
+      const on = s.adminTab === t.key;
+      return {
+        label: t.label,
+        bg: on ? "var(--accent-light)" : "transparent",
+        fg: on ? "var(--accent)" : "var(--text-muted)",
+        borderColor: on ? "var(--accent)" : "transparent",
+        weight: on ? 600 : 500,
+        onClick: () => this.setState({ adminTab: t.key }),
+      };
+    });
+    const pontos = PONTOS.map((p) => {
+      const b = this.badge(p.projeto);
+      const pend = p.status === "Pendente";
+      const linkMaps = "https://www.google.com/maps/search/?api=1&query=" + p.lat + "," + p.lng;
+      return {
+        ...p, linkMaps,
+        projetoBg: b.bg, projetoFg: b.fg, projetoBorder: b.border,
+        statusCor: pend ? "var(--ok)" : "var(--text-muted)",
+        statusTint: pend ? "var(--ok-tint)" : "var(--bg-muted)",
+        statusBorder: pend ? "var(--ok)" : "var(--border)",
+        onEditar: () => this.abrirEditarPonto({ ...p, linkMaps }),
+      };
+    });
+    const projetosAdmin = PROJETOS_INFO.map((p) => {
+      const base = PROJETOS[p.sigla];
+      return {
+        ...p, cor: base, corTexto: textoIdeal(base),
+        qtdUms: String(UMS.filter((u) => u.projeto === p.sigla).length),
+        onEditar: () => this.abrirForm("projeto", p.nome),
+        onDeletar: () => this.abrirDelete("Deletar projeto", p.nome + " (" + p.sigla + ")", "Esta ação não pode ser desfeita. UMs vinculadas a este projeto ficarão sem associação.", "Projeto deletado com sucesso!"),
+      };
+    });
+    const gruposUm = PROJETOS_INFO.map((p) => {
+      const base = PROJETOS[p.sigla];
+      return {
+        sigla: p.sigla, nome: p.nome, cor: base, corTexto: textoIdeal(base),
+        contagem: UMS.filter((u) => u.projeto === p.sigla).length + " UM" + (UMS.filter((u) => u.projeto === p.sigla).length === 1 ? "" : "s"),
+        itens: UMS.filter((u) => u.projeto === p.sigla).map((u) => ({
+          nome: u.nome, cidade: u.cidade, endereco: u.endereco, ciclo: u.ciclo,
+          onEditar: () => this.abrirForm("um", u.nome),
+          onDeletar: () => this.abrirDelete("Deletar UM", u.nome + " (" + p.sigla + ")", "Esta ação não pode ser desfeita. Histórico de alocações vinculados a esta UM permanecerão registrados.", "UM deletada com sucesso!"),
+        })),
+      };
+    }).filter((g) => g.itens.length > 0);
+    const tecnicosAdmin = TECNICOS.map((t) => {
+      const pausado = s.pausados.indexOf(t.id) !== -1;
+      const aberto = s.tecAberto === t.id;
+      const c = TEC_COORD[t.id];
+      return {
+        id: t.id, nome: t.nome, endereco: t.endereco, cor: t.cor, corTexto: textoIdeal(t.cor), iniciais: iniciais(t.nome),
+        modo: t.modo, modoIcone: icon(MODO_KEY_POR_LABEL[t.modo], 13),
+        pontoRef: t.pontoRef, plus: t.plus,
+        coordenadas: c[0].toFixed(7) + ", " + c[1].toFixed(7),
+        pausado, ativo: !pausado, aberto, fechado: !aberto,
+        chevron: aberto ? "▲" : "▼",
+        opacidade: pausado ? 0.6 : 1,
+        onToggle: () => this.setState((p) => ({ tecAberto: p.tecAberto === t.id ? null : t.id })),
+        onEditar: () => this.abrirForm("tecnico", t.nome),
+        onDeletar: () => this.abrirDelete("Deletar técnico", t.nome, "Esta ação não pode ser desfeita. Alocações vinculadas a este técnico permanecerão registradas, mas sem técnico associado.", "Técnico deletado com sucesso!"),
+        onPausar: () => this.setState({ modal: {
+          tipo: "pausar", titulo: "Pausar técnico",
+          descricao: t.nome + " não aparecerá na seleção ao calcular rotas. Rotas já confirmadas não são afetadas.",
+          confirmLabel: "Pausar", confirmCor: "var(--warn)", cancelLabel: "Cancelar",
+          onConfirm: () => { this.setState((p) => ({ pausados: p.pausados.concat(t.id) })); this.avisar(t.nome + " pausado."); },
+        } }),
+        onReativar: () => { this.setState((p) => ({ pausados: p.pausados.filter((x) => x !== t.id) })); this.avisar(t.nome + " reativado."); },
+      };
+    });
+    const contagemTecnicos = TECNICOS.length + (TECNICOS.length === 1 ? " técnico cadastrado" : " técnicos cadastrados");
+
+    const maxMin = 60;
+    const alturaBarra = (v) => Math.round((v / maxMin) * 92);
+    const semana = SEMANA.map((b) => ({
+      d: b.d, v: b.v,
+      h: alturaBarra(b.v) + "px",
+    }));
+    const maxProj = 20;
+    const porProjeto = POR_PROJETO.map((p) => ({
+      nome: p.nome, rotulo: p.v + " rotas",
+      pct: Math.round((p.v / maxProj) * 100) + "%",
+      cor: ajustar(PROJETOS[p.nome], dark),
+    }));
+
+    return {
+      theme: s.theme,
+      themeIcon: icon(dark ? "sun" : "moon", 17),
+      iconEmpty: icon("pin", 24),
+      isLogin: screen === "login",
+      isApp: screen !== "login",
+      isInicio: screen === "inicio",
+      isSelecao: screen === "calcular",
+      isCalculando: screen === "calculando",
+      isResultado: screen === "resultado",
+      isHistorico: screen === "historico",
+      isLoteDetalhe: screen === "loteDetalhe",
+      isEstatisticas: screen === "estatisticas",
+      isAdmin: screen === "admin",
+      lotes, statsHist, filtrosStatus, opcoesTecnico, fTecnico: s.fTecnico,
+      fTecnicoLabel: s.fTecnico === "todos" ? "Todos os técnicos" : s.fTecnico,
+      selTecAberto: s.selAberto === "filtroTecnico",
+      onToggleSelTec: () => this.toggleSel("filtroTecnico"),
+      iconeChevron: icon("chevron", 16),
+      semLotes: lotes.length === 0,
+      temLotes: lotes.length > 0,
+      contagemLotes: lotes.length + (lotes.length === 1 ? " lote encontrado" : " lotes encontrados"),
+      totalLotes: String(statsHist.totalLotes), totalConfirmadas: String(statsHist.confirmadas), totalCanceladas: String(statsHist.canceladas),
+      recarregar: () => {
+        this.setState({ toast: "Dados sincronizados com o Firestore." });
+        this._tt = setTimeout(() => this.setState({ toast: null }), 3000);
+      },
+      loteId: loteRaw.id, loteData: loteRaw.data,
+      loteStatus: loteR.status, loteStatusCor: CORES_STATUS[loteR.status], loteStatusTint: TINTS_STATUS[loteR.status],
+      loteAjuste: loteRaw.ajusteManual, loteReotim: loteRaw.reotimizacao,
+      loteRotas, loteTempo: formatarDuracao(loteR.seg), loteDistancia: formatarDistancia(loteR.metros),
+      loteQtdRotas: String(loteRaw.rotas.length), loteQtdTecnicos: String(loteR.nomes.length),
+      loteSubRotas: loteR.confirmadas + " confirmada" + (loteR.confirmadas === 1 ? "" : "s") + " · " + loteR.canceladas + " cancelada" + (loteR.canceladas === 1 ? "" : "s"),
+      loteTempoMedio: formatarDuracao(loteR.nomes.length ? Math.round(loteR.seg / loteR.nomes.length) : 0),
+      loteModoPredominante: nomeAmigavelModo(loteR.modoPredominante),
+      loteTecnicos: loteR.nomes.join(", "),
+      loteMapaJson: JSON.stringify(loteMapa),
+      loteTemMapa: loteMapa.length > 0,
+      loteTemJustificativa: loteRaw.ajusteManual,
+      loteJustificativa: "O operador trocou ao menos um par sugerido pelo algoritmo antes de confirmar. As rotas abaixo refletem a decisão final, não a sugestão automática.",
+      loteSemRotasAtivas: loteR.confirmadas === 0,
+      loteCancelarCor: loteR.confirmadas > 0 ? "var(--err)" : "var(--text-muted)",
+      loteCancelarCursor: loteR.confirmadas > 0 ? "pointer" : "not-allowed",
+      loteCancelarOpacidade: loteR.confirmadas > 0 ? 1 : 0.45,
+      voltarHistorico: () => this.setState({ screen: "historico" }),
+      copiarLote: () => this.avisar("Lote copiado. Cole no WhatsApp."),
+      cancelarLote: () => { if (loteR.confirmadas > 0) this.abrirCancelarLote(loteRaw, loteR); },
+      rankingTecnicos, rankingUMs, distribuicaoModos,
+      adminTabs, pontos, projetosAdmin, gruposUm, tecnicosAdmin, contagemTecnicos,
+      novoProjeto: () => this.abrirForm("projeto", null),
+      novaUm: () => this.abrirForm("um", null),
+      novoTecnico: () => this.abrirForm("tecnico", null),
+      modalAberto: !!s.modal,
+      modalTitulo: s.modal ? s.modal.titulo : "",
+      modalDescricao: s.modal ? s.modal.descricao : "",
+      modalNomeItem: s.modal ? s.modal.nomeItem || "" : "",
+      modalTemNomeItem: !!(s.modal && s.modal.nomeItem),
+      modalChip: s.modal ? s.modal.chip || "" : "",
+      modalTemChip: !!(s.modal && s.modal.chip),
+      modalChipBg: s.modal && s.modal.chip ? this.badge(s.modal.chip).bg : "transparent",
+      modalChipFg: s.modal && s.modal.chip ? this.badge(s.modal.chip).fg : "var(--text-muted)",
+      modalChipBorder: s.modal && s.modal.chip ? this.badge(s.modal.chip).border : "var(--border)",
+      modalCampos: s.modal && s.modal.campos ? s.modal.campos.map((c) => {
+        const corAtual = s.formCor[c.label] || c.cor || "#008F95";
+        const opcoes = c.opcoes || [];
+        const selAtual = s.formSel[c.label] || c.valor || opcoes[0] || "";
+        return {
+        label: c.label, placeholder: c.placeholder || "", valor: c.valor || "",
+        hint: c.hint || "", temHint: !!c.hint,
+        separador: c.separador || "", temSeparador: !!c.separador,
+        base: c.meia ? "180px" : "100%",
+        isTexto: !c.tipo, isArea: c.tipo === "area", isSelect: c.tipo === "select",
+        isReadonly: c.tipo === "readonly", isAcao: c.tipo === "acao", isCor: c.tipo === "cor",
+        opcoes, acaoLabel: c.acaoLabel || "",
+        selValor: selAtual,
+        selAberto: s.selAberto === "campo:" + c.label,
+        onToggleSel: () => this.toggleSel("campo:" + c.label),
+        iconeChevron: icon("chevron", 16),
+        opcoesSel: opcoes.map((o) => ({
+          label: o,
+          marcado: o === selAtual,
+          bg: o === selAtual ? "var(--accent-light)" : "transparent",
+          check: icon("check", 15),
+          onPick: () => this.setSel(c.label, o),
+        })),
+        corValor: corAtual,
+        onCorPicker: (e) => this.setCor(c.label, e.target.value.toUpperCase()),
+        onCorTexto: (e) => this.setCor(c.label, e.target.value.toUpperCase()),
+        onSugerir: () => this.sugerirCor(c.label),
+        iconeShuffle: icon("shuffle", 16),
+        };
+      }) : [],
+      modalTemCampos: !!(s.modal && s.modal.campos),
+      modalBullets: s.modal && s.modal.bullets ? s.modal.bullets : [],
+      modalTemBullets: !!(s.modal && s.modal.bullets),
+      modalNota: s.modal ? s.modal.nota || "" : "",
+      modalTemNota: !!(s.modal && s.modal.nota),
+      modalAlerta: s.modal ? s.modal.alerta || "" : "",
+      modalTemAlerta: !!(s.modal && s.modal.alerta),
+      modalAviso: s.modal ? s.modal.aviso || "" : "",
+      modalTemAviso: !!(s.modal && s.modal.aviso),
+      modalConfirmLabel: s.modal ? s.modal.confirmLabel : "",
+      modalConfirmCor: s.modal ? s.modal.confirmCor : "var(--accent)",
+      modalCancelLabel: s.modal ? s.modal.cancelLabel : "Cancelar",
+      modalConfirmar: () => { if (s.modal) s.modal.onConfirm(); },
+      fecharModal: () => this.setState({ modal: null }),
+      isTabLocalidades: s.adminTab === "localidades",
+      isTabProjetos: s.adminTab === "projetos",
+      isTabUms: s.adminTab === "ums",
+      isTabTecnicos: s.adminTab === "tecnicos",
+      contagemPontos: "Mostrando 1 – " + PONTOS.length + " de " + PONTOS.length + " pontos",
+      contagemUms: UMS.length + (UMS.length === 1 ? " UM cadastrada em " : " UMs cadastradas em ") + gruposUm.length + (gruposUm.length === 1 ? " projeto" : " projetos"),
+      navItems, cronograma, atalhos, tecnicos, ums, pares, semana, porProjeto,
+      metaBottom: alturaBarra(META_MIN) + "px",
+      kpisTopo: kpisAll.slice(0, 4),
+      kpisMes: kpisAll.slice(4),
+      mapaJson: JSON.stringify(mapa),
+      mapaSel: s.expandido || "",
+      mapaDica: s.expandido ? "Par destacado — clique de novo para ver o lote inteiro" : "Clique num par abaixo para destacá-lo no mapa",
+      contTec: "(" + nT + "/" + TECNICOS.length + ")",
+      contUm: "(" + nU + "/" + UMS.length + ")",
+      resumoPares: nT + (nT === 1 ? " técnico" : " técnicos") + " → " + nU + (nU === 1 ? " UM" : " UMs"),
+      avisoTexto: !pode
+        ? "Selecione pelo menos 1 técnico e 1 UM."
+        : diferem
+          ? "Contagens diferentes — " + menor + (menor === 1 ? " alocação será feita" : " alocações serão feitas") + ". " + (nT > nU ? (nT - nU) + " técnico(s) ficarão sem alocação." : (nU - nT) + " UM(s) ficarão sem técnico.")
+          : "Cada técnico será alocado a uma UM, minimizando o deslocamento total do time.",
+      avisoCor: !pode ? "var(--text-muted)" : diferem ? "var(--warn)" : "var(--text-muted)",
+      metricas: [
+        { valor: "177 min", label: "Tempo total agregado" },
+        { valor: "44 min", label: "Tempo médio por técnico" },
+        { valor: "4/5", label: "técnicos alocados" },
+        { valor: "Carro", label: "Modo predominante" },
+      ],
+      toast: s.toast,
+      entrar: () => this.go("inicio"),
+      irInicio: () => this.go("inicio"),
+      irCalcular: () => this.go("calcular"),
+      toggleTheme: () => this.setState((p) => ({ theme: p.theme === "dark" ? "light" : "dark" })),
+      todosTec: () => this.setState({ selTec: TECNICOS.map((t) => t.id) }),
+      limparTec: () => this.setState({ selTec: [] }),
+      todosUm: () => this.setState({ selUm: UMS.map((u) => u.id) }),
+      limparUm: () => this.setState({ selUm: [] }),
+      calcular: () => {
+        if (!pode) return;
+        this.setState({ screen: "calculando" });
+        this._t = setTimeout(() => this.setState({ screen: "resultado" }), 1400);
+      },
+      voltarSelecao: () => this.go("calcular"),
+      confirmar: () => {
+        this.setState({ toast: "4 rotas confirmadas. Pontos agora em Agendado." });
+        this._tt = setTimeout(() => this.setState({ toast: null }), 3600);
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

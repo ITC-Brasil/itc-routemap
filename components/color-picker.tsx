@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Shuffle } from "lucide-react"
-import { gerarCorSugerida } from "@/lib/firestore/ras"
+import { gerarCorSugerida } from "@/lib/cores"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

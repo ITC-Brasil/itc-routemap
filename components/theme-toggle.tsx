@@ -11,6 +11,8 @@ export function ThemeToggle() {
 
   // Evita "flash" de ícone errado na hidratação (SSR vs cliente)
   React.useEffect(() => {
+    // Flag de montagem intencional: o valor so pode ser conhecido no cliente.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
   }, [])
 

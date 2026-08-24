@@ -3,17 +3,10 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Pencil, Plus, Trash2, Truck } from "lucide-react"
-import {
-  listarUMsComProjeto,
-  deletarUM,
-  type UM,
-  type UMComProjeto,
-} from "@/lib/firestore/ums"
-import {
-  listarProjetos,
-  type Projeto,
-} from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import { listarUMsComProjeto, deletarUM } from "@/lib/actions/ums"
+import type { UM, UMComProjeto } from "@/lib/db/ums"
+import { listarProjetos } from "@/lib/actions/projetos"
+import type { Projeto } from "@/lib/db/projetos"
 import { UMFormDialog } from "@/components/ums/um-form-dialog"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
@@ -58,6 +51,8 @@ export default function UMsPage() {
   }
 
   useEffect(() => {
+    // Carga inicial via server action: o setState ocorre dentro do async.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     recarregar()
   }, [])
 
@@ -79,18 +74,20 @@ export default function UMsPage() {
   // Agrupa UMs por projetoId para renderização agrupada
   const umsAgrupadas = agruparUMsPorProjeto(ums)
 
+  // Tabela curta: 960px em vez da largura cheia (system.md §3). Era um
+  // <main> aqui dentro, aninhado no <main> do layout — dois landmarks.
   return (
-    <main className="container mx-auto px-4 py-8">
+    <div className="mx-auto max-w-[960px]">
       {/* Cabeçalho */}
-      <div className="mb-8 flex items-end justify-between gap-4">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-6 border-b pb-[22px]">
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Administração
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+Administração
           </p>
-          <h1 className="mt-1 font-heading text-4xl text-foreground">
+          <h1 className="mt-2 font-heading text-[38px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground">
             Unidades Móveis
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2.5 max-w-[620px] text-pretty text-muted-foreground">
             Gestão das UMs vinculadas aos projetos do Grupo ITC Brasil. Cada
             UM é uma unidade operacional itinerante.
           </p>
@@ -161,7 +158,7 @@ export default function UMsPage() {
           mensagemSucesso="UM deletada com sucesso!"
         />
       )}
-    </main>
+    </div>
   )
 }
 
@@ -231,11 +228,10 @@ function GrupoProjeto({
             </span>
           ) : (
             <span
-              className="inline-flex items-center rounded-md px-3 py-1 font-mono text-xs font-semibold"
-              style={{
-                backgroundColor: grupo.projeto!.cor,
-                color: corTextoIdeal(grupo.projeto!.cor),
-              }}
+              className="badge-cor-dado inline-flex items-center rounded-full border px-3 py-1 font-mono text-xs font-semibold"
+              style={
+                { "--cor-dado": grupo.projeto!.cor } as React.CSSProperties
+              }
             >
               {grupo.projeto!.sigla}
             </span>
@@ -244,7 +240,7 @@ function GrupoProjeto({
             {grupo.projeto?.nome ?? "UMs sem projeto vinculado"}
           </h3>
         </div>
-        <p className="font-mono text-xs text-muted-foreground">
+        <p className="font-mono text-xs tabular-nums text-muted-foreground">
           {grupo.ums.length} {grupo.ums.length === 1 ? "UM" : "UMs"}
         </p>
       </div>
@@ -262,13 +258,10 @@ function GrupoProjeto({
             <TableRow key={um.id}>
               <TableCell>
                 <span
-                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium"
-                  style={{
-                    backgroundColor: um.cor,
-                    color: corTextoIdeal(um.cor),
-                  }}
+                  className="badge-cor-dado inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium"
+                  style={{ "--cor-dado": um.cor } as React.CSSProperties}
                 >
-                  <Truck className="h-3.5 w-3.5" />
+                  <Truck className="size-3.5" />
                   {um.nome}
                 </span>
               </TableCell>

@@ -5,7 +5,7 @@ import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { ChevronDown, LogOut, Menu, Settings } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import { logout } from "@/lib/auth"
+import { signOut } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -56,13 +56,13 @@ export function Navbar() {
   const pathname = usePathname()
 
   const handleLogout = async () => {
-    await logout()
+    await signOut()
     router.replace("/login")
   }
 
   // Iniciais do nome do usuário para o avatar fallback (ex: "Dev ITCBrasil" → "DI")
   const userInitials =
-    user?.displayName
+    user?.name
       ?.split(" ")
       .slice(0, 2)
       .map((n) => n[0])
@@ -162,15 +162,15 @@ export function Navbar() {
               >
                 <Avatar className="h-7 w-7">
                   <AvatarImage
-                    src={user?.photoURL ?? undefined}
-                    alt={user?.displayName ?? ""}
+                    src={user?.image ?? undefined}
+                    alt={user?.name ?? ""}
                   />
                   <AvatarFallback className="bg-primary text-xs text-primary-foreground">
                     {userInitials}
                   </AvatarFallback>
                 </Avatar>
                 <span className="text-sm font-medium">
-                  {user?.displayName?.split(" ")[0] ?? "Admin"}
+                  {user?.name?.split(" ")[0] ?? "Admin"}
                 </span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
@@ -179,7 +179,7 @@ export function Navbar() {
               <DropdownMenuLabel>
                 <div className="flex flex-col">
                   <span className="text-sm font-medium">
-                    {user?.displayName ?? "Administrador"}
+                    {user?.name ?? "Administrador"}
                   </span>
                   <span className="font-mono text-xs text-muted-foreground">
                     {user?.email}
@@ -217,8 +217,8 @@ export function Navbar() {
               <div className="flex items-center gap-3 px-4 py-4">
                 <Avatar className="h-10 w-10">
                   <AvatarImage
-                    src={user?.photoURL ?? undefined}
-                    alt={user?.displayName ?? ""}
+                    src={user?.image ?? undefined}
+                    alt={user?.name ?? ""}
                   />
                   <AvatarFallback className="bg-primary text-primary-foreground">
                     {userInitials}
@@ -226,7 +226,7 @@ export function Navbar() {
                 </Avatar>
                 <div className="flex flex-col">
                   <span className="text-sm font-medium">
-                    {user?.displayName ?? "Administrador"}
+                    {user?.name ?? "Administrador"}
                   </span>
                   <span className="font-mono text-xs text-muted-foreground">
                     {user?.email}

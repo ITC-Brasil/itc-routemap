@@ -21,8 +21,6 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
-  ChevronDown,
-  ChevronUp,
   Clock,
   Hand,
   Loader2,
@@ -37,27 +35,24 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { MapaLote } from "@/app/(privado)/calcular-rotas/_components/mapa-lote"
 import {
-  MapaAlocacao,
-  type RotaData,
 } from "../../calcular-rotas/_components/mapa-alocacao"
 import {
   type TransitStep,
-  DetalhesTransit,
 } from "../../calcular-rotas/_components/alocacao-helpers"
-import {
-  listarRotasPorLote,
-  type ModoTransporte,
-  type Rota,
-} from "@/lib/firestore/rotas"
-import { listarProjetos } from "@/lib/firestore/projetos"
-import { buscarPonto } from "@/lib/firestore/pontos"
+import { listarRotasPorLote } from "@/lib/actions/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
+import type { Rota } from "@/lib/db/rotas"
+import { listarProjetos } from "@/lib/actions/projetos"
+import { listarTecnicos } from "@/lib/actions/tecnicos"
+import { corTextoIdeal } from "@/lib/cores"
+import { buscarPonto } from "@/lib/actions/pontos"
 import {
   IconeModo,
-  MODOS_SELECIONAVEIS,
   gerarExplicacaoAlgoritmica,
 } from "@/lib/modos-transporte"
-import type { LoteSumario, StatusLote } from "@/lib/firestore/lotes"
+import type { LoteSumario, StatusLote } from "@/lib/db/lotes"
 import { CancelarLoteDialog } from "../_components/cancelar-lote-dialog"
 import {
   formatarDataHora,
@@ -91,17 +86,16 @@ type RotaCacheEntry =
 // HELPERS DE COMPARTILHAMENTO
 // ============================================================
 
-function formatarDataPorExtenso(data: Date): string {
-  return data.toLocaleDateString("pt-BR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
-}
-
 async function buscarReferenciaPontos(
   rotas: Rota[]
 ): Promise<Map<string, string>> {
+  // ATENÇÃO: `Ponto` só é lido aqui, e só pela `referencia`. Todo o resto do
+  // destino sai do SNAPSHOT da própria rota (destinoEndereco/Latitude/Longitude),
+  // nunca do ponto — 12 dos 13 vínculos `Rota.pontoId` do dado legado apontam
+  // para o ponto errado, porque a sincronização antiga sobrescrevia o conteúdo
+  // mantendo o id (ver §10.10 do handoff). A referência é a dívida conhecida:
+  // enquanto não existir `destinoReferencia` no snapshot, ela pode vir de outro
+  // ponto no texto de compartilhamento.
   const resultados = await Promise.all(
     rotas.map((r) => buscarPonto(r.pontoId).catch(() => null))
   )
@@ -199,6 +193,14 @@ export default function DetalheLotePage() {
 
   // projetoId → sigla (carregado uma vez para uso no compartilhamento)
   const [projetosSiglas, setProjetosSiglas] = useState<Map<string, string>>(new Map())
+  // Cores do cadastro para o avatar da tabela e os marcadores do mapa
+  // (system.md §5.4). São dados do banco, lidos pelas actions que já existem.
+  const [coresPorProjeto, setCoresPorProjeto] = useState<Map<string, string>>(
+    new Map()
+  )
+  const [coresPorTecnico, setCoresPorTecnico] = useState<Map<string, string>>(
+    new Map()
+  )
 
   // loading do botão "Compartilhar lote inteiro"
   const [compartilhandoLote, setCompartilhandoLote] = useState(false)
@@ -250,15 +252,44 @@ export default function DetalheLotePage() {
     carregar()
     listarProjetos()
       .then((lista) => {
-        const m = new Map<string, string>()
-        for (const p of lista) m.set(p.id, p.sigla)
-        setProjetosSiglas(m)
+        setProjetosSiglas(new Map(lista.map((p) => [p.id, p.sigla])))
+        setCoresPorProjeto(new Map(lista.map((p) => [p.id, p.cor])))
       })
       .catch(() => {/* sigla fica vazia, exibe projetoId como fallback */})
+    listarTecnicos()
+      .then((lista) =>
+        setCoresPorTecnico(new Map(lista.map((t) => [t.id, t.cor])))
+      )
+      .catch(() => {/* avatar cai no cinza neutro */})
     return () => {
       cancelado = true
     }
   }, [loteId])
+
+  // Copia UMA rota para o WhatsApp. A `referencia` é a única leitura do Ponto que
+  // sobrou (ver o aviso em carregarReferencias) — todo o resto sai do snapshot.
+  const copiarUmaRota = useCallback(
+    async (rota: Rota) => {
+      try {
+        const ponto = await buscarPonto(rota.pontoId).catch(() => null)
+        const modo = modosPorRota.get(rota.id) ?? rota.modoPrincipal
+        const entrada = rotaCache.get(`${rota.id}|${modo}`)
+        const steps = entrada?.estado === "ok" ? entrada.transitSteps : undefined
+        await copiarParaClipboard(
+          gerarTextoRota(
+            rota,
+            projetosSiglas.get(rota.projetoId) ?? rota.projetoId,
+            ponto?.referencia,
+            steps
+          )
+        )
+        toast.success("Copiado! Cole no WhatsApp. 📋")
+      } catch {
+        toast.error("Erro ao copiar.")
+      }
+    },
+    [modosPorRota, rotaCache, projetosSiglas]
+  )
 
   // ====== Fetcher de rota detalhada ======
   const carregarRotaDetalhada = useCallback(
@@ -323,13 +354,17 @@ export default function DetalheLotePage() {
   )
 
   // ====== Helper: duração efetiva no modo selecionado ======
+  //
+  // A rota detalhada tem precedência quando já foi buscada; sem ela vale a
+  // métrica do snapshot da rota — para TRANSIT também. Antes este helper
+  // devolvia null para TRANSIT e descartava `rota.metricas.TRANSIT`, que está
+  // gravada no snapshot desde a confirmação: as rotas de transporte público
+  // ficavam em "calculando…" para sempre, porque a busca detalhada só acontece
+  // quando o usuário expande o card.
   const obterDuracaoSeg = useCallback(
     (rota: Rota, modo: ModoTransporte): number | null => {
-      if (modo === "TRANSIT") {
-        const entry = rotaCache.get(`${rota.id}|TRANSIT`)
-        if (entry?.estado === "ok") return entry.duracaoSegundos
-        return null
-      }
+      const entry = rotaCache.get(`${rota.id}|${modo}`)
+      if (entry?.estado === "ok") return entry.duracaoSegundos
       return rota.metricas[modo]?.duracaoSegundos ?? null
     },
     [rotaCache]
@@ -338,11 +373,8 @@ export default function DetalheLotePage() {
   // ====== Helper: distância no modo selecionado ======
   const obterDistanciaMetros = useCallback(
     (rota: Rota, modo: ModoTransporte): number | null => {
-      if (modo === "TRANSIT") {
-        const entry = rotaCache.get(`${rota.id}|TRANSIT`)
-        if (entry?.estado === "ok") return entry.distanciaMetros
-        return null
-      }
+      const entry = rotaCache.get(`${rota.id}|${modo}`)
+      if (entry?.estado === "ok") return entry.distanciaMetros
       return rota.metricas[modo]?.distanciaMetros ?? null
     },
     [rotaCache]
@@ -354,6 +386,43 @@ export default function DetalheLotePage() {
   const rotasAtivas = useMemo(
     () => rotas.filter((r) => r.status === "Confirmada"),
     [rotas]
+  )
+
+  const rotasCanceladas = useMemo(
+    () => rotas.filter((r) => r.status === "Cancelada"),
+    [rotas]
+  )
+
+  // Pares do mapa do lote. SÓ rotas confirmadas: o mapa mostra o que está valendo
+  // em campo, e uma linha cancelada ali seria lida como rota ativa.
+  //
+  // Origem e destino saem do SNAPSHOT da rota, nunca do Ponto via `pontoId` — 12
+  // dos 13 vínculos do dado legado apontam para o ponto errado (§10.10 do
+  // handoff). A polyline vem do cache: onde a rota já foi buscada, caminho real;
+  // onde não, reta tracejada. Nenhuma chamada nova.
+  const paresNoMapa = useMemo(
+    () =>
+      rotasAtivas.map((r) => {
+        const modo = modosPorRota.get(r.id) ?? r.modoPrincipal
+        const entrada = rotaCache.get(`${r.id}|${modo}`)
+        return {
+          chave: r.id,
+          tecnicoNome: r.tecnicoNome,
+          umNome: r.umNome,
+          origem: {
+            latitude: r.origem.latitude,
+            longitude: r.origem.longitude,
+          },
+          destino: {
+            latitude: r.destino.latitude,
+            longitude: r.destino.longitude,
+          },
+          corTecnico: coresPorTecnico.get(r.tecnicoId) ?? "#008F95",
+          corProjeto: coresPorProjeto.get(r.projetoId) ?? "#491027",
+          polyline: entrada?.estado === "ok" ? entrada.polyline : null,
+        }
+      }),
+    [rotasAtivas, modosPorRota, rotaCache, coresPorTecnico, coresPorProjeto]
   )
 
   const metricasAgregadas = useMemo(() => {
@@ -420,7 +489,7 @@ export default function DetalheLotePage() {
     else statusLote = "Mista"
 
     const datas = relevantes
-      .map((r) => (r.criadoEm ? r.criadoEm.toDate() : null))
+      .map((r) => r.criadoEm)
       .filter((d): d is Date => d !== null)
       .sort((a, b) => a.getTime() - b.getTime())
 
@@ -474,12 +543,6 @@ export default function DetalheLotePage() {
       const modo = modosPorRota.get(rotaId) ?? rota.modoPrincipal
       void carregarRotaDetalhada(rota, modo)
     }
-  }
-
-  const handleTrocarModo = (rotaId: string, novoModo: ModoTransporte) => {
-    setModosPorRota((prev) => new Map(prev).set(rotaId, novoModo))
-    const rota = rotas.find((r) => r.id === rotaId)
-    if (rota) void carregarRotaDetalhada(rota, novoModo)
   }
 
   const handleCompartilharLote = async () => {
@@ -557,9 +620,7 @@ export default function DetalheLotePage() {
   if (canceladas.length > 0 && confirmadas.length === 0) statusLote = "Cancelada"
   else if (canceladas.length > 0) statusLote = "Mista"
 
-  const dataLote = primeiraRota.criadoEm
-    ? primeiraRota.criadoEm.toDate()
-    : new Date()
+  const dataLote = primeiraRota.criadoEm ?? new Date()
   const loteIdCurto = loteId.slice(0, 8)
   const podeCancelar = confirmadas.length > 0
   const totalTecnicosUnicos = new Set(rotas.map((r) => r.tecnicoNome)).size
@@ -584,7 +645,7 @@ export default function DetalheLotePage() {
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+              <p className="font-mono text-xs uppercase tracking-widest tabular-nums text-muted-foreground">
                 Lote {loteIdCurto}
               </p>
               <StatusBadge statusLote={statusLote} />
@@ -644,35 +705,66 @@ export default function DetalheLotePage() {
         />
       )}
 
-      {/* LISTA DE ROTAS */}
+      {/* ROTAS CONFIRMADAS NO MAPA — as canceladas não são plotadas: o mapa
+          mostra o que está valendo em campo, e uma linha cancelada ali seria lida
+          como rota ativa. */}
+      {paresNoMapa.length > 0 && (
+        <section className="overflow-hidden rounded-xl border border-t-2 border-t-primary bg-card shadow-[var(--shadow-1)]">
+          <div className="flex items-center justify-between gap-4 border-b px-[22px] py-3.5">
+            <h2 className="text-[17px] font-semibold">
+              Rotas confirmadas no mapa
+            </h2>
+            <span className="text-[13px] text-muted-foreground">
+              {expandida
+                ? "Trajeto real desenhado — clique de novo para ver o lote"
+                : rotasCanceladas.length > 0
+                  ? "Rotas canceladas não são plotadas"
+                  : "Todas as rotas do lote"}
+            </span>
+          </div>
+          <MapaLote
+            pares={paresNoMapa}
+            chaveSelecionada={expandida}
+            altura={420}
+          />
+        </section>
+      )}
+
+      {/* TABELA DE ROTAS */}
       <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          Rotas ({rotas.length})
-        </h2>
-        <div className="space-y-3">
-          {rotas.map((rota, i) => {
-            const modo = modosPorRota.get(rota.id) ?? rota.modoPrincipal
-            const expandido = expandida === rota.id
-            const rotaEntry = rotaCache.get(`${rota.id}|${modo}`)
-            return (
-              <LinhaRotaHistorico
-                key={rota.id}
-                rota={rota}
-                ordem={i + 1}
-                modo={modo}
-                expandido={expandido}
-                rotaEntry={rotaEntry}
-                duracaoSeg={obterDuracaoSeg(rota, modo)}
-                distanciaMetros={obterDistanciaMetros(rota, modo)}
-                onExpandir={() => handleExpandir(rota.id)}
-                onTrocarModo={(m) => handleTrocarModo(rota.id, m)}
-                // Q1: contexto pra explicação algorítmica + replicar justificativa
-                todasRotasLote={rotas}
-                justificativaLote={justificativaLote}
-                projetoSigla={projetosSiglas.get(rota.projetoId) ?? rota.projetoId}
-              />
-            )
-          })}
+        <h2 className="text-[17px] font-semibold">Rotas do lote</h2>
+        <div className="overflow-x-auto rounded-xl border border-t-2 border-t-primary bg-card shadow-[var(--shadow-1)]">
+          <div className="grid min-w-[900px] gap-4 bg-muted px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground [grid-template-columns:36px_minmax(0,1.2fr)_minmax(0,1fr)_120px_110px_120px]">
+            <span>#</span>
+            <span>Técnico</span>
+            <span>Destino</span>
+            <span>Duração</span>
+            <span>Distância</span>
+            <span>Status</span>
+          </div>
+          {rotas.map((rota, i) => (
+            <LinhaTabelaRota
+              key={rota.id}
+              rota={rota}
+              ordem={i + 1}
+              modo={modosPorRota.get(rota.id) ?? rota.modoPrincipal}
+              duracaoSeg={obterDuracaoSeg(
+                rota,
+                modosPorRota.get(rota.id) ?? rota.modoPrincipal
+              )}
+              distanciaMetros={obterDistanciaMetros(
+                rota,
+                modosPorRota.get(rota.id) ?? rota.modoPrincipal
+              )}
+              corTecnico={coresPorTecnico.get(rota.tecnicoId)}
+              projetoSigla={projetosSiglas.get(rota.projetoId) ?? rota.projetoId}
+              corProjeto={coresPorProjeto.get(rota.projetoId)}
+              todasRotasLote={rotas}
+              onCopiar={() => copiarUmaRota(rota)}
+              destacada={expandida === rota.id}
+              onVerTrajeto={() => handleExpandir(rota.id)}
+            />
+          ))}
         </div>
       </section>
 
@@ -689,6 +781,195 @@ export default function DetalheLotePage() {
 // ============================================================
 // SUBCOMPONENTES
 // ============================================================
+
+/**
+ * Uma linha da tabela de rotas — o formato do protótipo v2 para o Detalhe.
+ *
+ * Substituiu os cards expansíveis: num lote já confirmado o trabalho é conferir
+ * um conjunto, e tabela compara melhor que card. Seis colunas (#, Técnico,
+ * Destino, Duração, Distância, Status) mais uma segunda linha com a explicação
+ * algorítmica e o botão de copiar.
+ *
+ * Rota cancelada entra com opacidade reduzida: continua auditável, sem competir
+ * com as ativas na varredura.
+ */
+function LinhaTabelaRota({
+  rota,
+  ordem,
+  modo,
+  duracaoSeg,
+  distanciaMetros,
+  corTecnico,
+  projetoSigla,
+  corProjeto,
+  todasRotasLote,
+  onCopiar,
+  destacada,
+  onVerTrajeto,
+}: {
+  rota: Rota
+  ordem: number
+  modo: ModoTransporte
+  duracaoSeg: number | null
+  distanciaMetros: number | null
+  corTecnico: string | undefined
+  projetoSigla: string
+  corProjeto: string | undefined
+  todasRotasLote: Rota[]
+  onCopiar: () => void
+  destacada: boolean
+  onVerTrajeto: () => void
+}) {
+  const cancelada = rota.status === "Cancelada"
+  const custos = todasRotasLote
+    .map((r) => r.metricas[r.modoPrincipal]?.duracaoSegundos ?? 0)
+    .filter((n) => n > 0)
+  const explicacao =
+    duracaoSeg && duracaoSeg > 0
+      ? gerarExplicacaoAlgoritmica({
+          tecnicoNome: rota.tecnicoNome,
+          umNome: rota.umNome,
+          meuCustoSegundos: duracaoSeg,
+          todosCustosSegundos: custos,
+          modoLabel: nomeAmigavelModo(modo),
+          manual: rota.origemDecisao !== "auto",
+        })
+      : ""
+
+  return (
+    <div
+      className={`min-w-[900px] border-t ${cancelada ? "opacity-60" : ""} ${
+        destacada ? "bg-accent/40" : ""
+      }`}
+    >
+      <div className="grid items-center gap-4 px-5 pb-1.5 pt-3.5 [grid-template-columns:36px_minmax(0,1.2fr)_minmax(0,1fr)_120px_110px_120px]">
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {ordem}
+        </span>
+
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span
+            aria-hidden="true"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
+            style={{
+              backgroundColor: corTecnico ?? "var(--muted)",
+              color: corTecnico
+                ? corTextoIdeal(corTecnico)
+                : "var(--muted-foreground)",
+            }}
+          >
+            {iniciaisDe(rota.tecnicoNome)}
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate font-semibold" title={rota.tecnicoNome}>
+              {rota.tecnicoNome}
+            </span>
+            <span
+              className="truncate text-[12.5px] text-muted-foreground"
+              title={rota.origem.endereco}
+            >
+              {rota.origem.endereco}
+            </span>
+          </span>
+        </span>
+
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="flex items-center gap-1.5">
+            <span
+              className="badge-cor-dado shrink-0 rounded-full border px-[7px] py-px font-mono text-[10.5px] font-semibold"
+              style={
+                { "--cor-dado": corProjeto ?? "#697272" } as React.CSSProperties
+              }
+            >
+              {projetoSigla}
+            </span>
+            <span className="truncate text-sm font-semibold">{rota.umNome}</span>
+          </span>
+          {/* O endereço é o do SNAPSHOT da rota. */}
+          <span
+            className="truncate text-[12.5px] text-muted-foreground"
+            title={rota.destino.endereco}
+          >
+            {rota.destino.endereco}
+          </span>
+        </span>
+
+        <span className="flex flex-col gap-0.5">
+          {duracaoSeg != null ? (
+            <span className="text-sm font-semibold tabular-nums">
+              {formatarDuracao(duracaoSeg)}
+            </span>
+          ) : (
+            <span className="h-4 w-14 animate-pulse rounded bg-skeleton" />
+          )}
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <IconeModo modo={modo} className="size-3.5" />
+            {nomeAmigavelModo(modo)}
+          </span>
+        </span>
+
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {distanciaMetros != null ? formatarDistancia(distanciaMetros) : "—"}
+        </span>
+
+        <span className="justify-self-start">
+          {cancelada ? (
+            <Badge
+              variant="outline"
+              className="border-err/40 bg-transparent text-err"
+            >
+              Cancelada
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-ok bg-ok-tint text-ok">
+              Confirmada
+            </Badge>
+          )}
+        </span>
+      </div>
+
+      <div className="flex items-start justify-between gap-5 pb-3.5 pl-[72px] pr-5">
+        <span className="max-w-[760px] text-pretty text-[13px] leading-relaxed text-muted-foreground">
+          {explicacao}
+        </span>
+        <span className="flex shrink-0 gap-2">
+          {/* Uma chamada sob demanda, a mesma economia do par expandido: sem
+              isto nada carregaria a polyline no Detalhe e o mapa ficaria
+              tracejado para sempre. */}
+          {!cancelada && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onVerTrajeto}
+              className="h-[30px] px-3 text-[12.5px]"
+            >
+              {destacada ? "Ocultar trajeto" : "Ver trajeto"}
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCopiar}
+            className="h-[30px] px-3 text-[12.5px]"
+          >
+            Copiar rota
+          </Button>
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/** "José Frederico" -> "JF". */
+function iniciaisDe(nome: string): string {
+  return nome
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p[0] ?? "")
+    .join("")
+    .toUpperCase()
+}
 
 function JustificativaBanner({ texto }: { texto: string }) {
   return (
@@ -788,366 +1069,26 @@ function CardMetrica({
   )
 }
 
-// ============================================================
-// Q1 — JUSTIFICATIVA GLOBAL MINI (replicada no expand de cada rota)
-// ============================================================
-
-function JustificativaGlobalMini({ texto }: { texto: string }) {
-  return (
-    <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
-      <div className="mb-1.5 flex items-center gap-1.5">
-        <Sparkles className="h-3.5 w-3.5 text-primary" />
-        <span className="font-mono text-[10px] uppercase tracking-widest text-primary">
-          Análise da rodada
-        </span>
-      </div>
-      <p className="text-sm leading-relaxed">{texto}</p>
-    </div>
-  )
-}
-
-// ============================================================
-// Q1 — EXPLICAÇÃO ALGORÍTMICA (gerada por código, sem IA)
-// ============================================================
-
-function ExplicacaoAlgoritmica({ texto }: { texto: string }) {
-  return (
-    <div className="rounded-md border bg-muted/50 p-3">
-      <div className="mb-1.5 flex items-center gap-1.5">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          ⚙ Decisão do algoritmo
-        </span>
-      </div>
-      <p className="text-sm leading-relaxed text-muted-foreground">{texto}</p>
-    </div>
-  )
-}
-
-// ============================================================
-// LINHA DE ROTA (cada par técnico → UM, no histórico)
-// ============================================================
-
-function LinhaRotaHistorico({
-  rota,
-  ordem,
-  modo,
-  expandido,
-  rotaEntry,
-  duracaoSeg,
-  distanciaMetros,
-  onExpandir,
-  onTrocarModo,
-  todasRotasLote,
-  justificativaLote,
-  projetoSigla,
-}: {
-  rota: Rota
-  ordem: number
-  modo: ModoTransporte
-  expandido: boolean
-  rotaEntry: RotaCacheEntry | undefined
-  duracaoSeg: number | null
-  distanciaMetros: number | null
-  onExpandir: () => void
-  onTrocarModo: (m: ModoTransporte) => void
-  // Q1: contexto pra explicação algorítmica + replicar justificativa
-  todasRotasLote: Rota[]
-  justificativaLote: string
-  projetoSigla: string
-}) {
-  const [compartilhando, setCompartilhando] = useState(false)
-
-  // Q1: calcula explicação algorítmica baseada no modoPrincipal SALVO da rota
-  // (que é o modo original do Húngaro, não o que o usuário trocou no seletor).
-  // Pra cada rota do lote, pega o tempo no MESMO modoPrincipal pra comparar.
-  const meuCusto = rota.metricas[rota.modoPrincipal]?.duracaoSegundos ?? 0
-  const todosCustosLote = todasRotasLote
-    .map((r) => r.metricas[rota.modoPrincipal]?.duracaoSegundos)
-    .filter((s): s is number => s !== undefined && s > 0)
-
-  const explicacao =
-    meuCusto > 0
-      ? gerarExplicacaoAlgoritmica({
-          tecnicoNome: rota.tecnicoNome,
-          umNome: rota.umNome,
-          meuCustoSegundos: meuCusto,
-          todosCustosSegundos: todosCustosLote,
-          modoLabel: nomeAmigavelModo(rota.modoPrincipal),
-        })
-      : ""
-
-  return (
-    <Card
-      className={
-        rota.status === "Cancelada" ? "opacity-70" : undefined
-      }
-    >
-      <CardContent className="space-y-4 p-5">
-        {/* Header — sempre visível */}
-        <div className="grid gap-4 md:grid-cols-[auto_1fr_1fr_auto_auto] md:items-center">
-          <div className="hidden h-10 w-10 items-center justify-center rounded-full bg-muted font-mono text-sm font-semibold text-muted-foreground md:flex">
-            {ordem}
-          </div>
-
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Técnico
-            </p>
-            <p className="truncate font-medium" title={rota.tecnicoNome}>
-              {rota.tecnicoNome || "—"}
-            </p>
-            <p
-              className="truncate text-xs text-muted-foreground"
-              title={rota.origem.endereco}
-            >
-              {rota.origem.endereco}
-            </p>
-          </div>
-
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Destino
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="font-mono">
-                {rota.umNome}
-              </Badge>
-              {rota.status === "Cancelada" && (
-                <Badge variant="destructive">Cancelada</Badge>
-              )}
-              {rota.realocadaDe !== null && (
-                <Badge
-                  variant="outline"
-                  className="gap-1 border-blue-300/50 bg-blue-50/40 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/20 dark:text-blue-400"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                  Re-otimização
-                </Badge>
-              )}
-            </div>
-            <p
-              className="truncate text-xs text-muted-foreground"
-              title={rota.destino.endereco}
-            >
-              {rota.destino.endereco}
-            </p>
-          </div>
-
-          {/* Tempo atual no modo selecionado */}
-          <div className="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">
-            <IconeModo modo={modo} className="h-4 w-4" />
-            {duracaoSeg != null ? (
-              <span>{formatarDuracao(duracaoSeg)}</span>
-            ) : (
-              <span className="text-xs">calculando…</span>
-            )}
-          </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onExpandir}
-            className="gap-1.5"
-          >
-            {expandido ? (
-              <>
-                <ChevronUp className="h-4 w-4" /> Fechar
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-4 w-4" /> Ver mapa
-              </>
-            )}
-          </Button>
-        </div>
-
-        {/* Detalhes — só visíveis quando expandido */}
-        {expandido && (
-          <div className="space-y-4 border-t pt-4">
-            {/* Q1-A: justificativa global do lote replicada aqui */}
-            {justificativaLote.trim().length > 0 && (
-              <JustificativaGlobalMini texto={justificativaLote} />
-            )}
-
-            {/* Q1-C: explicação algorítmica deste par específico */}
-            {explicacao && <ExplicacaoAlgoritmica texto={explicacao} />}
-
-            <SeletorModo
-              modoAtual={modo}
-              onTrocar={onTrocarModo}
-              metricasDisponiveis={rota.metricas}
-            />
-
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              {duracaoSeg != null && (
-                <div className="rounded-md bg-muted px-3 py-1.5">
-                  <span className="text-muted-foreground">Tempo:</span>{" "}
-                  <span className="font-semibold">
-                    {formatarDuracao(duracaoSeg)}
-                  </span>
-                </div>
-              )}
-              {distanciaMetros != null && (
-                <div className="rounded-md bg-muted px-3 py-1.5">
-                  <span className="text-muted-foreground">Distância:</span>{" "}
-                  <span className="font-semibold">
-                    {formatarDistancia(distanciaMetros)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={compartilhando}
-                className="gap-2"
-                onClick={() => {
-                  setCompartilhando(true)
-                  buscarPonto(rota.pontoId)
-                    .then((ponto) => {
-                      const steps = rotaEntry?.estado === "ok" ? rotaEntry.transitSteps : undefined
-                      return copiarParaClipboard(
-                        gerarTextoRota(rota, projetoSigla, ponto?.referencia, steps)
-                      )
-                    })
-                    .then(() => toast.success("Copiado! Cole no WhatsApp. 📋"))
-                    .catch(() => toast.error("Erro ao copiar."))
-                    .finally(() => setCompartilhando(false))
-                }}
-              >
-                {compartilhando ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Share2 className="h-4 w-4" />
-                )}
-                Compartilhar esta rota
-              </Button>
-            </div>
-
-            <div className="flex flex-col gap-4 lg:flex-row">
-              <div className={modo === "TRANSIT" && rotaEntry?.estado === "ok" ? "lg:w-1/2" : "w-full"}>
-                <MapaAlocacao
-                  origem={{
-                    latitude: rota.origem.latitude,
-                    longitude: rota.origem.longitude,
-                  }}
-                  destino={{
-                    latitude: rota.destino.latitude,
-                    longitude: rota.destino.longitude,
-                  }}
-                  modo={modo}
-                  rotaData={
-                    rotaEntry?.estado === "ok"
-                      ? ({
-                          polyline: rotaEntry.polyline,
-                          distanciaMetros: rotaEntry.distanciaMetros,
-                          duracaoSegundos: rotaEntry.duracaoSegundos,
-                        } satisfies RotaData)
-                      : null
-                  }
-                  carregando={rotaEntry?.estado === "carregando"}
-                  erro={
-                    rotaEntry?.estado === "erro" ? rotaEntry.mensagem : null
-                  }
-                />
-              </div>
-
-              {modo === "TRANSIT" && rotaEntry?.estado === "ok" && (
-                <div className="overflow-y-auto lg:w-1/2 lg:max-h-100">
-                  <DetalhesTransit
-                    steps={rotaEntry.transitSteps}
-                    partidaIso={rotaEntry.partidaIso}
-                    chegadaIso={rotaEntry.chegadaIso}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-function SeletorModo({
-  modoAtual,
-  onTrocar,
-  metricasDisponiveis,
-}: {
-  modoAtual: ModoTransporte
-  onTrocar: (m: ModoTransporte) => void
-  metricasDisponiveis: Rota["metricas"]
-}) {
-  return (
-    <div className="space-y-2">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        Modo de transporte
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {MODOS_SELECIONAVEIS.map((m) => {
-          const ativo = m === modoAtual
-          const temMatriz = m !== "TRANSIT" && !!metricasDisponiveis[m]
-          const minMatriz = temMatriz
-            ? Math.round(metricasDisponiveis[m]!.duracaoSegundos / 60)
-            : null
-          return (
-            <button
-              key={m}
-              type="button"
-              onClick={() => onTrocar(m)}
-              className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                ativo
-                  ? "border-primary bg-primary/10 font-semibold text-primary"
-                  : "border-border hover:bg-accent"
-              }`}
-            >
-              <IconeModo modo={m} className="h-4 w-4" />
-              <span>{nomeAmigavelModo(m)}</span>
-              {minMatriz != null && (
-                <span className="text-xs text-muted-foreground">
-                  · {minMatriz}min
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-      <p className="text-[11px] text-muted-foreground">
-        🚌 Transporte público é calculado sob demanda (pode levar 1-2s).
-      </p>
-    </div>
-  )
-}
 
 
+/** Mesma regra do card de lote: ver system.md §5.2. */
 function StatusBadge({ statusLote }: { statusLote: StatusLote }) {
   if (statusLote === "Confirmada") {
     return (
-      <Badge
-        variant="outline"
-        className="border-itc-sucesso/30 bg-itc-sucesso/10 text-itc-sucesso"
-      >
+      <Badge variant="outline" className="border-ok bg-ok-tint text-ok">
         Confirmada
       </Badge>
     )
   }
   if (statusLote === "Cancelada") {
     return (
-      <Badge
-        variant="outline"
-        className="border-destructive/30 bg-destructive/10 text-destructive"
-      >
+      <Badge variant="outline" className="border-err/40 bg-transparent text-err">
         Cancelada
       </Badge>
     )
   }
   return (
-    <Badge
-      variant="outline"
-      className="border-itc-atencao/30 bg-itc-atencao/10 text-itc-atencao"
-    >
+    <Badge variant="outline" className="border-warn bg-warn-tint text-warn">
       Mista
     </Badge>
   )
@@ -1157,7 +1098,7 @@ function BadgeAjusteManual() {
   return (
     <Badge
       variant="outline"
-      className="gap-1 border-accent/40 bg-accent/10 text-accent"
+      className="gap-1 border-info/40 bg-transparent text-info"
     >
       <Hand className="h-3 w-3" />
       Ajuste manual
@@ -1169,7 +1110,7 @@ function BadgeReotimizacao() {
   return (
     <Badge
       variant="outline"
-      className="gap-1 border-blue-300/50 bg-blue-50/40 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/20 dark:text-blue-400"
+      className="gap-1 border-info/40 bg-info-tint text-info"
     >
       <RefreshCw className="h-3 w-3" />
       Re-otimização

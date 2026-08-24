@@ -12,11 +12,20 @@
 // - O componente NÃO faz fetch. Recebe os dados prontos (rotaData).
 //   Isso simplifica cache no parent e evita race conditions ao trocar modo.
 // - Se rotaData for null, mostra loading skeleton.
-// - Se rotaData.polyline for null, mostra linha reta tracejada como fallback.
+// - Se rotaData.polyline for null, mostra linha reta TRACEJADA e fina, na cor do
+//   técnico a 40%. Com a polyline, traçado SÓLIDO de 3px na cor cheia. A diferença
+//   é informação: o mapa mostra sozinho se o caminho real já foi carregado ou se
+//   aquilo ali é só a ligação entre dois pontos.
+//
+// Sobre o renderizador: o protótipo usa Leaflet + OpenStreetMap (itc-map.js), mas
+// este componente JÁ usava a Google Maps JS API — e é o que deve continuar, porque
+// as rotas vêm da Google Routes API e o traçado precisa cair sobre a mesma base
+// cartográfica. Leaflet não entra no projeto.
 
 import { useEffect, useRef, useState } from "react"
+import { useTheme } from "next-themes"
 import { loadGoogleMaps } from "@/lib/google-maps-loader"
-import type { ModoTransporte } from "@/lib/firestore/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
 
 type LatLng = { latitude: number; longitude: number }
 
@@ -31,6 +40,10 @@ interface Props {
   destino: LatLng
   modo: ModoTransporte
   rotaData: RotaData | null
+  /** Cor cadastrada do técnico — marcador de origem e o traçado (system.md §5.4). */
+  corTecnico?: string
+  /** Cor cadastrada do projeto — marcador de destino. */
+  corProjeto?: string
   /** True enquanto o pai está buscando a rota */
   carregando?: boolean
   /** Mensagem de erro do pai (ex: nenhuma rota encontrada) */
@@ -43,10 +56,17 @@ export function MapaAlocacao({
   destino,
   modo,
   rotaData,
+  corTecnico,
+  corProjeto,
   carregando,
   erro,
   className,
 }: Props) {
+  const { resolvedTheme } = useTheme()
+  const escuro = resolvedTheme === "dark"
+  // A cor do traçado é a do técnico: é o deslocamento DELE. O modo já aparece em
+  // texto ao lado do mapa, e colorir por modo competia com a cor do cadastro.
+  const corRota = corTecnico ?? corDoModo(modo)
   const mapDivRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const polylineRef = useRef<google.maps.Polyline | null>(null)
@@ -71,22 +91,27 @@ export function MapaAlocacao({
           gestureHandling: "cooperative",
           mapTypeControl: false,
           streetViewControl: false,
+          styles: escuro ? ESTILO_ESCURO : ESTILO_CLARO,
         })
 
         mapInstanceRef.current = map
 
-        // Markers de origem e destino
+        // Marcadores na cor do cadastro: origem = técnico, destino = projeto
+        // (system.md §5.4). Antes eram os pinos vermelhos padrão do Google, iguais
+        // em todo par — não davam para relacionar mapa e lista.
         markersRef.current = [
           new g.maps.Marker({
             position: { lat: origem.latitude, lng: origem.longitude },
             map,
-            label: { text: "A", color: "white", fontWeight: "bold" },
+            icon: marcador(g, corTecnico ?? "#008F95"),
+            label: { text: "A", color: "#FFFFFF", fontWeight: "bold", fontSize: "11px" },
             title: "Origem (técnico)",
           }),
           new g.maps.Marker({
             position: { lat: destino.latitude, lng: destino.longitude },
             map,
-            label: { text: "B", color: "white", fontWeight: "bold" },
+            icon: marcador(g, corProjeto ?? "#491027"),
+            label: { text: "B", color: "#FFFFFF", fontWeight: "bold", fontSize: "11px" },
             title: "Destino (UM)",
           }),
         ]
@@ -114,7 +139,22 @@ export function MapaAlocacao({
       markersRef.current = []
     }
     
-  }, [origem.latitude, origem.longitude, destino.latitude, destino.longitude])
+  }, [
+    origem.latitude,
+    origem.longitude,
+    destino.latitude,
+    destino.longitude,
+    corTecnico,
+    corProjeto,
+    escuro,
+  ])
+
+  // ====== 1b. Alternância de tema sem recriar o mapa ======
+  useEffect(() => {
+    mapInstanceRef.current?.setOptions({
+      styles: escuro ? ESTILO_ESCURO : ESTILO_CLARO,
+    })
+  }, [escuro])
 
   // ====== 2. Redesenha a polyline quando o modo/rotaData mudar ======
   useEffect(() => {
@@ -131,16 +171,15 @@ export function MapaAlocacao({
     // Sem dados de rota ainda? Nada a desenhar agora.
     if (!rotaData) return
 
-    const cor = corDoModo(modo)
-
     if (rotaData.polyline) {
-      // Decodifica a polyline encoded do Google
+      // Caminho REAL: a mesma geometria que a Routes API calculou, já no corpo do
+      // /api/routes/single. Nenhuma chamada nova — só decodificar e desenhar.
       const path = g.maps.geometry.encoding.decodePath(rotaData.polyline)
       polylineRef.current = new g.maps.Polyline({
         path,
-        strokeColor: cor,
-        strokeOpacity: 0.85,
-        strokeWeight: 5,
+        strokeColor: corRota,
+        strokeOpacity: 1,
+        strokeWeight: 3,
         map: mapInstanceRef.current,
       })
 
@@ -149,25 +188,26 @@ export function MapaAlocacao({
       path.forEach((p) => bounds.extend(p))
       mapInstanceRef.current.fitBounds(bounds, 60)
     } else {
-      // Fallback: linha reta tracejada
+      // Estado intermediário: ligação reta, tracejada e fina, na cor do técnico a
+      // 40%. Não promete ser caminho — e a diferença de peso diz, sem legenda,
+      // que o traçado real ainda não foi carregado.
       polylineRef.current = new g.maps.Polyline({
         path: [
           { lat: origem.latitude, lng: origem.longitude },
           { lat: destino.latitude, lng: destino.longitude },
         ],
         geodesic: true,
-        strokeColor: cor,
         strokeOpacity: 0,
         icons: [
           {
             icon: {
               path: "M 0,-1 0,1",
-              strokeOpacity: 1,
-              scale: 4,
-              strokeColor: cor,
+              strokeOpacity: 0.4,
+              scale: 1.5,
+              strokeColor: corRota,
             },
             offset: "0",
-            repeat: "16px",
+            repeat: "12px",
           },
         ],
         map: mapInstanceRef.current,
@@ -176,7 +216,7 @@ export function MapaAlocacao({
   }, [
     mapPronto,
     rotaData,
-    modo,
+    corRota,
     origem.latitude,
     origem.longitude,
     destino.latitude,
@@ -222,6 +262,46 @@ export function MapaAlocacao({
 // ============================================================
 // HELPERS
 // ============================================================
+
+/** Marcador circular preenchido com a cor do cadastro, com anel branco. */
+function marcador(
+  g: typeof google,
+  cor: string
+): google.maps.Symbol {
+  return {
+    path: g.maps.SymbolPath.CIRCLE,
+    fillColor: cor,
+    fillOpacity: 1,
+    strokeColor: "#FFFFFF",
+    strokeWeight: 2,
+    scale: 9,
+  }
+}
+
+/**
+ * Estilo do mapa por tema.
+ *
+ * No claro, a base do Google é clara e só tiramos o ruído (POIs e transporte não
+ * pedidos). No escuro é obrigatório: a base padrão fica BRANCA dentro de uma tela
+ * escura e ofusca — o mapa passava a ser a coisa mais luminosa da página.
+ */
+const ESTILO_CLARO: google.maps.MapTypeStyle[] = [
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+]
+
+const ESTILO_ESCURO: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#1E2422" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#8E9A98" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#141918" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2A302E" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#333B39" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3A423F" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0C1615" }] },
+  { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#181E1D" }] },
+]
 
 function corDoModo(modo: ModoTransporte): string {
   switch (modo) {

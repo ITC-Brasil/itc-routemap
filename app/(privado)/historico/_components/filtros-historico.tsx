@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Combobox } from "@/components/ui/combobox"
-import type { StatusLote } from "@/lib/firestore/lotes"
+import type { StatusLote } from "@/lib/db/lotes"
 
 export type FiltroStatus = "todos" | StatusLote
 

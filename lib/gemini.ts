@@ -14,7 +14,7 @@
 
 import { GoogleGenAI } from "@google/genai"
 import type { ResultadoAlocacao } from "@/lib/alocacao"
-import type { ModoTransporte } from "@/lib/firestore/rotas"
+import type { ModoTransporte } from "@/lib/rotas-utils"
 
 // Modelo: Flash 2.5 dá output mais elaborado que o Lite, free tier suficiente
 // para o volume previsto (10-30 alocações/dia).

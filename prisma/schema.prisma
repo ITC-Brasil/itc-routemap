@@ -1,0 +1,201 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Convite {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  status       String    @default("ativo") // "ativo" | "consumido" | "revogado"
+  expiraEm     DateTime
+  consumidoEm  DateTime?
+  consumidoPor String?
+  criadoEm     DateTime  @default(now())
+  criadoPor    String?
+
+  @@map("convites")
+}
+
+model Projeto {
+  id                  String    @id @default(cuid())
+  nome                String
+  sigla               String    @unique
+  cor                 String    @default("#008F95")
+  ativo               Boolean   @default(true)
+  sheetId             String    @default("")
+  sheetUrl            String    @default("")
+  sheetAbas           String[]  @default([])
+  ultimaSincronizacao DateTime?
+  criadoEm            DateTime  @default(now())
+  atualizadoEm        DateTime  @updatedAt
+
+  @@map("projetos")
+}
+
+model Ra {
+  id       String   @id @default(cuid())
+  nome     String   @unique
+  cor      String   @default("#008F95")
+  criadoEm DateTime @default(now())
+
+  @@map("ras")
+}
+
+model Um {
+  id             String   @id @default(cuid())
+  nome           String
+  cor            String   @default("#008F95")
+  projetoId      String
+  tecnicoAtualId String?
+  raAtualId      String?
+  criadoEm       DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+
+  @@index([projetoId])
+  @@map("ums")
+}
+
+model Tecnico {
+  id              String   @id @default(cuid())
+  nome            String
+  cor             String   @default("#008F95")
+  endereco        String
+  pontoReferencia String?
+  plusCode        String?
+  latitude        Float?
+  longitude       Float?
+  modoPrincipal   String?
+  ativo           Boolean  @default(true)
+  criadoEm        DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+
+  @@map("tecnicos")
+}
+
+model Ponto {
+  id                   String   @id @default(cuid())
+  projetoId            String
+  raId                 String?
+  linhaOrigem          Int      @default(0)
+  umNome               String
+  raNome               String
+  ciclo                Int
+  etapa                Int
+  tecnicoNomeHistorico String   @default("")
+  uf                   String   @default("")
+  endereco             String
+  referencia           String?
+  plusCode             String?
+  linkMaps             String   @default("")
+  latitude             Float?
+  longitude            Float?
+  status               String   @default("Pendente")
+  hashMd5              String   @default("")
+  tecnicoId            String?
+  rotaId               String?
+  criadoEm             DateTime @default(now())
+  atualizadoEm         DateTime @updatedAt
+
+  @@index([projetoId])
+  @@index([raNome])
+  @@map("pontos")
+}
+
+model Rota {
+  id                String   @id @default(cuid())
+  loteId            String
+  loteOrdem         Int
+  loteJustificativa String   @default("")
+  origemDecisao     String   @default("auto")
+  tecnicoId         String
+  tecnicoNome       String
+  pontoId           String
+  umNome            String
+  projetoId         String
+  projetoSigla      String   @default("")
+  origemEndereco    String
+  origemLatitude    Float
+  origemLongitude   Float
+  destinoEndereco   String
+  destinoLatitude   Float
+  destinoLongitude  Float
+  metricas          Json     @default("{}")
+  modoPrincipal     String
+  status            String   @default("Sugerida")
+  realocadaDe       String?
+  criadoEm          DateTime @default(now())
+  atualizadoEm      DateTime @updatedAt
+
+  @@index([loteId, loteOrdem])
+  @@index([status, criadoEm])
+  @@map("rotas")
+}
+
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  papel         String    @default("operador") // "admin" | "operador"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}

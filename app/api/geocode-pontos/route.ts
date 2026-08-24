@@ -1,8 +1,8 @@
 // app/api/geocode-pontos/route.ts
 //
 // Endpoint de batch geocoding: processa pontos com status="Pendente" e que
-// estejam SEM latitude/longitude no Firestore, geocodifica os endereços
-// usando a Google Maps Geocoding API, e atualiza o documento.
+// estejam SEM latitude/longitude no Postgres, geocodifica os endereços
+// usando a Google Maps Geocoding API, e atualiza o registro.
 //
 // Pensado pra ser chamado automaticamente APÓS uma sincronização do Sheets
 // bem-sucedida (mas pode rodar isolado para debug/correções).
@@ -10,7 +10,11 @@
 // Idempotente: pontos que JÁ TÊM lat/lng são ignorados (não desperdiça API).
 
 import { NextResponse } from "next/server"
-import { getAdminDb } from "@/lib/firebase-admin"
+import { exigirSessaoApi } from "@/lib/session-server"
+import {
+  listarPontosPendentesSemCoordenadas,
+  atualizarCoordenadasPontosEmLote,
+} from "@/lib/db/pontos"
 import { geocodificarLote } from "@/lib/google-geocoding"
 
 // ============================================================
@@ -36,10 +40,14 @@ type ResultadoPorPonto = {
 // ============================================================
 
 export async function POST(request: Request) {
+  // Blindagem: sessao obrigatoria ANTES de qualquer escrita no banco ou
+  // chamada paga a API externa.
+  const { erro: erroSessao } = await exigirSessaoApi()
+  if (erroSessao) return erroSessao
+
   const inicio = Date.now()
 
   try {
-    const adminDb = getAdminDb()
     // Body opcional
     let body: RequestBody = {}
     try {
@@ -48,26 +56,13 @@ export async function POST(request: Request) {
       // sem body = processa todos
     }
 
-    // 1. Busca candidatos no Firestore: status=Pendente, com endereço,
-    //    e sem latitude/longitude. (O filtro de lat/lng não dá pra fazer
-    //    direto na query do Firestore — fazemos client-side.)
-    let query: FirebaseFirestore.Query = adminDb
-      .collection("pontos")
-      .where("status", "==", "Pendente")
-
-    if (body.projetoId) {
-      query = query.where("projetoId", "==", body.projetoId)
-    }
-
-    const snapshot = await query.get()
-    const candidatos = snapshot.docs.filter((doc) => {
-      const data = doc.data()
-      return (
-        (data.latitude == null || data.longitude == null) &&
-        typeof data.endereco === "string" &&
-        data.endereco.trim().length > 0
-      )
-    })
+    // 1. Busca candidatos no Postgres: status=Pendente e sem latitude/longitude
+    //    (filtro na query). O recorte de endereço vazio é feito aqui com
+    //    trim(), preservando a semântica da versão Firestore.
+    const pendentes = await listarPontosPendentesSemCoordenadas(body.projetoId)
+    const candidatos = pendentes.filter(
+      (p) => typeof p.endereco === "string" && p.endereco.trim().length > 0,
+    )
 
     // Caso degenerado: nada pra fazer
     if (candidatos.length === 0) {
@@ -82,25 +77,22 @@ export async function POST(request: Request) {
     }
 
     // 2. Geocoda os endereços únicos em paralelo (com dedup interno)
-    const enderecos = candidatos.map(
-      (doc) => (doc.data().endereco as string).trim(),
-    )
+    const enderecos = candidatos.map((p) => p.endereco.trim())
     const mapaResultados = await geocodificarLote(enderecos, 5)
 
-    // 3. Atualiza os documentos em batch
-    const batch = adminDb.batch()
+    // 3. Monta os resultados e acumula as atualizações de coordenadas
     const resultados: ResultadoPorPonto[] = []
+    const updates: { id: string; latitude: number; longitude: number }[] = []
 
-    for (const doc of candidatos) {
-      const data = doc.data()
-      const endereco = (data.endereco as string).trim()
-      const umNome = (data.umNome as string | undefined) ?? doc.id
+    for (const p of candidatos) {
+      const endereco = p.endereco.trim()
+      const umNome = p.umNome || p.id
 
       const r = mapaResultados.get(endereco)
 
       if (!r) {
         resultados.push({
-          pontoId: doc.id,
+          pontoId: p.id,
           umNome,
           endereco,
           sucesso: false,
@@ -111,7 +103,7 @@ export async function POST(request: Request) {
 
       if (!r.sucesso) {
         resultados.push({
-          pontoId: doc.id,
+          pontoId: p.id,
           umNome,
           endereco,
           sucesso: false,
@@ -120,15 +112,14 @@ export async function POST(request: Request) {
         continue
       }
 
-      // Geocoding deu certo → atualiza ponto
-      batch.update(doc.ref, {
+      // Geocoding deu certo → agenda update do ponto
+      updates.push({
+        id: p.id,
         latitude: r.coordenadas.latitude,
         longitude: r.coordenadas.longitude,
-        enderecoFormatado: r.enderecoFormatado,
-        atualizadoEm: new Date(),
       })
       resultados.push({
-        pontoId: doc.id,
+        pontoId: p.id,
         umNome,
         endereco,
         sucesso: true,
@@ -136,10 +127,9 @@ export async function POST(request: Request) {
       })
     }
 
-    // Só commita se houver alguma update real
-    const temAtualizacao = resultados.some((r) => r.sucesso)
-    if (temAtualizacao) {
-      await batch.commit()
+    // 4. Grava tudo numa única transação atômica (só se houver update real)
+    if (updates.length > 0) {
+      await atualizarCoordenadasPontosEmLote(updates)
     }
 
     const geocodados = resultados.filter((r) => r.sucesso).length

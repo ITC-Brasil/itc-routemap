@@ -25,6 +25,8 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (transitionState === "idle") {
+      // Sincroniza o conteudo exibido com a arvore atual fora da transicao.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayChildren(children)
     }
   }, [children, transitionState])

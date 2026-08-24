@@ -1,11 +1,23 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react"
-import { onAuthStateChanged, User } from "firebase/auth"
-import { auth } from "@/lib/firebase"
+import { createContext, useContext, ReactNode } from "react"
+import { useSession } from "@/lib/auth-client"
+
+/**
+ * Usuário da sessão Better Auth.
+ * Mantém o contrato { user, loading } que o app inteiro já consome
+ * (auth-guard, navbar, login) — só a origem mudou: Firebase
+ * onAuthStateChanged → useSession do Better Auth.
+ */
+export type SessionUser = {
+  id: string
+  name: string
+  email: string
+  image?: string | null
+}
 
 type AuthContextType = {
-  user: User | null
+  user: SessionUser | null
   loading: boolean
 }
 
@@ -15,29 +27,18 @@ const AuthContext = createContext<AuthContextType>({
 })
 
 /**
- * Provider que observa o estado de autenticação do Firebase
+ * Provider que observa a sessão do Better Auth
  * e disponibiliza para toda a aplicação.
  *
  * Deve envolver a aplicação no layout raiz.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    // onAuthStateChanged: observador do Firebase que dispara sempre que
-    // o usuário loga, desloga, ou quando o app carrega
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser)
-      setLoading(false)
-    })
-
-    // Limpa o observador ao desmontar o componente
-    return () => unsubscribe()
-  }, [])
+  const { data: session, isPending } = useSession()
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider
+      value={{ user: session?.user ?? null, loading: isPending }}
+    >
       {children}
     </AuthContext.Provider>
   )

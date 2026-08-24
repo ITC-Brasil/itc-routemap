@@ -21,9 +21,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import type { Ponto } from "@/lib/firestore/pontos"
-import type { Projeto } from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import type { Ponto } from "@/lib/db/pontos"
+import type { Projeto } from "@/lib/db/projetos"
 
 const ITENS_POR_PAGINA = 20
 
@@ -63,9 +62,20 @@ export function TabelaPontos({
     }
   }
 
+  // Coluna cujos valores estão TODOS vazios é ocultada, não exibida com traços
+  // (system.md §4). Plus Code é o caso real: em projetos que não usam o campo, a
+  // coluna era uma fileira de "—" ocupando largura de dado.
+  // O critério olha o conjunto filtrado inteiro, não só a página — senão a coluna
+  // apareceria e desapareceria ao paginar.
+  const mostrarPlusCode = useMemo(
+    () => pontos.some((p) => p.plusCode.trim() !== ""),
+    [pontos],
+  )
+  const totalColunas = mostrarPlusCode ? 7 : 6
+
   return (
     <div className="space-y-4">
-      <div className="rounded-md border">
+      <div className="overflow-hidden rounded-xl border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -73,7 +83,7 @@ export function TabelaPontos({
               <TableHead>UM</TableHead>
               <TableHead>RA</TableHead>
               <TableHead>Endereço</TableHead>
-              <TableHead>Plus Code</TableHead>
+              {mostrarPlusCode && <TableHead>Plus Code</TableHead>}
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -81,7 +91,7 @@ export function TabelaPontos({
           <TableBody>
             {pontosPaginados.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-48">
+                <TableCell colSpan={totalColunas} className="h-48">
                   <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
                     <SearchX className="h-10 w-10 opacity-50" />
                     <div className="max-w-sm space-y-1 text-center">
@@ -106,6 +116,7 @@ export function TabelaPontos({
                   ponto={ponto}
                   projeto={projetosMap.get(ponto.projetoId)}
                   onEditar={onEditar}
+                  mostrarPlusCode={mostrarPlusCode}
                 />
               ))
             )}
@@ -196,10 +207,12 @@ function LinhaPonto({
   ponto,
   projeto,
   onEditar,
+  mostrarPlusCode,
 }: {
   ponto: Ponto
   projeto: Projeto | undefined
   onEditar: (ponto: Ponto) => void
+  mostrarPlusCode: boolean
 }) {
   const linkMaps = obterLinkMaps(ponto)
 
@@ -208,11 +221,9 @@ function LinhaPonto({
       <TableCell>
         {projeto ? (
           <Badge
-            className="font-mono"
-            style={{
-              backgroundColor: projeto.cor,
-              color: corTextoIdeal(projeto.cor),
-            }}
+            variant="outline"
+            className="badge-cor-dado font-mono"
+            style={{ "--cor-dado": projeto.cor } as React.CSSProperties}
           >
             {projeto.sigla}
           </Badge>
@@ -225,9 +236,11 @@ function LinhaPonto({
       <TableCell className="max-w-xs truncate" title={ponto.endereco}>
         {ponto.endereco}
       </TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground">
-        {ponto.plusCode || "—"}
-      </TableCell>
+      {mostrarPlusCode && (
+        <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+          {ponto.plusCode || "—"}
+        </TableCell>
+      )}
       <TableCell>
         <StatusBadge status={ponto.status} />
       </TableCell>
@@ -259,16 +272,49 @@ function LinhaPonto({
   )
 }
 
+/**
+ * Status do ponto — cada um com identidade própria (system.md §5.2).
+ *
+ *   Pendente   warn    aguarda ação humana, precisa chamar atenção
+ *   Agendado   accent  comprometido, em andamento
+ *   Histórico  muted   encerrado, recolhe-se ao fundo
+ *
+ * Antes: Pendente vinha em VERDE e "Agendado" e "Histórico" caíam no mesmo
+ * cinza — dois estados operacionalmente opostos, visualmente idênticos. O verde
+ * também era semanticamente errado: sugere concluído, quando o ponto está
+ * justamente esperando alguém agir.
+ *
+ * O vocabulário tem exatamente estes três valores. "Atual" é palavra da planilha,
+ * traduzida na ingestão, e nunca chega à interface.
+ */
 function StatusBadge({ status }: { status: string }) {
   if (status === "Pendente") {
     return (
-      <Badge className="border-emerald-200 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
+      <Badge variant="outline" className="border-warn bg-warn-tint text-warn">
         Pendente
       </Badge>
     )
   }
+  if (status === "Agendado") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-primary bg-accent text-accent-foreground"
+      >
+        Agendado
+      </Badge>
+    )
+  }
+  if (status === "Histórico") {
+    return (
+      <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
+        Histórico
+      </Badge>
+    )
+  }
+  // Valor fora do vocabulário: aparece como está, para não esconder o problema.
   return (
-    <Badge variant="secondary" className="text-muted-foreground">
+    <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
       {status || "—"}
     </Badge>
   )

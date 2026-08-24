@@ -3,13 +3,10 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Truck, AlertCircle } from "lucide-react"
-import {
-  criarUM,
-  atualizarUM,
-  type UM,
-} from "@/lib/firestore/ums"
-import { type Projeto } from "@/lib/firestore/projetos"
-import { corTextoIdeal } from "@/lib/firestore/ras"
+import { criarUM, atualizarUM } from "@/lib/actions/ums"
+import type { UM } from "@/lib/db/ums"
+import type { Projeto } from "@/lib/db/projetos"
+import { corTextoIdeal } from "@/lib/cores"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -52,6 +49,8 @@ export function UMFormDialog({
 
   useEffect(() => {
     if (open) {
+      // Reset intencional do form ao abrir o modal (sincroniza com a prop `um`).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNome(um?.nome ?? "")
       setCor(um?.cor ?? COR_INICIAL)
       setProjetoId(um?.projetoId ?? "")
