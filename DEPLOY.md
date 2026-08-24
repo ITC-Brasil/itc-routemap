@@ -94,12 +94,29 @@ docker compose up -d --build
 docker compose ps && docker logs itc-routemap-app --tail 30
 ```
 
-## 4. Migrations e seed — one-off da imagem `builder`
+## 4. Migrations e seed
 
-O container de produção **não** roda `prisma migrate` nem o seed: o runner
-recebe só o `.next/standalone`, que não empacota o CLI do Prisma (não é
-importado pelo código) nem o `tsx` (é devDependency). Os one-offs usam o stage
-`builder`, que tem o `node_modules` completo.
+### 4a. `migrate deploy` — dentro do próprio container ✅
+
+Com o `node_modules` completo no runner, o CLI do Prisma está na imagem. Chamar
+**pelo caminho do módulo** — o standalone do Next não recria os symlinks de
+`node_modules/.bin/`, então `npx prisma` não funciona:
+
+```bash
+docker compose exec app node node_modules/prisma/build/index.js migrate deploy
+```
+
+Esperado: `Applying migration 20260723211652_init` e `All migrations have been
+successfully applied.` Não precisa de `-e DATABASE_URL`: o container de produção
+já tem a variável apontando para `postgres:5432`.
+
+### 4b. Seed — ainda exige o one-off da imagem `builder` ⚠️
+
+O `tsx` está na imagem, mas `prisma/seed.ts` importa `../lib/prisma` e
+`../lib/better-auth` — **fonte TypeScript que o runner não recebe** — e o
+`lib/better-auth.ts` resolve `@/lib/prisma`, alias que depende do
+`tsconfig.json`, também ausente. Verificado no container: falha com
+`Cannot find module '../lib/prisma'`.
 
 ```bash
 docker build --target builder -t itc-routemap-migrate:latest --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=dummy .
@@ -110,16 +127,17 @@ PW=$(grep '^POSTGRES_PASSWORD=' .env.docker | cut -d= -f2-); DB="postgresql://it
 ```
 
 ```bash
-docker run --rm --network itc-routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx prisma migrate deploy
-```
-
-```bash
 docker run --rm --network itc-routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx prisma/seed.ts
 ```
 
-O `-e DATABASE_URL` sobrescrito é obrigatório: dentro da rede do compose o host
-do banco é `postgres`, não `localhost`. Esperado: `Applying migration
-20260723211652_init` com 12 tabelas, e `Admin ... criado com papel=admin`.
+O `-e DATABASE_URL` sobrescrito é obrigatório aqui: dentro da rede do compose o
+host do banco é `postgres`, não `localhost`. Esperado:
+`Admin ... criado com papel=admin`.
+
+> Para o seed também rodar no container bastaria copiar `lib/` (200 KB) e o
+> `tsconfig.json` para o runner — testado e funciona (`Admin ... criado com
+> papel=admin`). Não foi adotado: levaria fonte da aplicação para a imagem de
+> produção. Decisão em aberto, ver §10.18 do `HANDOFF-SESSAO.md`.
 
 ```bash
 docker exec itc-routemap-db psql -U itc_user -d itc_routemap -c '\dt'
@@ -234,8 +252,11 @@ nenhum dos dois serviços leva o label. A atualização é manual:
 cd ~/docker/itc-routemap && git pull && docker compose up -d --build
 ```
 
-Se houver migration nova, repetir o passo 4 (build do `builder` +
-`migrate deploy`) antes de conferir a aplicação.
+Se houver migration nova, rodar o §4a logo depois do `up -d`:
+
+```bash
+docker compose exec app node node_modules/prisma/build/index.js migrate deploy
+```
 
 ## Armadilhas conhecidas
 
