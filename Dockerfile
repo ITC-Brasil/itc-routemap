@@ -42,6 +42,20 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
+# node_modules completo do stage deps, alinhando com o padrao do NoteScan, que
+# roda no mesmo servidor. Traz o CLI do Prisma e suas deps transitivas, o que
+# permite rodar `migrate deploy` dentro do proprio container de producao:
+#
+#   node node_modules/prisma/build/index.js migrate deploy
+#
+# Chamada pelo caminho do modulo porque o standalone do Next nao recria os
+# symlinks de node_modules/.bin/.
+#
+# CUSTO: o `npm ci` do stage deps roda sem --omit=dev, entao devDependencies
+# vem junto (Playwright incluso). Ver secao 10.18 do HANDOFF.
+COPY --from=deps /app/node_modules ./node_modules
+# Depois do COPY acima: o stage deps nao roda `prisma generate`, entao o client
+# gerado vem do builder e precisa sobrescrever o que veio do deps.
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 USER nextjs
 EXPOSE 3000
