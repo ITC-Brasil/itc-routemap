@@ -1388,6 +1388,25 @@ silenciar um aviso cosmético.
 
 ---
 
+## 10.20. 🔴 A fusão na `main` ocorreu ANTES do deploy (2026-08-24)
+
+Por decisão do usuário, `docker-server` foi fundida na `main` e enviada
+(`d19f234`, 86 commits) **antes de o servidor novo existir**. A consequência foi
+aceita explicitamente: **a produção antiga (Vercel/Firebase) saiu do ar nesse
+momento**, e o RouteMap fica indisponível até o `DEPLOY.md` ser executado no
+`glpi-srv`.
+
+O merge foi limpo — sem conflito. A `main` tinha um commit exclusivo (`1b3a252`,
+o mesmo fix de `data-disabled` do combobox que a `docker-server` já carregava em
+`8280775`), então não houve fast-forward e criou-se um commit de merge.
+
+**Estado da virada:** o Firebase deixa de ser fonte de verdade no momento em que
+a migração final rodar (§10.8b). Entre a fusão e o deploy não há produção
+servindo — a janela de indisponibilidade é o custo aceito para não manter as
+duas bases divergindo.
+
+---
+
 ## 11. PRÓXIMA AÇÃO IMEDIATA
 
 Aguardando **OK do usuário no grupo B da Frente 2** (§6). Com o OK: aplicar os 10
