@@ -1304,7 +1304,37 @@ browser e banco populado**. Portar o workflow exigiria, no mínimo:
 
 Decisão: **fica para depois do primeiro deploy**. Não implementado.
 
+### 5b. DECISÃO REVISADA (2026-08-24): `node_modules` completo, adotado
+
+Por **padronização com o NoteScan**, que roda no mesmo servidor, o runner passou
+a receber `COPY --from=deps /app/node_modules ./node_modules` (commit `dbff77a`).
+Isso reverte a recusa do item 1. Medido no build local:
+
+| | Antes | Depois |
+|---|---|---|
+| Imagem `itc-routemap-app` | **408 MB** | **1,88 GB** |
+
+São **+1,47 GB (4,6x)** — bem acima dos ~149 MB que eu havia estimado para os
+pacotes do Prisma isolados. A diferença é a árvore dev+prod inteira, já que o
+`npm ci` do stage `deps` roda sem `--omit=dev`.
+
+**O que passou a funcionar:** `migrate deploy` roda no container de produção,
+via `docker compose exec app node node_modules/prisma/build/index.js migrate
+deploy`. Testado: aplicou a `20260723211652_init`. O `DEPLOY.md` §4a foi
+simplificado — sem build do `builder`, sem `--network`, sem `-e DATABASE_URL`.
+
+**O que NÃO passou:** o seed. O `tsx` está na imagem, mas falta a fonte
+TypeScript — `Cannot find module '../lib/prisma'`, e depois `@/lib/prisma`, que
+depende do `tsconfig.json`. **Testado**: copiando `lib/` (200 KB) e
+`tsconfig.json` para dentro do container, o seed roda e cria o admin. Não
+adotado — levaria fonte da aplicação para a imagem de produção. Decisão em
+aberto; o §4b do `DEPLOY.md` segue com o one-off do `builder`.
+
 ### 6. Dois detalhes que reforçam as recusas acima
+
+> Nota: o primeiro item abaixo foi **superado** pelo §5b — a decisão de
+> padronizar com o NoteScan prevaleceu sobre o custo. Fica registrado porque o
+> custo real (+1,47 GB) é maior do que o texto original supunha.
 
 - **Contra o entrypoint:** eles copiam o `node_modules` **inteiro** do stage
   `deps` — e o `npm ci` de lá roda sem `--omit=dev`, então vai **devDependency
