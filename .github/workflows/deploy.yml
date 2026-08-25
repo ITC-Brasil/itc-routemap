@@ -54,9 +54,19 @@ jobs:
           command_timeout: 20m
           script: |
             set -e
+            # O compose e o .env.docker ficam AQUI, no diretório-pai; o repo
+            # fica em app/ e o compose aponta para ele com `context: ./app`.
+            # Por isso o `docker compose` roda daqui, e não de dentro de app/.
             cd /home/glpissh/docker/routemap
             git -C app pull origin main
-            cd app
+            # ⚠️ SOBRESCREVE o docker-compose.yml do servidor a cada deploy.
+            # É o comportamento desejado — o compose é versionado no repo e a
+            # versão do git é a fonte de verdade. MAS qualquer ajuste feito à
+            # mão nesta máquina (porta, limite de recurso, volume extra) é
+            # PERDIDO sem aviso. Precisando de ajuste permanente, mudar no repo
+            # e não aqui; precisando de um teste pontual, editar sabendo que o
+            # próximo deploy apaga.
+            cp app/docker-compose.yml .
             docker compose up -d --build
             docker compose ps
             # Migrations continuam MANUAIS, por decisão (§10.18 do HANDOFF: o
