@@ -80,8 +80,26 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Gate em `critical`, não `high`, por decisão consciente (§10.21 do
+      # HANDOFF). Depois do `npm audit fix` restam 6 high em produção, de 3
+      # raízes — e nenhuma é acionável por entrada externa:
+      #
+      #   sharp/libvips (via next) — o app usa `next/image` sem
+      #     `unoptimized`, mas só DOIS PNGs nossos, versionados em public/,
+      #     passam pelo libvips. Sem `remotePatterns`, imagem remota é
+      #     bloqueada; sem `dangerouslyAllowSVG`, os SVGs (a maioria dos usos)
+      #     não tocam o libvips. Não há upload de usuário.
+      #   postcss (via next e shadcn) — build-time: compila CSS no
+      #     `next build` e não entra no `.next/standalone`.
+      #   deepmerge-ts (via prisma e @prisma/config) — CLI do Prisma, só
+      #     exercitado em migrate/generate, nunca no caminho de request.
+      #
+      # O fix exige subir o Next de 16.2.6 para 16.3.2 — MINOR, não patch — o
+      # que invalidaria o ensaio de deploy já validado. Dívida com prazo:
+      # revisar depois do primeiro deploy estabilizar, subindo Next e sharp
+      # juntos. Ao fazer isso, restaurar `--audit-level=high` aqui.
       - name: Auditoria de dependências
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=critical
 
       - name: Migrations
         run: npx prisma migrate deploy

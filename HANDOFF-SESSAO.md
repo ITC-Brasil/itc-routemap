@@ -1414,6 +1414,39 @@ duas bases divergindo.
 
 ---
 
+## 10.21. Dívida COM PRAZO: 6 high no `npm audit` e o gate em `critical`
+
+O `ci.yml` roda `npm audit --omit=dev`. Estado em 2026-08-25, **depois** de
+`npm audit fix` sem `--force`: produção saiu de **12 high para 6**, e o total
+de 16 para 11 vulnerabilidades. As 6 restantes vêm de **3 raízes**:
+
+| Raiz | Chega por | Quando é exercitada |
+|---|---|---|
+| `sharp` (libvips) | `next` | runtime, mas só nos 2 PNGs nossos |
+| `postcss` | `next`, `shadcn` | **build-time** — compila CSS no `next build` |
+| `deepmerge-ts` | `prisma`, `@prisma/config` | CLI do Prisma (migrate/generate) |
+
+**Nenhuma é acionável por entrada externa.** O app usa `next/image` sem
+`unoptimized`, então o libvips **é** exercitado — mas só por
+`itc_routemap-logo-white.png` e `-dark.png`, arquivos nossos versionados em
+`public/`. Sem `remotePatterns` no `next.config.ts`, imagem remota é bloqueada;
+sem `dangerouslyAllowSVG`, os SVGs (a maioria dos usos) não passam pelo libvips.
+Não há upload de usuário em nenhum fluxo. O `postcss` **não** é runtime: confirmado
+que não entra no `.next/standalone` — a imagem de produção pré-`node_modules`
+completo tinha 7 pacotes e ele não estava entre eles. O `nanoid`, que aparecia
+antes, vinha justamente por baixo do `postcss` e foi resolvido pelo `audit fix`.
+
+**Decisão: gate em `--audit-level=critical`**, não `high`. O fix das 6 exige
+subir o Next de **16.2.6 → 16.3.2**, que é **minor, não patch**, e invalidaria o
+ensaio de deploy já validado (§10.16) às vésperas de subir o servidor.
+
+🔴 **PRAZO: revisar depois que o primeiro deploy estabilizar**, subindo **Next e
+`sharp` juntos** numa mesma janela, com re-execução da suíte. Ao fazer isso,
+restaurar `--audit-level=high` no `ci.yml`. O comentário no workflow aponta para
+esta seção.
+
+---
+
 ## 11. PRÓXIMA AÇÃO IMEDIATA
 
 Aguardando **OK do usuário no grupo B da Frente 2** (§6). Com o OK: aplicar os 10
