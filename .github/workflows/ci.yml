@@ -104,6 +104,15 @@ jobs:
       - name: Migrations
         run: npx prisma migrate deploy
 
+      # ORDEM IMPORTA. O `seed-teste.ts` popula projetos, técnicos, pontos e
+      # rotas, mas declara que NÃO toca em User/Session/Account — ele pressupõe
+      # um admin já existente. Quem cria o admin é o `seed.ts`, via API do
+      # Better Auth (convite + hash scrypt). Sem este passo, o `auth.setup.ts`
+      # não consegue logar com ADMIN_EMAIL/ADMIN_PASSWORD e TODO o projeto
+      # autenticado cai junto.
+      - name: Seed do admin
+        run: npx tsx prisma/seed.ts
+
       - name: Seed de teste
         run: npx tsx prisma/seed-teste.ts
 
