@@ -37,7 +37,7 @@ falha com `JavaScript heap out of memory` no type-check.
 
 ## 1. Pasta e clone
 
-Layout do guia oficial: o compose e o `.env.docker` ficam em
+Layout do guia oficial: o compose e o `.env` ficam em
 `~/docker/routemap/`, e o repositorio e clonado em `~/docker/routemap/app/`.
 
 ```bash
@@ -58,10 +58,14 @@ para o `docker compose` rodar de `~/docker/routemap/`. **Recopiar sempre que o
 
 ## 2. Variáveis de ambiente
 
-Criar `~/docker/routemap/.env.docker` com as 14 chaves abaixo — todas
-obrigatórias. **Sem aspas e sem `#` nos valores:** `docker run --env-file` não
-remove aspas e elas entram no valor (medido no ensaio — foi assim que a senha
-do admin ficou com 8 caracteres em vez de 6).
+Criar `~/docker/routemap/.env` com as 14 chaves abaixo — todas obrigatórias.
+O nome é **`.env`**, não `.env.docker`: o Compose lê `.env` da pasta do projeto
+sozinho, sem `--env-file`, e é dele que saem as interpolações `${VAR}` do
+`docker-compose.yml`. Com outro nome, todo `${VAR}` viraria string vazia.
+
+**Sem aspas e sem `#` nos valores:** `docker run --env-file` não remove aspas e
+elas entram no valor (medido no ensaio — foi assim que a senha do admin ficou
+com 8 caracteres em vez de 6).
 
 ```
 POSTGRES_PASSWORD=
@@ -81,7 +85,7 @@ GEMINI_ENABLED=true
 ```
 
 ```bash
-chmod 600 ~/docker/routemap/.env.docker
+chmod 600 ~/docker/routemap/.env
 ```
 
 **No console do Google Cloud**, antes do primeiro login por Google: adicionar
@@ -130,11 +134,11 @@ docker build --target builder -t itc-routemap-migrate:latest --build-arg NEXT_PU
 ```
 
 ```bash
-PW=$(grep '^POSTGRES_PASSWORD=' .env.docker | cut -d= -f2-); DB="postgresql://itc_user:$PW@postgres:5432/itc_routemap"
+PW=$(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-); DB="postgresql://itc_user:$PW@postgres:5432/itc_routemap"
 ```
 
 ```bash
-docker run --rm --network routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx prisma/seed.ts
+docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx prisma/seed.ts
 ```
 
 O `-e DATABASE_URL` sobrescrito é obrigatório aqui: dentro da rede do compose o
@@ -156,7 +160,7 @@ Dry-run é o default; `--gravar` persiste. É idempotente e **preserva os IDs**,
 por isso roda duas vezes: agora e no corte final.
 
 ```bash
-docker run --rm --network routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/migrar-firestore.ts
+docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/migrar-firestore.ts
 ```
 
 Se a saída acusar **CONFLITO**, a gravação está bloqueada de propósito: a
@@ -165,7 +169,7 @@ saída é alinhar a fonte — marcar a planilha — e rodar de novo, nunca forç
 Só com o dry-run limpo:
 
 ```bash
-docker run --rm --network routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/migrar-firestore.ts --gravar
+docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/migrar-firestore.ts --gravar
 ```
 
 ## 6. Admin: trocar senha por Google
@@ -180,7 +184,7 @@ docker exec itc-routemap-db psql -U itc_user -d itc_routemap -c "delete from \"u
 ```
 
 ```bash
-docker run --rm --network routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/convidar.ts SEU_EMAIL
+docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/convidar.ts SEU_EMAIL
 ```
 
 ```bash
@@ -268,7 +272,7 @@ docker compose exec app node node_modules/prisma/build/index.js migrate deploy
 ## Armadilhas conhecidas
 
 - **`POSTGRES_PASSWORD` só vale na criação do volume.** Trocar depois no
-  `.env.docker` não muda a senha do banco; o `$PW` dos one-offs tem de ser a
+  `.env` não muda a senha do banco; o `$PW` dos one-offs tem de ser a
   que **inicializou** o volume.
 - **`ADMIN_PASSWORD` não é reaplicada.** O seed faz early-return para usuário
   existente — trocar a senha sem apagar o `User` não tem efeito nenhum.
