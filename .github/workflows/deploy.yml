@@ -19,9 +19,17 @@
 
 name: Deploy
 
+# Gatilho MANUAL apenas, por enquanto. Enquanto o servidor não existe, um
+# `push: branches: [main]` faria todo push falhar no passo de SSH, virando
+# ruído de notificação sem informação nenhuma.
+#
+# REATIVAR o bloco `push` abaixo depois que o usuário `routemap-deploy`, a
+# chave e os secrets estiverem criados — ou seja, quando os 4 pré-requisitos
+# do cabeçalho estiverem cumpridos e um `workflow_dispatch` manual tiver
+# passado pelo menos uma vez.
 on:
-  push:
-    branches: [main]
+  # push:
+  #   branches: [main]
   workflow_dispatch:
 
 concurrency:
