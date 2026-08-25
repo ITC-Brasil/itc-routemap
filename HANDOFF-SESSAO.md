@@ -1400,6 +1400,13 @@ O merge foi limpo — sem conflito. A `main` tinha um commit exclusivo (`1b3a252
 o mesmo fix de `data-disabled` do combobox que a `docker-server` já carregava em
 `8280775`), então não houve fast-forward e criou-se um commit de merge.
 
+**Layout no servidor (guia oficial):** `~/docker/routemap/` guarda o
+`docker-compose.yml` e o `.env.docker`; o repositório é clonado em
+`~/docker/routemap/app/`. Por isso o compose usa `context: ./app`, e a rede do
+projeto passa a ser **`routemap_default`** — não `itc-routemap_default`, que é
+como aparece nos registros do ensaio local (§10.5 e §10.12), feitos a partir da
+pasta do repo. Os one-offs do `DEPLOY.md` já usam o nome novo.
+
 **Estado da virada:** o Firebase deixa de ser fonte de verdade no momento em que
 a migração final rodar (§10.8b). Entre a fusão e o deploy não há produção
 servindo — a janela de indisponibilidade é o custo aceito para não manter as

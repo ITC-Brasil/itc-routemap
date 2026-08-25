@@ -1,4 +1,9 @@
-# ~/docker/itc-routemap/docker-compose.yml  (glpi-srv)
+# ~/docker/routemap/docker-compose.yml  (glpi-srv)
+#
+# LAYOUT do guia oficial do servidor: este arquivo fica em ~/docker/routemap/,
+# ao lado do .env.docker, e o REPOSITORIO e clonado em ~/docker/routemap/app/.
+# Por isso `context: ./app`. O diretorio do projeto passa a se chamar
+# `routemap`, entao a rede do compose e `routemap_default`.
 # Sem nginx: TLS termina no Cloudflare Tunnel -> http://localhost:3015
 services:
   postgres:
@@ -23,7 +28,7 @@ services:
 
   app:
     build:
-      context: .
+      context: ./app
       args:
         # NEXT_PUBLIC_*: embutidas no bundle em BUILD-time -> build arg.
         NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}

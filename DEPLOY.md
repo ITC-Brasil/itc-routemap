@@ -10,9 +10,9 @@ Referências: `novo-container-glpi-srv.md` (padrões do servidor),
 | Campo | Valor |
 |---|---|
 | SSH | `glpissh@100.68.161.44` (Tailscale) |
-| Pasta | `~/docker/itc-routemap/` |
+| Pasta | `~/docker/routemap/` (codigo em `app/`) |
 | Porta host | `3015` (só loopback) |
-| Rede do compose | `itc-routemap_default` |
+| Rede do compose | `routemap_default` |
 | Containers | `itc-routemap-app`, `itc-routemap-db` |
 
 ---
@@ -37,21 +37,28 @@ falha com `JavaScript heap out of memory` no type-check.
 
 ## 1. Pasta e clone
 
+Layout do guia oficial: o compose e o `.env.docker` ficam em
+`~/docker/routemap/`, e o repositorio e clonado em `~/docker/routemap/app/`.
+
 ```bash
-mkdir -p ~/docker/itc-routemap
+mkdir -p ~/docker/routemap
 ```
 
 ```bash
-git clone https://github.com/ITC-Brasil/itc-routemap.git ~/docker/itc-routemap
+git clone https://github.com/ITC-Brasil/itc-routemap.git ~/docker/routemap/app
 ```
 
 ```bash
-cd ~/docker/itc-routemap && git checkout main
+cd ~/docker/routemap && cp app/docker-compose.yml .
 ```
+
+O compose e versionado dentro do repo, mas precisa estar na pasta do projeto
+para o `docker compose` rodar de `~/docker/routemap/`. **Recopiar sempre que o
+`docker-compose.yml` mudar no repo** — ver o passo 10.
 
 ## 2. Variáveis de ambiente
 
-Criar `~/docker/itc-routemap/.env.docker` com as 14 chaves abaixo — todas
+Criar `~/docker/routemap/.env.docker` com as 14 chaves abaixo — todas
 obrigatórias. **Sem aspas e sem `#` nos valores:** `docker run --env-file` não
 remove aspas e elas entram no valor (medido no ensaio — foi assim que a senha
 do admin ficou com 8 caracteres em vez de 6).
@@ -74,7 +81,7 @@ GEMINI_ENABLED=true
 ```
 
 ```bash
-chmod 600 ~/docker/itc-routemap/.env.docker
+chmod 600 ~/docker/routemap/.env.docker
 ```
 
 **No console do Google Cloud**, antes do primeiro login por Google: adicionar
@@ -119,7 +126,7 @@ O `tsx` está na imagem, mas `prisma/seed.ts` importa `../lib/prisma` e
 `Cannot find module '../lib/prisma'`.
 
 ```bash
-docker build --target builder -t itc-routemap-migrate:latest --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=dummy .
+docker build --target builder -t itc-routemap-migrate:latest --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=dummy ./app
 ```
 
 ```bash
@@ -127,7 +134,7 @@ PW=$(grep '^POSTGRES_PASSWORD=' .env.docker | cut -d= -f2-); DB="postgresql://it
 ```
 
 ```bash
-docker run --rm --network itc-routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx prisma/seed.ts
+docker run --rm --network routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx prisma/seed.ts
 ```
 
 O `-e DATABASE_URL` sobrescrito é obrigatório aqui: dentro da rede do compose o
@@ -149,7 +156,7 @@ Dry-run é o default; `--gravar` persiste. É idempotente e **preserva os IDs**,
 por isso roda duas vezes: agora e no corte final.
 
 ```bash
-docker run --rm --network itc-routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/migrar-firestore.ts
+docker run --rm --network routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/migrar-firestore.ts
 ```
 
 Se a saída acusar **CONFLITO**, a gravação está bloqueada de propósito: a
@@ -158,7 +165,7 @@ saída é alinhar a fonte — marcar a planilha — e rodar de novo, nunca forç
 Só com o dry-run limpo:
 
 ```bash
-docker run --rm --network itc-routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/migrar-firestore.ts --gravar
+docker run --rm --network routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/migrar-firestore.ts --gravar
 ```
 
 ## 6. Admin: trocar senha por Google
@@ -173,7 +180,7 @@ docker exec itc-routemap-db psql -U itc_user -d itc_routemap -c "delete from \"u
 ```
 
 ```bash
-docker run --rm --network itc-routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/convidar.ts SEU_EMAIL
+docker run --rm --network routemap_default --env-file .env.docker -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/convidar.ts SEU_EMAIL
 ```
 
 ```bash
@@ -249,7 +256,7 @@ registry, e auto-update de major do Postgres corromperia o datadir. Por isso
 nenhum dos dois serviços leva o label. A atualização é manual:
 
 ```bash
-cd ~/docker/itc-routemap && git pull && docker compose up -d --build
+cd ~/docker/routemap && git -C app pull origin main && cp app/docker-compose.yml . && docker compose up -d --build
 ```
 
 Se houver migration nova, rodar o §4a logo depois do `up -d`:
