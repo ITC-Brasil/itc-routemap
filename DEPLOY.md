@@ -130,7 +130,7 @@ O `tsx` está na imagem, mas `prisma/seed.ts` importa `../lib/prisma` e
 `Cannot find module '../lib/prisma'`.
 
 ```bash
-docker build --target builder -t itc-routemap-migrate:latest --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=dummy ./app
+docker build --target builder -t routemap-migrate:latest --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=dummy ./app
 ```
 
 ```bash
@@ -138,7 +138,7 @@ PW=$(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-); DB="postgresql://itc_user:
 ```
 
 ```bash
-docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx prisma/seed.ts
+docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" routemap-migrate:latest npx tsx prisma/seed.ts
 ```
 
 O `-e DATABASE_URL` sobrescrito é obrigatório aqui: dentro da rede do compose o
@@ -160,7 +160,7 @@ Dry-run é o default; `--gravar` persiste. É idempotente e **preserva os IDs**,
 por isso roda duas vezes: agora e no corte final.
 
 ```bash
-docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/migrar-firestore.ts
+docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" routemap-migrate:latest npx tsx scripts/migrar-firestore.ts
 ```
 
 Se a saída acusar **CONFLITO**, a gravação está bloqueada de propósito: a
@@ -169,7 +169,7 @@ saída é alinhar a fonte — marcar a planilha — e rodar de novo, nunca forç
 Só com o dry-run limpo:
 
 ```bash
-docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/migrar-firestore.ts --gravar
+docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" routemap-migrate:latest npx tsx scripts/migrar-firestore.ts --gravar
 ```
 
 ## 6. Admin: trocar senha por Google
@@ -184,7 +184,7 @@ docker exec routemap-db psql -U itc_user -d itc_routemap -c "delete from \"user\
 ```
 
 ```bash
-docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" itc-routemap-migrate:latest npx tsx scripts/convidar.ts SEU_EMAIL
+docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB" routemap-migrate:latest npx tsx scripts/convidar.ts SEU_EMAIL
 ```
 
 ```bash
