@@ -13,7 +13,7 @@ Referências: `novo-container-glpi-srv.md` (padrões do servidor),
 | Pasta | `~/docker/routemap/` (codigo em `app/`) |
 | Porta host | `3015` (só loopback) |
 | Rede do compose | `routemap_default` |
-| Containers | `itc-routemap-app`, `itc-routemap-db` |
+| Containers | `routemap-app`, `routemap-db` |
 
 ---
 
@@ -102,7 +102,7 @@ docker compose up -d --build
 ```
 
 ```bash
-docker compose ps && docker logs itc-routemap-app --tail 30
+docker compose ps && docker logs routemap-app --tail 30
 ```
 
 ## 4. Migrations e seed
@@ -151,7 +151,7 @@ host do banco é `postgres`, não `localhost`. Esperado:
 > produção. Decisão em aberto, ver §10.18 do `HANDOFF-SESSAO.md`.
 
 ```bash
-docker exec itc-routemap-db psql -U itc_user -d itc_routemap -c '\dt'
+docker exec routemap-db psql -U itc_user -d itc_routemap -c '\dt'
 ```
 
 ## 5. Migração de dados Firestore → Postgres
@@ -180,7 +180,7 @@ recusa email que já tem conta, e o hook do convite só roda na criação da con
 `Account` e `Session` vão por CASCADE.
 
 ```bash
-docker exec itc-routemap-db psql -U itc_user -d itc_routemap -c "delete from \"user\" where email='SEU_EMAIL';"
+docker exec routemap-db psql -U itc_user -d itc_routemap -c "delete from \"user\" where email='SEU_EMAIL';"
 ```
 
 ```bash
@@ -188,14 +188,14 @@ docker run --rm --network routemap_default --env-file .env -e DATABASE_URL="$DB"
 ```
 
 ```bash
-docker exec itc-routemap-db psql -U itc_user -d itc_routemap -c 'select email,status,"expiraEm">now() as valido from convites;'
+docker exec routemap-db psql -U itc_user -d itc_routemap -c 'select email,status,"expiraEm">now() as valido from convites;'
 ```
 
 Depois de logar pelo Google, o papel volta ao default do hook (`operador`) — o
 convite não carrega papel. Corrigir na mão:
 
 ```bash
-docker exec itc-routemap-db psql -U itc_user -d itc_routemap -c "update \"user\" set papel='admin' where email='SEU_EMAIL';"
+docker exec routemap-db psql -U itc_user -d itc_routemap -c "update \"user\" set papel='admin' where email='SEU_EMAIL';"
 ```
 
 ## 7. Rota no Cloudflare Tunnel
@@ -236,11 +236,11 @@ curl -I https://routemap.itcbr.xyz
 ```
 
 ```bash
-docker compose ps && docker logs itc-routemap-app --tail 50
+docker compose ps && docker logs routemap-app --tail 50
 ```
 
 ```bash
-docker exec itc-routemap-db psql -U itc_user -d itc_routemap -c 'select count(*) from projetos;'
+docker exec routemap-db psql -U itc_user -d itc_routemap -c 'select count(*) from projetos;'
 ```
 
 No navegador, com o host final:
