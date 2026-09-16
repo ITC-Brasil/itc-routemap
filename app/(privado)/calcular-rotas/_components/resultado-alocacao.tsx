@@ -301,6 +301,17 @@ export function ResultadoAlocacao({
             modo,
           }),
         })
+
+        // A função pode devolver HTML em vez de JSON — timeout de plataforma,
+        // sessão expirada com redirect para o login, ou exceção lançada fora do
+        // try do handler. Sem esta checagem, `.json()` estoura com "Unexpected
+        // token '<', "<!DOCTYPE "... is not valid JSON", que não diz qual dos
+        // três aconteceu; o código HTTP diz. Respostas de ERRO em JSON seguem
+        // adiante de propósito: o corpo delas traz mensagem melhor que o status.
+        if (!res.headers.get("content-type")?.includes("application/json")) {
+          throw new Error(`Falha no cálculo (HTTP ${res.status})`)
+        }
+
         const data = await res.json()
 
         if (!data.sucesso) {
@@ -494,6 +505,17 @@ export function ResultadoAlocacao({
               modo: resultado.modoPrincipal,
             }),
           })
+
+          // A função pode devolver HTML em vez de JSON — timeout de plataforma,
+          // sessão expirada com redirect para o login, ou exceção lançada fora do
+          // try do handler. Sem esta checagem, `.json()` estoura com "Unexpected
+          // token '<', "<!DOCTYPE "... is not valid JSON", que não diz qual dos
+          // três aconteceu; o código HTTP diz. Respostas de ERRO em JSON seguem
+          // adiante de propósito: o corpo delas traz mensagem melhor que o status.
+          if (!res.headers.get("content-type")?.includes("application/json")) {
+            throw new Error(`Falha no cálculo (HTTP ${res.status})`)
+          }
+
           const data = await res.json()
           if (!data.sucesso) {
             return {
