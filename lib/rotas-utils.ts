@@ -62,6 +62,32 @@ export type OrigemDecisao = "auto" | "manual" | "ajuste-pos-auto"
  */
 export const STATUS_PONTO_AGENDADO = "Agendado"
 
+/**
+ * Status de um ponto que já saiu da fila de alocação por estar em campo.
+ *
+ * NÃO use isto para montar destinos de cálculo. Pendente → Agendado/Atual →
+ * Histórico é o ciclo de vida de uma mesma linha da planilha, e cada etapa nova
+ * gera uma linha Pendente por UM: o conjunto calculável é sempre o dos
+ * pendentes. Um ponto aqui é passado, não alternativa.
+ *
+ * A constante existe para DIAGNÓSTICO de dado legado. "Agendado" é o
+ * vocabulário canônico do app — a sincronização traduz o "Atual" da planilha
+ * para cá (STATUS_POR_VALOR_DA_PLANILHA em app/api/sincronizar/route.ts). Mas
+ * antes dessa normalização o valor da planilha era gravado cru, então podem
+ * existir pontos com status "Atual" no banco, e esses são invisíveis para
+ * TODAS as queries do app (todo filtro compara com "Pendente", "Agendado" ou
+ * "Histórico"). Para auditar:
+ *
+ *   SELECT status, COUNT(*) FROM pontos GROUP BY status ORDER BY 2 DESC;
+ *
+ * Havendo linhas com "Atual", elas precisam de um UPDATE para "Agendado" —
+ * ninguém as enxerga hoje.
+ */
+export const STATUS_PONTO_OCUPADO = ["Agendado", "Atual"] as const
+
+/** Status aceitos no cálculo: só o que está livre para alocar. */
+export const STATUS_DESTINO_PADRAO = ["Pendente"] as const
+
 // ============================================================
 // HELPERS DE NEGÓCIO (puros)
 // ============================================================
@@ -70,25 +96,33 @@ export const STATUS_PONTO_AGENDADO = "Agendado"
  * Identifica o destino de uma UM para uma rota de alocação.
  *
  * Regra de negócio (definida com o cliente em 09/06/2026):
- * - Pega todos os pontos da UM com status "Pendente"
- * - Retorna o de MAIOR (ciclo, etapa) — o mais recente importado
- *   da planilha, ainda sem técnico atribuído
- * - Se a UM não tem Pendente, retorna null (UM fica fora do cálculo)
+ * - Pega todos os pontos da UM cujo status esteja em `statusAceitos`
+ * - Retorna o de MAIOR (ciclo, etapa) — o mais recente importado da planilha
+ * - Se a UM não tem nenhum candidato, retorna null (fica fora do cálculo)
  *
- * @param pontos     Lista completa de pontos
- * @param projetoId  ID do projeto-alvo
- * @param umNome     Nome da UM (ex: "BSBIA01")
+ * `statusAceitos` é ponto de extensão para consumidores futuros que precisem de
+ * outro recorte — auditoria, relatório, migração de dado legado. O default é o
+ * único valor usado no cálculo hoje, e é o correto: só "Pendente" é alocável,
+ * porque cada etapa nova gera uma linha Pendente por UM. "Histórico" e os
+ * status de ponto já em campo não entram no caminho do cálculo.
+ *
+ * @param pontos         Lista completa de pontos
+ * @param projetoId      ID do projeto-alvo
+ * @param umNome         Nome da UM (ex: "BSBIA01")
+ * @param statusAceitos  Status elegíveis; default: só "Pendente"
  */
 export function obterDestinoDaUM(
   pontos: Ponto[],
   projetoId: string,
-  umNome: string
+  umNome: string,
+  statusAceitos: readonly string[] = STATUS_DESTINO_PADRAO
 ): Ponto | null {
+  const aceitos = new Set(statusAceitos)
   const candidatos = pontos.filter(
     (p) =>
       p.projetoId === projetoId &&
       p.umNome === umNome &&
-      p.status === "Pendente"
+      aceitos.has(p.status)
   )
 
   if (candidatos.length === 0) return null
@@ -103,14 +137,15 @@ export function obterDestinoDaUM(
 }
 
 /**
- * Retorna {umNome → ponto destino} para todas as UMs de um projeto que
- * estão aptas ao cálculo (têm pelo menos um Pendente).
+ * Retorna {umNome → ponto destino} para todas as UMs de um projeto que estão
+ * aptas ao cálculo, segundo `statusAceitos` (default: têm ao menos um Pendente).
  *
  * Útil pra montar a UI de seleção: lista de UMs com seu destino atual visível.
  */
 export function obterDestinosPorUM(
   pontos: Ponto[],
-  projetoId: string
+  projetoId: string,
+  statusAceitos: readonly string[] = STATUS_DESTINO_PADRAO
 ): Map<string, Ponto> {
   const umsDoProjeto = new Set(
     pontos.filter((p) => p.projetoId === projetoId).map((p) => p.umNome)
@@ -118,7 +153,7 @@ export function obterDestinosPorUM(
 
   const resultado = new Map<string, Ponto>()
   for (const um of umsDoProjeto) {
-    const destino = obterDestinoDaUM(pontos, projetoId, um)
+    const destino = obterDestinoDaUM(pontos, projetoId, um, statusAceitos)
     if (destino) resultado.set(um, destino)
   }
   return resultado

@@ -28,10 +28,7 @@ import {
   confirmarAlocacao,
   listarRotasPorStatus,
 } from "@/lib/actions/rotas"
-import {
-  obterDestinosPorUM,
-  obterDestinosRealocaveisPorUM,
-} from "@/lib/rotas-utils"
+import { obterDestinosPorUM } from "@/lib/rotas-utils"
 import type { Rota } from "@/lib/db/rotas"
 import { corTextoIdeal } from "@/lib/cores"
 import { useRouter } from "next/navigation"
@@ -168,6 +165,19 @@ function ConteudoCondicional({
   tecnicos: Tecnico[]
   rotasConfirmadas: Rota[]
 }) {
+  // UMs oferecidas na seleção: as que têm ponto Pendente, e só elas.
+  //
+  // Pendente → Agendado/Atual → Histórico é o ciclo de vida de UMA linha da
+  // planilha: "Agendado" é o que o app grava ao confirmar a rota, não um estado
+  // de origem. Cada etapa nova gera uma linha Pendente por UM, com o destino
+  // daquela etapa — então o conjunto calculável é sempre o dos pendentes.
+  //
+  // A re-otimização sai daí naturalmente: os destinos são sempre os pendentes;
+  // o que muda entre rodadas é de onde os técnicos partem. Nada é acrescentado
+  // ao payload por fora desta lista — era isso que o bloco `destinosAtivos`
+  // (removido) fazia, e uma UM injetada disputava vaga no Húngaro em pé de
+  // igualdade com as marcadas, podendo expulsar uma delas, porque a alocação é
+  // 1:1. A seleção é a autoridade única sobre o que é calculado.
   const umsAptasPorProjeto = projetos
     .map((p) => ({
       projeto: p,
@@ -183,14 +193,6 @@ function ConteudoCondicional({
   const tecnicosComLocalizacao = tecnicos.filter(
     (t) => t.latitude !== null && t.longitude !== null && t.ativo !== false
   )
-
-  // 13.12: UMs com pontos realocáveis (Pendente + Agendado + Atual)
-  const umsRealocaveisPorProjeto = projetos
-    .map((p) => ({
-      projeto: p,
-      destinos: obterDestinosRealocaveisPorUM(pontos, p.id),
-    }))
-    .filter((p) => p.destinos.size > 0)
 
   const tecnicosComRotaAtiva = new Set(rotasConfirmadas.map((r) => r.tecnicoId))
   const temRotasAtivas = tecnicosComRotaAtiva.size > 0
@@ -233,7 +235,6 @@ function ConteudoCondicional({
     <FluxoAlocacao
       tecnicos={tecnicosComLocalizacao}
       umsAptasPorProjeto={totalUmsAptas > 0 ? umsAptasPorProjeto : []}
-      umsRealocaveisPorProjeto={umsRealocaveisPorProjeto}
       rotasConfirmadas={rotasConfirmadas}
     />
   )
@@ -278,12 +279,10 @@ type OportunidadeReotimizacao = {
 function FluxoAlocacao({
   tecnicos,
   umsAptasPorProjeto,
-  umsRealocaveisPorProjeto,
   rotasConfirmadas,
 }: {
   tecnicos: Tecnico[]
   umsAptasPorProjeto: Array<{ projeto: Projeto; destinos: Map<string, Ponto> }>
-  umsRealocaveisPorProjeto: Array<{ projeto: Projeto; destinos: Map<string, Ponto> }>
   rotasConfirmadas: Rota[]
 }) {
   // Achata as UMs Pendentes em lista plana (seleção visível na UI)
@@ -297,7 +296,8 @@ function FluxoAlocacao({
     return lista
   }, [umsAptasPorProjeto])
 
-  // Pré-seleção: tudo marcado
+  // Pré-seleção: tudo marcado. Todos os itens da lista são pendentes por
+  // construção, então não há subconjunto a preservar do usuário.
   const [selectedTecnicoIds, setSelectedTecnicoIds] = useState<Set<string>>(
     () => new Set(tecnicos.map((t) => t.id))
   )
@@ -415,9 +415,8 @@ function FluxoAlocacao({
           modoPrincipal: t.modoPrincipal,
         }))
 
-      // 13.12: destinos selecionados (Pendentes) + pontos ativos de técnicos com rota ativa
-      // A união garante que técnicos ativos também entram na comparação do Húngaro
-      const destinosPendentesSelecionados = itensUM
+      // O payload é EXATAMENTE o que está marcado — nada é acrescentado aqui.
+      const destinosSelecionados = itensUM
         .filter((i) => selectedUmKeys.has(i.key))
         .map((item) => ({
           id: item.destino.id,
@@ -432,34 +431,7 @@ function FluxoAlocacao({
           etapa: item.destino.etapa,
         }))
 
-      // Pontos ativos (Agendado/Atual) de técnicos selecionados com rota ativa
-      const pontosAtivosIds = new Set(destinosPendentesSelecionados.map((d) => d.id))
-      const destinosAtivos = tecnicosAtivosSelected
-        .map((rotaAtiva) => {
-          // Busca o ponto correspondente na lista completa de pontos realocáveis
-          for (const { projeto, destinos } of umsRealocaveisPorProjeto) {
-            const ponto = destinos.get(rotaAtiva.umNome)
-            if (ponto && ponto.id === rotaAtiva.pontoId && !pontosAtivosIds.has(ponto.id)) {
-              pontosAtivosIds.add(ponto.id)
-              return {
-                id: ponto.id,
-                umNome: rotaAtiva.umNome,
-                projetoId: rotaAtiva.projetoId,
-                projetoSigla: projeto.sigla,
-                raNome: ponto.raNome,
-                endereco: ponto.endereco,
-                latitude: ponto.latitude!,
-                longitude: ponto.longitude!,
-                ciclo: ponto.ciclo,
-                etapa: ponto.etapa,
-              }
-            }
-          }
-          return null
-        })
-        .filter((d): d is NonNullable<typeof d> => d !== null && d.latitude !== null && d.longitude !== null)
-
-      const destinosPayload = [...destinosPendentesSelecionados, ...destinosAtivos]
+      const destinosPayload = destinosSelecionados
 
       const response = await fetch("/api/routes/alocar", {
         method: "POST",
@@ -480,6 +452,21 @@ function FluxoAlocacao({
       }
 
       const resposta = data as RespostaAlocacao
+
+      // TRAVA DE COERÊNCIA — o resultado não pode conter destino que não foi
+      // enviado. Se contiver, alguma camada voltou a inventar destino, e exibir
+      // a alocação seria pior que falhar: o usuário confirmaria rotas para UMs
+      // que não escolheu. Falha visível, com o nome da UM intrusa.
+      const idsEnviados = new Set(destinosPayload.map((d) => d.id))
+      const intrusos = resposta.alocacoes
+        .filter((a) => !idsEnviados.has(a.destino.id))
+        .map((a) => a.destino.umNome)
+      if (intrusos.length > 0) {
+        throw new Error(
+          `Resultado incoerente: a alocação trouxe ${intrusos.length === 1 ? "uma UM que não foi selecionada" : "UMs que não foram selecionadas"} (${[...new Set(intrusos)].join(", ")}). Nada foi calculado — reporte este erro.`,
+        )
+      }
+
       setResultado(resposta)
 
       // 13.12: detecta oportunidades de re-otimização (threshold: 5 min = 300s)
@@ -616,11 +603,9 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
   const coresPorProjeto = useMemo(
     () =>
       new Map<string, string>(
-        [...umsAptasPorProjeto, ...umsRealocaveisPorProjeto].map(
-          ({ projeto }) => [projeto.id, projeto.cor],
-        ),
+        umsAptasPorProjeto.map(({ projeto }) => [projeto.id, projeto.cor]),
       ),
-    [umsAptasPorProjeto, umsRealocaveisPorProjeto],
+    [umsAptasPorProjeto],
   )
 
   // === RENDER CONDICIONAL ===
@@ -842,9 +827,10 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
               {tecnicosAtivosSelected.length === 1
                 ? "técnico selecionado tem"
                 : "técnicos selecionados têm"}{" "}
-              rota ativa. O algoritmo considerará re-otimização automática —
-              se houver melhora de 5+ minutos, você verá as oportunidades antes
-              de confirmar.
+              rota ativa. O cálculo usa os destinos pendentes listados ao lado e
+              parte da residência de cada técnico — a rota em andamento não
+              entra como destino. Se algum par novo for 5+ minutos melhor que a
+              rota atual, você verá as oportunidades de troca antes de confirmar.
             </p>
             <p className="flex items-center gap-1 text-xs text-muted-foreground">
               <RefreshCw className="size-3" />
@@ -867,19 +853,27 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
             </p>
             {contagensDiferem && podeCalcular && (
               <p className="text-[13px] text-pretty text-warn">
-                ⚠ Contagens diferentes —{" "}
+                ⚠ Você selecionou {totalSelTecnicos}{" "}
+                {totalSelTecnicos === 1 ? "técnico" : "técnicos"} e{" "}
+                {totalSelUms} {totalSelUms === 1 ? "UM" : "UMs"}. Como cada
+                técnico atende uma UM,{" "}
                 {Math.min(totalSelTecnicos, totalSelUms)}{" "}
                 {Math.min(totalSelTecnicos, totalSelUms) === 1
                   ? "alocação será feita"
-                  : "alocações serão feitas"}
-                .{" "}
+                  : "alocações serão feitas"}{" "}
+                e{" "}
                 {totalSelTecnicos > totalSelUms
-                  ? `${
-                      totalSelTecnicos - totalSelUms
-                    } técnico(s) ficarão sem alocação.`
-                  : `${
-                      totalSelUms - totalSelTecnicos
-                    } UM(s) ficarão sem técnico.`}
+                  ? `${totalSelTecnicos - totalSelUms} ${
+                      totalSelTecnicos - totalSelUms === 1
+                        ? "técnico ficará"
+                        : "técnicos ficarão"
+                    } sem UM`
+                  : `${totalSelUms - totalSelTecnicos} ${
+                      totalSelUms - totalSelTecnicos === 1
+                        ? "UM ficará"
+                        : "UMs ficarão"
+                    } sem técnico`}
+                . Ajuste a seleção se não for o esperado.
               </p>
             )}
             {!contagensDiferem && podeCalcular && (
