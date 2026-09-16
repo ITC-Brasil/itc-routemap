@@ -50,6 +50,7 @@ const NAV_ADMIN = [
   { href: "/admin/ums", label: "UMs" },
   { href: "/admin/localidades", label: "Localidades" },
   { href: "/admin/tecnicos", label: "Técnicos" },
+  { href: "/admin/dias-nao-uteis", label: "Dias não úteis" },
 ] as const
 
 export function Rail() {
