@@ -17,7 +17,7 @@
 //
 // Helpers centralizados em calcular-rotas/_components/alocacao-helpers.tsx
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
@@ -54,6 +54,11 @@ import {
 } from "@/lib/modos-transporte"
 import type { LoteSumario, StatusLote } from "@/lib/db/lotes"
 import { CancelarLoteDialog } from "../_components/cancelar-lote-dialog"
+import {
+  SeletorModoRota,
+  montarEstadosDosModos,
+  type EstadoModo,
+} from "../_components/seletor-modo-rota"
 import {
   formatarDataHora,
   formatarDistancia,
@@ -188,6 +193,15 @@ export default function DetalheLotePage() {
   // Qual rota está expandida (só uma por vez pra economizar mapas)
   const [expandida, setExpandida] = useState<string | null>(null)
 
+  // Modo em SIMULAÇÃO por rota. Deliberadamente separado de `modosPorRota`:
+  // este mapa alimenta só a linha da rota e o traçado no mapa. Se subisse para
+  // `modosPorRota`, contaminaria metricasAgregadas → loteSumario →
+  // CancelarLoteDialog, que passaria a mostrar o tempo de uma simulação num
+  // diálogo destrutivo. Visualização não altera o lote confirmado.
+  const [simulacaoPorRota, setSimulacaoPorRota] = useState<
+    Map<string, ModoTransporte>
+  >(new Map())
+
   // Modal de cancelamento
   const [mostrarCancelar, setMostrarCancelar] = useState(false)
 
@@ -292,15 +306,30 @@ export default function DetalheLotePage() {
   )
 
   // ====== Fetcher de rota detalhada ======
+  //
+  // A guarda de duplicidade vive num ref, não no `rotaCache`. Com o seletor de
+  // modo, dois cliques rápidos em modos diferentes disparam duas chamadas antes
+  // do primeiro `setRotaCache` aplicar — e uma checagem que lê o cache do
+  // closure não vê a requisição que acabou de sair. O ref é sincrono, então
+  // pega o caso; e sem `rotaCache` nas dependências o fetcher deixa de ser
+  // recriado a cada resposta.
+  //
+  // A chave sai do ref apenas em erro. Sucesso fica registrado, o que preserva
+  // a regra antiga (`existente.estado !== "erro"`) de nunca repetir chamada
+  // paga para um par (rota, modo) já resolvido.
+  const emVooRef = useRef<Set<string>>(new Set())
+
   const carregarRotaDetalhada = useCallback(
     async (rota: Rota, modo: ModoTransporte) => {
       const chave = `${rota.id}|${modo}`
-      const existente = rotaCache.get(chave)
-      if (existente && existente.estado !== "erro") return
+      if (emVooRef.current.has(chave)) return
+      emVooRef.current.add(chave)
 
-      setRotaCache((prev) =>
-        new Map(prev).set(chave, { estado: "carregando" })
-      )
+      setRotaCache((prev) => {
+        const existente = prev.get(chave)
+        if (existente && existente.estado !== "erro") return prev
+        return new Map(prev).set(chave, { estado: "carregando" })
+      })
 
       try {
         const res = await fetch("/api/routes/single", {
@@ -321,6 +350,7 @@ export default function DetalheLotePage() {
         const data = await res.json()
 
         if (!data.sucesso) {
+          emVooRef.current.delete(chave) // erro é retentável
           setRotaCache((prev) =>
             new Map(prev).set(chave, {
               estado: "erro",
@@ -342,6 +372,7 @@ export default function DetalheLotePage() {
           })
         )
       } catch (err) {
+        emVooRef.current.delete(chave) // erro é retentável
         setRotaCache((prev) =>
           new Map(prev).set(chave, {
             estado: "erro",
@@ -350,7 +381,7 @@ export default function DetalheLotePage() {
         )
       }
     },
-    [rotaCache]
+    []
   )
 
   // ====== Helper: duração efetiva no modo selecionado ======
@@ -361,8 +392,18 @@ export default function DetalheLotePage() {
   // gravada no snapshot desde a confirmação: as rotas de transporte público
   // ficavam em "calculando…" para sempre, porque a busca detalhada só acontece
   // quando o usuário expande o card.
+  //
+  // EXCEÇÃO — o modo oficial da rota lê o snapshot mesmo havendo consulta em
+  // cache. "Ver trajeto" busca a polyline do modo oficial e traz a duração de
+  // hoje junto; sem esta regra, abrir o traçado trocaria o tempo registrado no
+  // lote pelo tempo com o trânsito atual, mudando o tempo total do lote e o
+  // delta da simulação. Mesma regra em montarEstadosDosModos, para a tabela e
+  // o seletor não divergirem na mesma tela.
   const obterDuracaoSeg = useCallback(
     (rota: Rota, modo: ModoTransporte): number | null => {
+      if (modo === rota.modoPrincipal && rota.metricas[modo]) {
+        return rota.metricas[modo]!.duracaoSegundos
+      }
       const entry = rotaCache.get(`${rota.id}|${modo}`)
       if (entry?.estado === "ok") return entry.duracaoSegundos
       return rota.metricas[modo]?.duracaoSegundos ?? null
@@ -373,11 +414,27 @@ export default function DetalheLotePage() {
   // ====== Helper: distância no modo selecionado ======
   const obterDistanciaMetros = useCallback(
     (rota: Rota, modo: ModoTransporte): number | null => {
+      if (modo === rota.modoPrincipal && rota.metricas[modo]) {
+        return rota.metricas[modo]!.distanciaMetros
+      }
       const entry = rotaCache.get(`${rota.id}|${modo}`)
       if (entry?.estado === "ok") return entry.distanciaMetros
       return rota.metricas[modo]?.distanciaMetros ?? null
     },
     [rotaCache]
+  )
+
+  // ====== Helper: modo em exibição numa rota ======
+  //
+  // Simulação quando existe, senão o modo do cálculo. É a única fonte de modo
+  // para a linha da tabela e para o traçado no mapa — `modosPorRota` segue
+  // servindo apenas as agregações, e por isso elas não se movem com a simulação.
+  const modoExibido = useCallback(
+    (rota: Rota): ModoTransporte =>
+      simulacaoPorRota.get(rota.id) ??
+      modosPorRota.get(rota.id) ??
+      rota.modoPrincipal,
+    [simulacaoPorRota, modosPorRota]
   )
 
   // ====== Métricas agregadas (recalculam ao trocar modo) ======
@@ -403,7 +460,7 @@ export default function DetalheLotePage() {
   const paresNoMapa = useMemo(
     () =>
       rotasAtivas.map((r) => {
-        const modo = modosPorRota.get(r.id) ?? r.modoPrincipal
+        const modo = modoExibido(r)
         const entrada = rotaCache.get(`${r.id}|${modo}`)
         return {
           chave: r.id,
@@ -422,7 +479,7 @@ export default function DetalheLotePage() {
           polyline: entrada?.estado === "ok" ? entrada.polyline : null,
         }
       }),
-    [rotasAtivas, modosPorRota, rotaCache, coresPorTecnico, coresPorProjeto]
+    [rotasAtivas, modoExibido, rotaCache, coresPorTecnico, coresPorProjeto]
   )
 
   const metricasAgregadas = useMemo(() => {
@@ -540,9 +597,29 @@ export default function DetalheLotePage() {
     setExpandida(rotaId)
     const rota = rotas.find((r) => r.id === rotaId)
     if (rota) {
-      const modo = modosPorRota.get(rotaId) ?? rota.modoPrincipal
-      void carregarRotaDetalhada(rota, modo)
+      // Pelo modo EXIBIDO, não pelo do cálculo: se a rota já estava em
+      // simulação quando foi fechada, reabrir tem de buscar o traçado do modo
+      // que o seletor mostra — senão o mapa desenha um caminho que não
+      // corresponde ao painel.
+      void carregarRotaDetalhada(rota, modoExibido(rota))
     }
+  }
+
+  // Troca o modo EXIBIDO de uma rota. Não escreve em `modosPorRota`: as
+  // agregações e o `loteSumario` continuam refletindo o lote confirmado.
+  const handleSimularModo = (rota: Rota, novoModo: ModoTransporte) => {
+    setSimulacaoPorRota((prev) => {
+      const proximo = new Map(prev)
+      if (novoModo === rota.modoPrincipal) {
+        proximo.delete(rota.id) // voltou ao oficial: sai da simulação
+      } else {
+        proximo.set(rota.id, novoModo)
+      }
+      return proximo
+    })
+    // Duração e distância já reagem pelo snapshot. O fetch é pela polyline
+    // (que nunca é persistida) e pelos modos ausentes do snapshot.
+    void carregarRotaDetalhada(rota, novoModo)
   }
 
   const handleCompartilharLote = async () => {
@@ -747,15 +824,20 @@ export default function DetalheLotePage() {
               key={rota.id}
               rota={rota}
               ordem={i + 1}
-              modo={modosPorRota.get(rota.id) ?? rota.modoPrincipal}
-              duracaoSeg={obterDuracaoSeg(
-                rota,
-                modosPorRota.get(rota.id) ?? rota.modoPrincipal
-              )}
-              distanciaMetros={obterDistanciaMetros(
-                rota,
-                modosPorRota.get(rota.id) ?? rota.modoPrincipal
-              )}
+              modo={modoExibido(rota)}
+              duracaoSeg={obterDuracaoSeg(rota, modoExibido(rota))}
+              distanciaMetros={obterDistanciaMetros(rota, modoExibido(rota))}
+              simulando={modoExibido(rota) !== rota.modoPrincipal}
+              estadosDosModos={
+                expandida === rota.id
+                  ? montarEstadosDosModos(
+                      rota.metricas,
+                      (m) => rotaCache.get(`${rota.id}|${m}`),
+                      rota.modoPrincipal
+                    )
+                  : null
+              }
+              onSimularModo={(m) => handleSimularModo(rota, m)}
               corTecnico={coresPorTecnico.get(rota.tecnicoId)}
               projetoSigla={projetosSiglas.get(rota.projetoId) ?? rota.projetoId}
               corProjeto={coresPorProjeto.get(rota.projetoId)}
@@ -799,6 +881,9 @@ function LinhaTabelaRota({
   modo,
   duracaoSeg,
   distanciaMetros,
+  simulando,
+  estadosDosModos,
+  onSimularModo,
   corTecnico,
   projetoSigla,
   corProjeto,
@@ -812,6 +897,11 @@ function LinhaTabelaRota({
   modo: ModoTransporte
   duracaoSeg: number | null
   distanciaMetros: number | null
+  /** Modo exibido difere do gravado no lote — a linha mostra uma simulação. */
+  simulando: boolean
+  /** Estados dos modos para o seletor. null enquanto a linha está fechada. */
+  estadosDosModos: Record<string, EstadoModo> | null
+  onSimularModo: (modo: ModoTransporte) => void
   corTecnico: string | undefined
   projetoSigla: string
   corProjeto: string | undefined
@@ -824,14 +914,20 @@ function LinhaTabelaRota({
   const custos = todasRotasLote
     .map((r) => r.metricas[r.modoPrincipal]?.duracaoSegundos ?? 0)
     .filter((n) => n > 0)
+  // A explicação é sobre a DECISÃO do algoritmo, então fica ancorada no modo
+  // oficial e no custo gravado — nunca no modo simulado. Do contrário o texto
+  // afirmaria que o algoritmo escolheu um modo que ele não escolheu, e o rank
+  // sairia comparado contra `custos`, que são todos do modo de cada rota.
+  const custoOficialSeg =
+    rota.metricas[rota.modoPrincipal]?.duracaoSegundos ?? duracaoSeg
   const explicacao =
-    duracaoSeg && duracaoSeg > 0
+    custoOficialSeg && custoOficialSeg > 0
       ? gerarExplicacaoAlgoritmica({
           tecnicoNome: rota.tecnicoNome,
           umNome: rota.umNome,
-          meuCustoSegundos: duracaoSeg,
+          meuCustoSegundos: custoOficialSeg,
           todosCustosSegundos: custos,
-          modoLabel: nomeAmigavelModo(modo),
+          modoLabel: nomeAmigavelModo(rota.modoPrincipal),
           manual: rota.origemDecisao !== "auto",
         })
       : ""
@@ -905,6 +1001,11 @@ function LinhaTabelaRota({
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <IconeModo modo={modo} className="size-3.5" />
             {nomeAmigavelModo(modo)}
+            {simulando && (
+              <span className="rounded bg-warn-tint px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-warn">
+                simulação
+              </span>
+            )}
           </span>
         </span>
 
@@ -956,6 +1057,22 @@ function LinhaTabelaRota({
           </Button>
         </span>
       </div>
+
+      {/* SELETOR DE MODO — só na linha aberta, e nunca numa rota cancelada:
+          simular alternativa de uma rota que não vai acontecer não informa
+          nada. Reusa o `destacada` do "Ver trajeto", então um clique abre o
+          traçado no mapa e o painel juntos. */}
+      {destacada && !cancelada && estadosDosModos && (
+        <div className="pb-4 pl-[72px] pr-5">
+          <SeletorModoRota
+            modoOficial={rota.modoPrincipal}
+            modoExibido={modo}
+            estados={estadosDosModos}
+            onSelecionar={onSimularModo}
+            calculadoEm={rota.criadoEm}
+          />
+        </div>
+      )}
     </div>
   )
 }
