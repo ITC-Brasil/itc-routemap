@@ -345,6 +345,15 @@ export default function DetalheLotePage() {
               longitude: rota.destino.longitude,
             },
             modo,
+            // Reusa a âncora de chegada gravada na confirmação, quando existe:
+            // o TRANSIT simulado passa a medir a MESMA janela do cálculo
+            // original, e não o instante da visita. A Routes API aceita viagens
+            // de transporte público até 7 dias no passado — dentro dessa janela
+            // o número é reproduzível. Fora dela, e em lotes anteriores à
+            // âncora, o campo vai `undefined` e o servidor usa o próximo dia
+            // útil, que é quando o rótulo de procedência importa.
+            arrivalTime:
+              modo === "TRANSIT" ? rota.metricas.ancoraIso : undefined,
           }),
         })
         const data = await res.json()

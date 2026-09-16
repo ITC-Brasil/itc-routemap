@@ -35,6 +35,24 @@ export type MetricaModo = {
   observacao?: string // ex: "Sem rota viável" / "Inclui pedágio"
 }
 
+/**
+ * O que a coluna Json `rotas.metricas` guarda: um dicionário aberto de modos,
+ * mais a âncora de chegada que gerou os números de TRANSIT.
+ *
+ * `ancoraIso` fica no mesmo objeto em vez de virar coluna própria porque é
+ * metadado da medição, não campo de consulta — nada filtra ou ordena por ele.
+ * A chave não colide com nenhum `ModoTransporte`, e nenhum consumidor itera
+ * este objeto genericamente (todos indexam por modo).
+ *
+ * Presente só em rotas calculadas depois da âncora de chegada; em rotas
+ * anteriores o campo é `undefined` e o TRANSIT daquele lote foi medido a
+ * partir do instante do cálculo.
+ */
+export type MetricasSnapshot = Partial<Record<ModoTransporte, MetricaModo>> & {
+  /** RFC 3339 com offset −03:00, ex.: "2026-09-16T08:00:00-03:00". */
+  ancoraIso?: string
+}
+
 /** Ciclo de vida de uma rota. */
 export type StatusRota = "Sugerida" | "Confirmada" | "Cancelada"
 

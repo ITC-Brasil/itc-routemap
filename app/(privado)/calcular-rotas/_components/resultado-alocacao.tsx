@@ -57,6 +57,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import type {
+  MetricasSnapshot,
   ModoTransporte,
   OrigemDecisao,
 } from "@/lib/rotas-utils"
@@ -115,6 +116,12 @@ export type RespostaAlocacao = {
    * do sessionStorage pode ter sido salvo antes deste campo existir.
    */
   criadoEmIso?: string
+  /**
+   * Âncora de chegada usada nos números de TRANSIT — 08:00 do próximo dia
+   * útil. Opcional porque um cálculo restaurado do sessionStorage pode ter
+   * sido salvo antes deste campo existir.
+   */
+  ancoraChegadaIso?: string
   modoPrincipal: ModoTransporte
   modosCalculados: ModoTransporte[]
   alocacoes: AlocacaoRica[]
@@ -144,7 +151,7 @@ export type PayloadConfirmacao = {
     projetoId: string
     origem: { endereco: string; latitude: number; longitude: number }
     destino: { endereco: string; latitude: number; longitude: number }
-    metricas: Partial<Record<ModoTransporte, MetricaModo>>
+    metricas: MetricasSnapshot
     modoEscolhido: ModoTransporte
   }>
 }
@@ -594,7 +601,7 @@ export function ResultadoAlocacao({
         const modoEscolhido =
           modosPorAloc.get(key) ?? resultado.modoPrincipal
 
-        const metricas: Partial<Record<ModoTransporte, MetricaModo>> = {
+        const metricas: MetricasSnapshot = {
           ...aloc.metricas,
         }
         const transitEntry = rotaCache.get(`${key}|TRANSIT`)
@@ -603,6 +610,12 @@ export function ResultadoAlocacao({
             distanciaMetros: transitEntry.distanciaMetros,
             duracaoSegundos: transitEntry.duracaoSegundos,
           }
+        }
+        // Âncora que gerou os números de TRANSIT, gravada junto deles. Sem
+        // isto o histórico não teria como reproduzir a medição: a simulação de
+        // modal precisa reenviar a MESMA âncora, e "agora" muda a cada visita.
+        if (resultado.ancoraChegadaIso) {
+          metricas.ancoraIso = resultado.ancoraChegadaIso
         }
 
         return {

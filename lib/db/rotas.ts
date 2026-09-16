@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import type { Rota as RotaRow, Prisma } from "@prisma/client"
 import {
   STATUS_PONTO_AGENDADO,
-  type MetricaModo,
+  type MetricasSnapshot,
   type ModoTransporte,
   type OrigemDecisao,
   type StatusRota,
@@ -24,6 +24,7 @@ export {
 } from "@/lib/rotas-utils"
 export type {
   MetricaModo,
+  MetricasSnapshot,
   ModoTransporte,
   OrigemDecisao,
   StatusRota,
@@ -89,8 +90,11 @@ export type Rota = {
   }
 
   // === Métricas de deslocamento ===
-  /** Dicionário aberto: só preenche os modos que foram calculados. */
-  metricas: Partial<Record<ModoTransporte, MetricaModo>>
+  /**
+   * Dicionário aberto: só preenche os modos que foram calculados, mais
+   * `ancoraIso` — a âncora de chegada que gerou os números de TRANSIT.
+   */
+  metricas: MetricasSnapshot
   /** Modo que o algoritmo usou pra otimizar (geralmente DRIVE). */
   modoPrincipal: ModoTransporte
 
@@ -154,8 +158,7 @@ function mapRota(row: RotaRow): Rota {
       latitude: row.destinoLatitude,
       longitude: row.destinoLongitude,
     },
-    metricas:
-      (row.metricas as Partial<Record<ModoTransporte, MetricaModo>>) ?? {},
+    metricas: (row.metricas as MetricasSnapshot) ?? {},
     modoPrincipal: row.modoPrincipal as ModoTransporte,
     status: row.status as StatusRota,
     origemDecisao: row.origemDecisao as OrigemDecisao,
@@ -337,7 +340,7 @@ export type ConfirmarAlocacaoInput = {
       latitude: number
       longitude: number
     }
-    metricas: Partial<Record<ModoTransporte, MetricaModo>>
+    metricas: MetricasSnapshot
     /** Modo que o usuário escolheu para essa alocação específica. */
     modoEscolhido: ModoTransporte
     /** 13.12: ID da rota anterior se esta substituiu uma rota ativa. */
@@ -492,7 +495,7 @@ export type ReotimizacaoInput = {
       latitude: number
       longitude: number
     }
-    metricas: Partial<Record<ModoTransporte, MetricaModo>>
+    metricas: MetricasSnapshot
     modoEscolhido: ModoTransporte
   }>
 }
