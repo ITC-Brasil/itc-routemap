@@ -29,6 +29,8 @@ import {
   listarRotasPorStatus,
 } from "@/lib/actions/rotas"
 import { obterDestinosPorUM } from "@/lib/rotas-utils"
+import { listarDiasNaoUteis } from "@/lib/actions/dias-nao-uteis"
+import { proximaAncoraDeChegada, rotularAncora } from "@/lib/dias-uteis"
 import type { Rota } from "@/lib/db/rotas"
 import { corTextoIdeal } from "@/lib/cores"
 import { useRouter } from "next/navigation"
@@ -94,6 +96,7 @@ export default function CalcularRotasPage() {
   const [pontos, setPontos] = useState<Ponto[]>([])
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([])
   const [rotasConfirmadas, setRotasConfirmadas] = useState<Rota[]>([])
+  const [diasNaoUteis, setDiasNaoUteis] = useState<Set<string>>(new Set())
   const [carregando, setCarregando] = useState(true)
 
   // ====== CARREGAMENTO INICIAL ======
@@ -102,18 +105,25 @@ export default function CalcularRotasPage() {
 
     async function carregar() {
       try {
-        const [listaProjetos, listaPontos, listaTecnicos, listaRotasConfirmadas] =
-          await Promise.all([
+        const [
+          listaProjetos,
+          listaPontos,
+          listaTecnicos,
+          listaRotasConfirmadas,
+          listaDiasNaoUteis,
+        ] = await Promise.all([
             listarProjetos(),
             listarTodosPontos(),
             listarTecnicos(),
             listarRotasPorStatus("Confirmada"),
+            listarDiasNaoUteis(),
           ])
         if (cancelado) return
         setProjetos(listaProjetos)
         setPontos(listaPontos)
         setTecnicos(listaTecnicos)
         setRotasConfirmadas(listaRotasConfirmadas)
+        setDiasNaoUteis(new Set(listaDiasNaoUteis.map((d) => d.data)))
       } catch (err) {
         if (cancelado) return
         console.error("Erro ao carregar dados:", err)
@@ -144,6 +154,7 @@ export default function CalcularRotasPage() {
           pontos={pontos}
           tecnicos={tecnicos}
           rotasConfirmadas={rotasConfirmadas}
+          diasNaoUteis={diasNaoUteis}
         />
       )}
     </div>
@@ -159,11 +170,13 @@ function ConteudoCondicional({
   pontos,
   tecnicos,
   rotasConfirmadas,
+  diasNaoUteis,
 }: {
   projetos: Projeto[]
   pontos: Ponto[]
   tecnicos: Tecnico[]
   rotasConfirmadas: Rota[]
+  diasNaoUteis: Set<string>
 }) {
   // UMs oferecidas na seleção: as que têm ponto Pendente, e só elas.
   //
@@ -236,6 +249,7 @@ function ConteudoCondicional({
       tecnicos={tecnicosComLocalizacao}
       umsAptasPorProjeto={totalUmsAptas > 0 ? umsAptasPorProjeto : []}
       rotasConfirmadas={rotasConfirmadas}
+      diasNaoUteis={diasNaoUteis}
     />
   )
 }
@@ -280,11 +294,21 @@ function FluxoAlocacao({
   tecnicos,
   umsAptasPorProjeto,
   rotasConfirmadas,
+  diasNaoUteis,
 }: {
   tecnicos: Tecnico[]
   umsAptasPorProjeto: Array<{ projeto: Projeto; destinos: Map<string, Ponto> }>
   rotasConfirmadas: Rota[]
+  diasNaoUteis: Set<string>
 }) {
+  // Âncora que o servidor vai usar para o transporte público: 08:00 do próximo
+  // dia útil. Calculada aqui só para EXIBIR — quem manda é o servidor, que
+  // refaz a conta na hora do cálculo com a mesma função pura. Sem mostrar isso
+  // antes de rodar, o usuário vê os tempos de TRANSIT mudarem sem explicação.
+  const rotuloAncora = useMemo(
+    () => rotularAncora(proximaAncoraDeChegada(new Date(), diasNaoUteis)),
+    [diasNaoUteis],
+  )
   // Achata as UMs Pendentes em lista plana (seleção visível na UI)
   const itensUM = useMemo<ItemUM[]>(() => {
     const lista: ItemUM[] = []
@@ -887,6 +911,15 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
                 Selecione pelo menos 1 técnico e 1 UM.
               </p>
             )}
+            {/* Âncora de chegada — só afeta transporte público, mas é o que
+                explica um tempo de TRANSIT diferente do esperado. */}
+            <p className="text-[12.5px] text-muted-foreground">
+              Transporte público calculado para chegada em{" "}
+              <strong className="font-medium text-foreground">
+                {rotuloAncora}
+              </strong>
+              . Carro, moto e a pé usam o horário atual.
+            </p>
           </div>
           <Button
             onClick={handleCalcular}
