@@ -199,3 +199,19 @@ model Verification {
   @@index([identifier])
   @@map("verification")
 }
+
+/// Feriados e pontos facultativos — dias em que a operação não escala técnico.
+///
+/// Não há distinção entre feriado e facultativo de propósito: a regra de
+/// negócio trata os dois igual. O calendário do DF sai por decreto anual do
+/// governador e muda de ano para ano, inclusive na classificação de datas —
+/// por isso é tabela, não constante no código.
+model DiaNaoUtil {
+  id        String   @id @default(cuid())
+  data      DateTime @db.Date
+  descricao String
+  criadoEm  DateTime @default(now())
+
+  @@unique([data])
+  @@map("dias_nao_uteis")
+}

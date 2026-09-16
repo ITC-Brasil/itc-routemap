@@ -10,9 +10,22 @@
 
 import { NextResponse } from "next/server"
 import { exigirSessaoApi } from "@/lib/session-server"
+import { obterConjuntoDiasNaoUteis } from "@/lib/db/dias-nao-uteis"
+import { formatarIsoSaoPaulo, proximaAncoraDeChegada } from "@/lib/dias-uteis"
 
 const ROUTES_URL =
   "https://routes.googleapis.com/directions/v2:computeRoutes"
+
+/**
+ * Âncora padrão quando o chamador não manda uma: 08:00 do próximo dia útil.
+ *
+ * Só é chamada em TRANSIT, e depois da checagem de sessão — nenhuma consulta
+ * ao banco acontece em requisição não autenticada.
+ */
+async function ancoraPadraoIso(): Promise<string> {
+  const diasNaoUteis = await obterConjuntoDiasNaoUteis()
+  return formatarIsoSaoPaulo(proximaAncoraDeChegada(new Date(), diasNaoUteis))
+}
 
 type ModoTransporte =
   | "DRIVE"
@@ -27,8 +40,16 @@ type RequestBody = {
   origem: LatLng
   destino: LatLng
   modo: ModoTransporte
-  /** ISO string; obrigatório para TRANSIT. Default: agora + 5 min */
-  departureTime?: string
+  /**
+   * RFC 3339; só usado em TRANSIT. É o horário em que o técnico precisa
+   * CHEGAR na unidade — 08:00 do próximo dia útil (lib/dias-uteis.ts).
+   *
+   * Quando ausente, o servidor calcula a âncora a partir da tabela de dias não
+   * úteis. O chamador manda a sua quando precisa reproduzir um número já
+   * gravado: o histórico persiste a âncora que gerou cada métrica, e a
+   * simulação de modal reenvia a mesma para o tempo bater.
+   */
+  arrivalTime?: string
 }
 
 // ============================================================
@@ -62,6 +83,8 @@ export type RespostaSingleRoute =
       transitSteps: TransitStep[]
       partidaIso: string | null
       chegadaIso: string | null
+      /** Âncora de chegada usada no cálculo. null fora de TRANSIT. */
+      ancoraIso: string | null
     }
   | {
       sucesso: false
@@ -148,12 +171,19 @@ export async function POST(request: Request) {
       requestBody.routingPreference = "TRAFFIC_AWARE"
     }
 
-    // TRANSIT precisa de departureTime no futuro
+    // TRANSIT é ancorado pela CHEGADA, não pela partida.
+    //
+    // A operação escala o técnico para chegar às 08:00 do próximo dia útil, e
+    // era isso que o cálculo não representava: com `departureTime = agora + 5
+    // min`, um lote rodado às 19h de sábado media a malha de ônibus das 19h de
+    // sábado. `arrivalTime` e `departureTime` são mutuamente exclusivos na
+    // Routes API — mandar os dois é erro —, então `departureTime` saiu daqui.
+    // A API só aceita `arrivalTime` em TRANSIT; DRIVE e TWO_WHEELER seguem com
+    // `departureTime` implícito (agora), inalterados.
+    let ancoraIso: string | null = null
     if (body.modo === "TRANSIT") {
-      const departure =
-        body.departureTime ??
-        new Date(Date.now() + 5 * 60 * 1000).toISOString()
-      requestBody.departureTime = departure
+      ancoraIso = body.arrivalTime ?? (await ancoraPadraoIso())
+      requestBody.arrivalTime = ancoraIso
       requestBody.transitPreferences = {
         routingPreference: "LESS_WALKING",
       }
@@ -214,6 +244,7 @@ export async function POST(request: Request) {
       transitSteps,
       partidaIso,
       chegadaIso,
+      ancoraIso,
     })
   } catch (err) {
     console.error("Erro em /api/routes/single:", err)

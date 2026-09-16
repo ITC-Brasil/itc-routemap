@@ -69,7 +69,8 @@ const URL_GOOGLE =
 export async function calcularMatrizDeslocamento(
   origens: PontoGeo[],
   destinos: PontoGeo[],
-  modos: ModoMatrix[] = MODOS_DEFAULT
+  modos: ModoMatrix[] = MODOS_DEFAULT,
+  ancoraChegadaIso?: string
 ): Promise<ResultadoMatriz> {
   const inicio = Date.now()
 
@@ -80,7 +81,9 @@ export async function calcularMatrizDeslocamento(
 
   // Chamadas paralelas (1 por modo, fail isolado)
   const resultadosPorModo = await Promise.allSettled(
-    modos.map((modo) => chamarMatrix(apiKey, origens, destinos, modo))
+    modos.map((modo) =>
+      chamarMatrix(apiKey, origens, destinos, modo, ancoraChegadaIso)
+    )
   )
 
   // Inicializa todas combinações
@@ -164,7 +167,8 @@ async function chamarMatrix(
   apiKey: string,
   origens: PontoGeo[],
   destinos: PontoGeo[],
-  modo: ModoMatrix
+  modo: ModoMatrix,
+  ancoraChegadaIso?: string
 ): Promise<RouteMatrixElement[]> {
   const body = {
     origins: origens.map((o) => ({
@@ -184,6 +188,13 @@ async function chamarMatrix(
     travelMode: modo,
     ...(modo === "DRIVE" || modo === "TWO_WHEELER"
       ? { routingPreference: "TRAFFIC_AWARE" }
+      : {}),
+    // TRANSIT é ancorado pela CHEGADA — 08:00 do próximo dia útil. A API só
+    // aceita `arrivalTime` neste modo, e ele exclui `departureTime` (que esta
+    // chamada nunca enviou). Sem a âncora, a malha medida seria a do instante
+    // do cálculo: rodar o lote num sábado à noite mediria o sábado à noite.
+    ...(modo === "TRANSIT" && ancoraChegadaIso
+      ? { arrivalTime: ancoraChegadaIso }
       : {}),
   }
 

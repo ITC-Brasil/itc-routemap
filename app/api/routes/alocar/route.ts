@@ -16,6 +16,8 @@ import {
   type ContextoAlocacao,
 } from "@/lib/gemini"
 import { gerarLoteId } from "@/lib/rotas-utils"
+import { obterConjuntoDiasNaoUteis } from "@/lib/db/dias-nao-uteis"
+import { formatarIsoSaoPaulo, proximaAncoraDeChegada } from "@/lib/dias-uteis"
 
 // ============================================================
 // TIPOS DO BODY
@@ -155,12 +157,21 @@ export async function POST(request: Request) {
     let modosCalculados: ModoMatrix[] = []
     let errosMatriz: string[] = []
 
+    // Âncora de chegada: 08:00 do próximo dia útil. Vale só para TRANSIT — os
+    // demais modos ignoram o parâmetro. Calculada uma vez por requisição para
+    // que as duas chamadas à matriz e a resposta usem exatamente o mesmo
+    // instante; recalcular por chamada poderia cruzar a meia-noite entre elas.
+    const ancoraChegadaIso = formatarIsoSaoPaulo(
+      proximaAncoraDeChegada(new Date(), await obterConjuntoDiasNaoUteis())
+    )
+
     // Chamada 1: técnicos não-TRANSIT × todos os destinos
     if (tecnicosNaoTransit.length > 0) {
       const res = await calcularMatrizDeslocamento(
         tecnicosNaoTransit.map((t) => ({ id: t.id, latitude: t.latitude, longitude: t.longitude })),
         destinosPontos,
-        modosNaoTransit
+        modosNaoTransit,
+        ancoraChegadaIso
       )
       linhasMatriz = [...linhasMatriz, ...res.matriz]
       modosCalculados = Array.from(new Set([...modosCalculados, ...res.modosCalculados]))
@@ -172,7 +183,8 @@ export async function POST(request: Request) {
       const res = await calcularMatrizDeslocamento(
         tecnicosTransit.map((t) => ({ id: t.id, latitude: t.latitude, longitude: t.longitude })),
         destinosPontos,
-        ["TRANSIT"]
+        ["TRANSIT"],
+        ancoraChegadaIso
       )
       linhasMatriz = [...linhasMatriz, ...res.matriz]
       if (res.modosCalculados.includes("TRANSIT")) {
@@ -300,6 +312,11 @@ export async function POST(request: Request) {
       // até 2h, e `new Date()` na renderização mostraria a hora de agora para um
       // cálculo de mais cedo — data errada é pior que data ausente.
       criadoEmIso: new Date().toISOString(),
+      // Âncora que gerou os números de TRANSIT. Devolvida para o cliente
+      // persistir junto das métricas: o histórico mostra "calculado para
+      // chegada às 08h de 15/09" e a simulação de modal reenvia a mesma âncora
+      // em vez de consultar "agora", tornando o número reproduzível.
+      ancoraChegadaIso,
       modoPrincipal,
       modosCalculados,
       alocacoes: alocacoesRicas,
