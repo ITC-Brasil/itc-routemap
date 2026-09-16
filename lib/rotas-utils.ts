@@ -106,6 +106,13 @@ export const STATUS_DESTINO_PADRAO = ["Pendente"] as const
  * porque cada etapa nova gera uma linha Pendente por UM. "Histórico" e os
  * status de ponto já em campo não entram no caminho do cálculo.
  *
+ * DESEMPATE: (ciclo, etapa) pode empatar — duas linhas da planilha no mesmo
+ * ciclo/etapa. Antes o comparador devolvia 0 nesse caso e o vencedor saía da
+ * ordem do array, que vem de `findMany()` e o Postgres não garante: o mesmo
+ * cálculo, com os mesmos dados, podia escolher pontos diferentes entre
+ * execuções. `criadoEm` e, por último, `id` fecham a ordenação — sempre total,
+ * sempre o mesmo resultado.
+ *
  * @param pontos         Lista completa de pontos
  * @param projetoId      ID do projeto-alvo
  * @param umNome         Nome da UM (ex: "BSBIA01")
@@ -127,13 +134,28 @@ export function obterDestinoDaUM(
 
   if (candidatos.length === 0) return null
 
-  // Ordena (ciclo desc, etapa desc) e pega o primeiro
-  candidatos.sort((a, b) => {
-    if (b.ciclo !== a.ciclo) return b.ciclo - a.ciclo
-    return b.etapa - a.etapa
-  })
+  // Ordena (ciclo desc, etapa desc, criadoEm desc, id asc) e pega o primeiro
+  candidatos.sort(compararCandidatosDestino)
 
   return candidatos[0]
+}
+
+/**
+ * Comparador total de pontos candidatos a destino: (ciclo, etapa) decrescente,
+ * `criadoEm` decrescente como terceiro critério e `id` como desempate final.
+ *
+ * `id` é o que garante determinismo de verdade — `criadoEm` também empata
+ * quando dois pontos entram na mesma sincronização, e é nulo em rotas antigas.
+ */
+function compararCandidatosDestino(a: Ponto, b: Ponto): number {
+  if (b.ciclo !== a.ciclo) return b.ciclo - a.ciclo
+  if (b.etapa !== a.etapa) return b.etapa - a.etapa
+
+  const tempoA = a.criadoEm?.getTime() ?? 0
+  const tempoB = b.criadoEm?.getTime() ?? 0
+  if (tempoB !== tempoA) return tempoB - tempoA
+
+  return a.id.localeCompare(b.id)
 }
 
 /**
@@ -179,10 +201,9 @@ export function obterDestinoRealocavelDaUM(
       STATUS_REALOCAVEIS.has(p.status)
   )
   if (candidatos.length === 0) return null
-  candidatos.sort((a, b) => {
-    if (b.ciclo !== a.ciclo) return b.ciclo - a.ciclo
-    return b.etapa - a.etapa
-  })
+  // Mesmo comparador total do fluxo principal: empate de (ciclo, etapa) não
+  // pode cair na ordem que o Postgres devolveu.
+  candidatos.sort(compararCandidatosDestino)
   return candidatos[0]
 }
 

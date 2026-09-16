@@ -155,9 +155,18 @@ function mapPonto(row: PontoRow): Ponto {
 /**
  * Lista TODOS os pontos do banco (sem filtro).
  * Útil para diagnósticos. Para uso prático, prefira listarPontosPorProjeto.
+ *
+ * `orderBy` explícito porque a tela de cálculo consome esta lista para escolher
+ * o destino de cada UM: sem ele o Postgres devolve em ordem física, que muda
+ * após UPDATE/VACUUM, e um empate de (ciclo, etapa) escolheria pontos
+ * diferentes entre execuções idênticas. O desempate final está em
+ * compararCandidatosDestino (lib/rotas-utils.ts); esta ordenação torna a
+ * entrada estável antes disso.
  */
 export async function listarTodosPontos(): Promise<Ponto[]> {
-  const rows = await prisma.ponto.findMany()
+  const rows = await prisma.ponto.findMany({
+    orderBy: [{ criadoEm: "asc" }, { id: "asc" }],
+  })
   return rows.map(mapPonto)
 }
 
