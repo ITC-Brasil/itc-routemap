@@ -25,6 +25,15 @@ test.describe("UI — Calcular Rotas", () => {
   })
 
   test("UI-04: botão Todos marca todos os técnicos", async ({ page }) => {
+    // A lista da coluna Técnicos, e só ela. O locator anterior varria TODOS os
+    // <li> com checkbox da página — incluindo a coluna Unidades móveis, que
+    // este teste não toca. Passava por coincidência: as duas colunas vêm
+    // pré-marcadas. Qualquer mudança na pré-seleção de UMs derrubaria um teste
+    // que afirma medir técnicos.
+    const listaTecnicos = page
+      .getByRole("heading", { name: /^Técnicos\b/ })
+      .locator("xpath=../following-sibling::ul")
+
     // Limpa seleção primeiro, se possível
     const btnLimpar = page.getByRole("button", { name: "Limpar" }).first()
     if (await btnLimpar.isEnabled()) await btnLimpar.click()
@@ -32,8 +41,10 @@ test.describe("UI — Calcular Rotas", () => {
     // Seleciona todos
     await page.getByRole("button", { name: "Todos" }).first().click()
 
-    // Todos os checkboxes (ou itens de lista) devem estar marcados
-    const checkboxes = page.locator("li").filter({ has: page.locator("[role='checkbox']") })
+    // Todos os checkboxes da coluna Técnicos devem estar marcados
+    const checkboxes = listaTecnicos
+      .locator("li")
+      .filter({ has: page.locator("[role='checkbox']") })
     const count = await checkboxes.count()
     if (count > 0) {
       for (let i = 0; i < count; i++) {
