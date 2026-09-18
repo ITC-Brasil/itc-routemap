@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { CalendarOff, Plus, Trash2 } from "lucide-react"
+import { AlertTriangle, CalendarOff, Plus, Trash2 } from "lucide-react"
 
 import {
   criarDiaNaoUtil,
@@ -75,6 +75,17 @@ export default function DiasNaoUteisPage() {
     return Array.from(anos).sort((a, b) => b - a)
   }, [dias])
 
+  // Ano sem nenhuma data cadastrada é a falha mais silenciosa desta tela: o
+  // cálculo trata toda segunda a sexta como útil e ancora a chegada num
+  // feriado, sem erro nenhum. Cobre o ano corrente e o seguinte porque a
+  // âncora aponta para o futuro — em dezembro ela já cai no ano que vem.
+  const anosSemCadastro = useMemo(() => {
+    const atual = new Date().getFullYear()
+    return [atual, atual + 1].filter(
+      (ano) => !dias.some((d) => d.data.startsWith(String(ano)))
+    )
+  }, [dias])
+
   const diasDoAno = useMemo(
     () => dias.filter((d) => d.data.startsWith(String(anoSelecionado))),
     [dias, anoSelecionado]
@@ -136,12 +147,35 @@ export default function DiasNaoUteisPage() {
       <div>
         <h1 className="font-heading text-4xl">Dias não úteis</h1>
         <p className="mt-2 max-w-[720px] text-pretty text-sm text-muted-foreground">
-          Feriados e pontos facultativos. O cálculo de transporte público
-          agenda a chegada do técnico para as 08:00 do próximo dia útil — as
-          datas aqui são puladas. Feriado e facultativo têm o mesmo efeito: a
-          operação não escala técnico em nenhum dos dois.
+          Cadastre aqui os dias em que nenhum técnico é escalado. O cálculo de
+          transporte público agenda a chegada do técnico para as 08:00 do
+          próximo dia útil — as datas aqui são puladas. Feriados e pontos
+          facultativos entram igual: a operação não escala técnico em nenhum
+          dos dois. Facultativos que só começam às 14h — véspera de Natal e de
+          Ano Novo — não entram, porque às 08:00 o expediente é normal. A fonte
+          é o decreto anual do GDF, publicado no DODF em dezembro.
         </p>
       </div>
+
+      {/* ALERTA DE ANO SEM CADASTRO */}
+      {!carregando && anosSemCadastro.length > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-warn bg-warn-tint p-4">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warn" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-warn">
+              {anosSemCadastro.length === 1
+                ? `Nenhum dia cadastrado para ${anosSemCadastro[0]}`
+                : `Nenhum dia cadastrado para ${anosSemCadastro.join(" nem ")}`}
+            </p>
+            <p className="max-w-[640px] text-pretty text-[13px] leading-relaxed text-warn/80">
+              Sem essas datas o cálculo trata qualquer segunda a sexta como dia
+              útil e pode ancorar a chegada num feriado, sem apresentar erro.
+              Cadastre a partir do decreto do GDF publicado no DODF em
+              dezembro.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* FORMULÁRIO */}
       <Card>
