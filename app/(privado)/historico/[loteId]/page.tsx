@@ -857,12 +857,14 @@ export default function DetalheLotePage() {
       <section className="space-y-3">
         <h2 className="text-[17px] font-semibold">Rotas do lote</h2>
         <div className="overflow-x-auto rounded-xl border border-t-2 border-t-primary bg-card shadow-[var(--shadow-1)]">
-          <div className="grid min-w-[900px] gap-4 bg-muted px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground [grid-template-columns:36px_minmax(0,1.2fr)_minmax(0,1fr)_120px_110px_120px]">
+          <div className="grid min-w-[900px] gap-4 bg-muted px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground [grid-template-columns:36px_minmax(0,1.2fr)_minmax(0,1fr)_200px_120px]">
             <span>#</span>
             <span>Técnico</span>
             <span>Destino</span>
-            <span>Duração</span>
-            <span>Distância</span>
+            {/* Duração e distância dividem a coluna: são o mesmo dado de
+                deslocamento e ficam na mesma linha, com modo e âncora abaixo
+                delas. Ver a nota de três níveis na célula. */}
+            <span>Deslocamento</span>
             <span>Status</span>
           </div>
           {rotas.map((rota, i) => (
@@ -984,7 +986,7 @@ function LinhaTabelaRota({
         destacada ? "bg-accent/40" : ""
       }`}
     >
-      <div className="grid items-center gap-4 px-5 pb-1.5 pt-3.5 [grid-template-columns:36px_minmax(0,1.2fr)_minmax(0,1fr)_120px_110px_120px]">
+      <div className="grid items-center gap-4 px-5 pb-1.5 pt-3.5 [grid-template-columns:36px_minmax(0,1.2fr)_minmax(0,1fr)_200px_120px]">
         <span className="text-xs tabular-nums text-muted-foreground">
           {ordem}
         </span>
@@ -1036,40 +1038,50 @@ function LinhaTabelaRota({
           </span>
         </span>
 
+        {/* DESLOCAMENTO — três níveis, nesta ordem:
+            1. duração e distância, os valores que se consulta de relance;
+            2. modo e âncora de chegada, que qualificam esses valores;
+            3. o selo de simulação, quando há.
+            Antes eram duas colunas e tudo o mais empilhado na primeira, onde
+            a âncora colidia com a distância e com o selo. Nada mais entra
+            aqui sem reavaliar o conjunto. */}
         <span className="flex flex-col gap-0.5">
-          {duracaoSeg != null ? (
-            <span className="text-sm font-semibold tabular-nums">
-              {formatarDuracao(duracaoSeg)}
+          <span className="flex items-baseline gap-2">
+            {duracaoSeg != null ? (
+              <span className="text-sm font-semibold tabular-nums">
+                {formatarDuracao(duracaoSeg)}
+              </span>
+            ) : (
+              <span className="h-4 w-14 animate-pulse rounded bg-skeleton" />
+            )}
+            <span className="text-sm tabular-nums">
+              {distanciaMetros != null ? formatarDistancia(distanciaMetros) : "—"}
             </span>
-          ) : (
-            <span className="h-4 w-14 animate-pulse rounded bg-skeleton" />
-          )}
+          </span>
+
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <IconeModo modo={modo} className="size-3.5" />
-            {nomeAmigavelModo(modo)}
+            <IconeModo modo={modo} className="size-3.5 shrink-0" />
+            <span className="truncate">{nomeAmigavelModo(modo)}</span>
             {/* Só TRANSIT é ancorado — a Routes API não aceita `arrivalTime`
                 em carro, moto e a pé. Marcar rota por rota é o que distingue
                 as linhas ancoradas das outras. A data completa fica no
                 cabeçalho do lote, igual para todas as linhas. */}
             {modo === "TRANSIT" && rota.metricas.ancoraIso && (
               <span
-                className="inline-flex items-center gap-1 tabular-nums"
+                className="inline-flex shrink-0 items-center gap-1 tabular-nums"
                 title={`Tempo medido para chegada ${rotularChegadaAncora(rota.metricas.ancoraIso)}`}
               >
-                <Clock className="size-3" />
+                ·<Clock className="size-3" />
                 chegada {horaDaAncora(rota.metricas.ancoraIso)}
               </span>
             )}
-            {simulando && (
-              <span className="rounded bg-warn-tint px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-warn">
-                simulação
-              </span>
-            )}
           </span>
-        </span>
 
-        <span className="text-sm tabular-nums text-muted-foreground">
-          {distanciaMetros != null ? formatarDistancia(distanciaMetros) : "—"}
+          {simulando && (
+            <span className="w-fit rounded bg-warn-tint px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-warn">
+              simulação
+            </span>
+          )}
         </span>
 
         <span className="justify-self-start">
