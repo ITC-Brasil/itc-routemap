@@ -209,7 +209,7 @@ export default function EstatisticasPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="pl-5 w-10">#</TableHead>
+                      <TableHead className="w-10 md:pl-5">#</TableHead>
                       <TableHead>Técnico</TableHead>
                       <TableHead className="text-right">UMs atendidas</TableHead>
                       <TableHead className="text-right">Tempo total</TableHead>
@@ -220,21 +220,37 @@ export default function EstatisticasPage() {
                   <TableBody>
                     {rankingTecnicos.map((t, i) => (
                       <TableRow key={t.tecnicoId}>
-                        <TableCell className="w-10 pl-5 font-mono text-xs tabular-nums text-muted-foreground">
+                        <TableCell
+                          prioridade="auxiliar"
+                          className="w-10 pl-5 font-mono text-xs tabular-nums text-muted-foreground"
+                        >
                           {i + 1}
                         </TableCell>
-                        <TableCell className="font-medium">{t.tecnicoNome}</TableCell>
-                        <TableCell className="text-right font-heading text-lg tabular-nums">
+                        <TableCell rotulo="Técnico" className="font-medium">
+                          {t.tecnicoNome}
+                        </TableCell>
+                        <TableCell
+                          rotulo="UMs atendidas"
+                          className="text-right font-heading text-lg tabular-nums"
+                        >
                           {t.umsAtendidas}
                         </TableCell>
-                        <TableCell className="text-right text-sm tabular-nums">
+                        <TableCell
+                          rotulo="Tempo total"
+                          prioridade="secundaria"
+                          className="text-right text-sm tabular-nums"
+                        >
                           {formatarDuracao(t.tempoTotalSeg)}
                         </TableCell>
-                        <TableCell className="text-right text-sm tabular-nums">
+                        <TableCell
+                          rotulo="Tempo médio"
+                          prioridade="secundaria"
+                          className="text-right text-sm tabular-nums"
+                        >
                           {formatarDuracao(t.tempoMedioSeg)}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-sm">
+                        <TableCell rotulo="Modo principal" prioridade="secundaria">
+                          <div className="flex items-center gap-2 text-sm max-md:justify-end">
                             <IconeModo modo={t.modoPrincipal} className="h-4 w-4 text-muted-foreground" />
                             {nomeAmigavelModo(t.modoPrincipal)}
                           </div>
@@ -257,7 +273,7 @@ export default function EstatisticasPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="pl-5">UM</TableHead>
+                      <TableHead className="md:pl-5">UM</TableHead>
                       <TableHead>Referência</TableHead>
                       <TableHead className="text-right">Visitas confirmadas</TableHead>
                       <TableHead>Última visita</TableHead>
@@ -266,16 +282,30 @@ export default function EstatisticasPage() {
                   <TableBody>
                     {rankingUMs.slice(0, 20).map((u) => (
                       <TableRow key={u.umNome}>
-                        <TableCell className="pl-5 font-mono text-sm font-semibold">
+                        <TableCell
+                          rotulo="UM"
+                          className="font-mono text-sm font-semibold md:pl-5"
+                        >
                           {u.umNome}
                         </TableCell>
-                        <TableCell className="text-sm">
+                        <TableCell
+                          rotulo="Referência"
+                          prioridade="secundaria"
+                          className="text-sm"
+                        >
                           {u.raNome || "—"}
                         </TableCell>
-                        <TableCell className="text-right font-heading text-lg tabular-nums">
+                        <TableCell
+                          rotulo="Visitas confirmadas"
+                          className="text-right font-heading text-lg tabular-nums"
+                        >
                           {u.visitas}
                         </TableCell>
-                        <TableCell className="text-sm tabular-nums">
+                        <TableCell
+                          rotulo="Última visita"
+                          prioridade="secundaria"
+                          className="text-sm tabular-nums"
+                        >
                           {u.ultimaVisita
                             ? u.ultimaVisita.toLocaleDateString("pt-BR", {
                                 day: "2-digit",

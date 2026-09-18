@@ -262,11 +262,11 @@ export default function DiasNaoUteisPage() {
             <TableBody>
               {diasDoAno.map((dia) => (
                 <TableRow key={dia.id}>
-                  <TableCell className="font-mono tabular-nums">
+                  <TableCell rotulo="Data" className="font-mono tabular-nums">
                     {formatarDataBR(dia.data)}
                   </TableCell>
-                  <TableCell>{dia.descricao}</TableCell>
-                  <TableCell>
+                  <TableCell rotulo="Descrição">{dia.descricao}</TableCell>
+                  <TableCell prioridade="acao">
                     <Button
                       variant="ghost"
                       size="sm"

@@ -858,7 +858,7 @@ export default function DetalheLotePage() {
       <section className="space-y-3">
         <h2 className="text-[17px] font-semibold">Rotas do lote</h2>
         <div className="overflow-x-auto rounded-xl border border-t-2 border-t-primary bg-card shadow-[var(--shadow-1)]">
-          <div className="grid min-w-[900px] gap-4 bg-muted px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground [grid-template-columns:36px_minmax(0,1.2fr)_minmax(0,1fr)_200px_120px]">
+          <div className="hidden min-w-[900px] gap-4 bg-muted px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground md:grid [grid-template-columns:36px_minmax(0,1.2fr)_minmax(0,1fr)_200px_120px]">
             <span>#</span>
             <span>Técnico</span>
             <span>Destino</span>
@@ -991,16 +991,20 @@ function LinhaTabelaRota({
 
   return (
     <div
-      className={`min-w-[900px] border-t ${cancelada ? "opacity-60" : ""} ${
+      className={`border-t md:min-w-[900px] ${cancelada ? "opacity-60" : ""} ${
         destacada ? "bg-accent/40" : ""
       }`}
     >
-      <div className="grid items-center gap-4 px-5 pb-1.5 pt-3.5 [grid-template-columns:36px_minmax(0,1.2fr)_minmax(0,1fr)_200px_120px]">
-        <span className="text-xs tabular-nums text-muted-foreground">
+      {/* Abaixo de md a linha vira cartão: identificação à esquerda e status à
+          direita no topo, destino na linha seguinte, duração e distância
+          embaixo. O número de ordem é auxiliar e some — ele só serve para
+          apontar uma linha dentro de uma tabela que ali não existe. */}
+      <div className="grid gap-4 px-5 pb-1.5 pt-3.5 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:items-start max-md:gap-x-3 max-md:gap-y-2.5 md:items-center md:[grid-template-columns:36px_minmax(0,1.2fr)_minmax(0,1fr)_200px_120px]">
+        <span className="text-xs tabular-nums text-muted-foreground max-md:hidden">
           {ordem}
         </span>
 
-        <span className="flex min-w-0 items-center gap-2.5">
+        <span className="flex min-w-0 items-center gap-2.5 max-md:col-start-1 max-md:row-start-1">
           <span
             aria-hidden="true"
             className="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
@@ -1026,7 +1030,7 @@ function LinhaTabelaRota({
           </span>
         </span>
 
-        <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="flex min-w-0 flex-col gap-0.5 max-md:col-span-2 max-md:col-start-1 max-md:row-start-2">
           <span className="flex items-center gap-1.5">
             <span
               className="badge-cor-dado shrink-0 rounded-full border px-[7px] py-px font-mono text-[10.5px] font-semibold"
@@ -1054,7 +1058,7 @@ function LinhaTabelaRota({
             Antes eram duas colunas e tudo o mais empilhado na primeira, onde
             a âncora colidia com a distância e com o selo. Nada mais entra
             aqui sem reavaliar o conjunto. */}
-        <span className="flex flex-col gap-0.5">
+        <span className="flex flex-col gap-0.5 max-md:col-span-2 max-md:col-start-1 max-md:row-start-3">
           <span className="flex items-baseline gap-2">
             {duracaoSeg != null ? (
               <span className="text-sm font-semibold tabular-nums">
@@ -1093,7 +1097,7 @@ function LinhaTabelaRota({
           )}
         </span>
 
-        <span className="justify-self-start">
+        <span className="justify-self-start max-md:col-start-2 max-md:row-start-1 max-md:justify-self-end">
           {cancelada ? (
             <Badge
               variant="outline"
@@ -1109,11 +1113,18 @@ function LinhaTabelaRota({
         </span>
       </div>
 
-      <div className="flex items-start justify-between gap-5 pb-3.5 pl-[72px] pr-5">
-        <span className="max-w-[760px] text-pretty text-[13px] leading-relaxed text-muted-foreground">
+      {/* A explicação algorítmica é o "resto" do cartão: abaixo de md ela só
+          aparece com a linha aberta, atrás do mesmo "Ver trajeto" que já
+          comanda o mapa e o seletor. Na tabela continua sempre visível. */}
+      <div className="flex gap-5 pb-3.5 pr-5 max-md:flex-col max-md:pl-5 md:items-start md:justify-between md:pl-[72px]">
+        <span
+          className={`max-w-[760px] text-pretty text-[13px] leading-relaxed text-muted-foreground ${
+            destacada ? "" : "max-md:hidden"
+          }`}
+        >
           {explicacao}
         </span>
-        <span className="flex shrink-0 gap-2">
+        <span className="flex shrink-0 gap-2 max-md:justify-end">
           {/* Uma chamada sob demanda, a mesma economia do par expandido: sem
               isto nada carregaria a polyline no Detalhe e o mapa ficaria
               tracejado para sempre. */}
@@ -1143,7 +1154,7 @@ function LinhaTabelaRota({
           nada. Reusa o `destacada` do "Ver trajeto", então um clique abre o
           traçado no mapa e o painel juntos. */}
       {destacada && !cancelada && estadosDosModos && (
-        <div className="pb-4 pl-[72px] pr-5">
+        <div className="pb-4 pr-5 max-md:pl-5 md:pl-[72px]">
           <SeletorModoRota
             modoOficial={rota.modoPrincipal}
             modoExibido={modo}
@@ -1163,7 +1174,7 @@ function LinhaTabelaRota({
           mostrar, e um esqueleto aqui nunca resolveria. Erro fica de fora: o
           seletor acima já explica que não há rota neste modo. */}
       {destacada && !cancelada && modo === "TRANSIT" && cacheDoModo && (
-        <div className="pb-4 pl-[72px] pr-5">
+        <div className="pb-4 pr-5 max-md:pl-5 md:pl-[72px]">
           {cacheDoModo.estado === "carregando" && (
             <div className="h-24 animate-pulse rounded-md bg-skeleton" />
           )}

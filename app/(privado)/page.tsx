@@ -208,10 +208,10 @@ export default function InicioPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-[22px]">Técnico</TableHead>
+                  <TableHead className="md:pl-[22px]">Técnico</TableHead>
                   <TableHead>Destino</TableHead>
                   <TableHead>Modo</TableHead>
-                  <TableHead className="pr-[22px] text-right">Tempo</TableHead>
+                  <TableHead className="text-right md:pr-[22px]">Tempo</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -401,25 +401,25 @@ function LinhaRota({ rota }: { rota: Rota }) {
 
   return (
     <TableRow>
-      <TableCell className="pl-5">
+      <TableCell rotulo="Técnico" className="md:pl-5">
         <p className="font-medium" title={rota.tecnicoNome}>{rota.tecnicoNome || "—"}</p>
-        <p className="text-xs text-muted-foreground truncate max-w-[180px]" title={rota.origem.endereco}>
+        <p className="max-w-[180px] truncate text-xs text-muted-foreground" title={rota.origem.endereco}>
           {rota.origem.endereco}
         </p>
       </TableCell>
-      <TableCell>
+      <TableCell rotulo="Destino">
         <Badge variant="outline" className="font-mono text-xs">{rota.umNome}</Badge>
-        <p className="mt-1 text-xs text-muted-foreground truncate max-w-[200px]" title={rota.destino.endereco}>
+        <p className="mt-1 max-w-[200px] truncate text-xs text-muted-foreground" title={rota.destino.endereco}>
           {rota.destino.endereco}
         </p>
       </TableCell>
-      <TableCell>
-        <div className="flex items-center gap-1.5 text-sm">
+      <TableCell rotulo="Modo" prioridade="secundaria">
+        <div className="flex items-center gap-1.5 text-sm max-md:justify-end">
           <IconeModo modo={rota.modoPrincipal} className="h-4 w-4 text-muted-foreground" />
           <span>{nomeAmigavelModo(rota.modoPrincipal)}</span>
         </div>
       </TableCell>
-      <TableCell className="pr-5 text-right">
+      <TableCell rotulo="Tempo" className="text-right md:pr-5">
         {duracaoSeg != null ? (
           <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold tabular-nums text-primary">
             {formatarDuracao(duracaoSeg)}

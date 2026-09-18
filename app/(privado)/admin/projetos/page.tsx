@@ -118,7 +118,7 @@ export default function ProjetosPage() {
             <TableBody>
               {projetos.map((projeto) => (
                 <TableRow key={projeto.id} className="transition-colors hover:bg-muted/50">
-                  <TableCell>
+                  <TableCell rotulo="Sigla">
                     <span
                       className="badge-cor-dado inline-flex items-center rounded-full border px-3 py-1 font-mono text-xs font-semibold"
                       style={{ "--cor-dado": projeto.cor } as React.CSSProperties}
@@ -126,8 +126,10 @@ export default function ProjetosPage() {
                       {projeto.sigla}
                     </span>
                   </TableCell>
-                  <TableCell className="font-medium">{projeto.nome}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell rotulo="Projeto" className="font-medium">
+                    {projeto.nome}
+                  </TableCell>
+                  <TableCell prioridade="acao" className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"

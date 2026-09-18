@@ -256,7 +256,7 @@ function GrupoProjeto({
         <TableBody>
           {grupo.ums.map((um) => (
             <TableRow key={um.id}>
-              <TableCell>
+              <TableCell rotulo="UM">
                 <span
                   className="badge-cor-dado inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium"
                   style={{ "--cor-dado": um.cor } as React.CSSProperties}
@@ -265,7 +265,7 @@ function GrupoProjeto({
                   {um.nome}
                 </span>
               </TableCell>
-              <TableCell className="text-right">
+              <TableCell prioridade="acao" className="text-right">
                 <div className="flex justify-end gap-1">
                   <Button
                     variant="ghost"

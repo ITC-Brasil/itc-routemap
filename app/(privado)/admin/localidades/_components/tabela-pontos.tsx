@@ -218,7 +218,7 @@ function LinhaPonto({
 
   return (
     <TableRow>
-      <TableCell>
+      <TableCell rotulo="Projeto" prioridade="secundaria">
         {projeto ? (
           <Badge
             variant="outline"
@@ -231,20 +231,35 @@ function LinhaPonto({
           <Badge variant="outline">—</Badge>
         )}
       </TableCell>
-      <TableCell className="font-medium">{ponto.umNome}</TableCell>
-      <TableCell>{ponto.raNome}</TableCell>
-      <TableCell className="max-w-xs truncate" title={ponto.endereco}>
+      <TableCell rotulo="UM" className="font-medium">
+        {ponto.umNome}
+      </TableCell>
+      <TableCell rotulo="RA" prioridade="secundaria">
+        {ponto.raNome}
+      </TableCell>
+      {/* `truncate` só na tabela: no cartão o endereço quebra em duas linhas,
+          que é melhor do que reticências num texto que ninguém decora. */}
+      <TableCell
+        rotulo="Endereço"
+        prioridade="secundaria"
+        className="md:max-w-xs md:truncate"
+        title={ponto.endereco}
+      >
         {ponto.endereco}
       </TableCell>
       {mostrarPlusCode && (
-        <TableCell className="font-mono text-xs tabular-nums">
+        <TableCell
+          rotulo="Plus Code"
+          prioridade="auxiliar"
+          className="font-mono text-xs tabular-nums"
+        >
           {ponto.plusCode || "—"}
         </TableCell>
       )}
-      <TableCell>
+      <TableCell rotulo="Status">
         <StatusBadge status={ponto.status} />
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell prioridade="acao" className="text-right">
         <div className="flex items-center justify-end gap-1">
           {linkMaps ? (
             <Button
