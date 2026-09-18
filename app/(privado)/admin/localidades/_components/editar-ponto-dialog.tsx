@@ -50,7 +50,12 @@ export function EditarPontoDialog({
         if (!open) onClose()
       }}
     >
-      <DialogContent className="max-w-2xl">
+      {/* Três faixas: cabeçalho, corpo rolante, rodapé fixo. Sem isto o
+          diálogo inteiro rola e o "Salvar alterações" desce para fora da área
+          visível em janela baixa — o campo mais importante do formulário é o
+          botão que o envia. `overflow-y-hidden` anula a rolagem do
+          DialogContent base para que ela aconteça só no corpo. */}
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] overflow-y-hidden sm:max-w-2xl">
         {ponto && (
           <ConteudoFormulario
             key={ponto.id}
@@ -171,7 +176,7 @@ function ConteudoFormulario({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-4 py-2">
+      <div className="min-h-0 space-y-4 overflow-y-auto py-2 pr-1">
         {/* Status */}
         <div className="space-y-2">
           <Label htmlFor="edit-status">Status</Label>
@@ -184,9 +189,10 @@ function ConteudoFormulario({
           />
         </div>
 
-        {/* RA + UF */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="col-span-2 space-y-2">
+        {/* RA + UF — lado a lado só a partir de sm; em 375px os dois campos
+            dividindo 3 colunas deixavam a UF com ~60px. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="edit-ra">Região Administrativa</Label>
             <Input
               id="edit-ra"
@@ -253,7 +259,7 @@ function ConteudoFormulario({
         </div>
 
         {/* Coordenadas */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="edit-lat">Latitude</Label>
             <Input

@@ -385,7 +385,10 @@ function DetalheLinha({
   mono?: boolean
 }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-3">
+    // Rótulo acima do valor abaixo de sm: com 140px fixos para o rótulo, o
+    // valor (endereço completo, ponto de referência) ficava espremido em ~150px
+    // dentro do card de técnico, quebrando em muitas linhas curtas.
+    <div className="grid gap-1 sm:grid-cols-[140px_1fr] sm:gap-3">
       <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
         {label}
       </p>
