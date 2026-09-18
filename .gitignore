@@ -57,3 +57,6 @@ nginx/certs/
 
 # graphify
 .graphify/
+
+# Config local do preview do Claude Code
+.claude/launch.json
