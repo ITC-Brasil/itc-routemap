@@ -43,6 +43,7 @@ import {
 } from "../../calcular-rotas/_components/alocacao-helpers"
 import { listarRotasPorLote } from "@/lib/actions/rotas"
 import type { ModoTransporte } from "@/lib/rotas-utils"
+import { horaDaAncora, rotularChegadaAncora } from "@/lib/dias-uteis"
 import type { Rota } from "@/lib/db/rotas"
 import { listarProjetos } from "@/lib/actions/projetos"
 import { listarTecnicos } from "@/lib/actions/tecnicos"
@@ -82,6 +83,8 @@ type RotaCacheEntry =
       transitSteps: TransitStep[]
       partidaIso: string | null
       chegadaIso: string | null
+      /** Âncora que a consulta usou de fato. null fora de TRANSIT. */
+      ancoraIso: string | null
     }
   | { estado: "erro"; mensagem: string }
 
@@ -389,6 +392,7 @@ export default function DetalheLotePage() {
             transitSteps: data.transitSteps ?? [],
             partidaIso: data.partidaIso ?? null,
             chegadaIso: data.chegadaIso ?? null,
+            ancoraIso: data.ancoraIso ?? null,
           })
         )
       } catch (err) {
@@ -726,6 +730,16 @@ export default function DetalheLotePage() {
   // Q1: justificativa global do lote, pra replicar no expand de cada rota
   const justificativaLote = primeiraRota.loteJustificativa ?? ""
 
+  // Âncora do lote. Só faz sentido anunciar quando há transporte público:
+  // carro, moto e a pé não são ancorados (a Routes API não aceita
+  // `arrivalTime` neles), e num lote sem TRANSIT a ausência de `ancoraIso` não
+  // significa lote antigo — significa que nada ali dependia de âncora.
+  const loteTemTransit = rotas.some(
+    (r) => r.modoPrincipal === "TRANSIT" || r.metricas.TRANSIT != null
+  )
+  const ancoraDoLote =
+    rotas.find((r) => r.metricas.ancoraIso)?.metricas.ancoraIso ?? null
+
   return (
     <div className="space-y-8">
       {/* HEADER */}
@@ -760,6 +774,18 @@ export default function DetalheLotePage() {
               {totalTecnicosUnicos === 1 ? "" : "s"} · {totalUmsUnicas} UM
               {totalUmsUnicas === 1 ? "" : "s"}
             </p>
+            {/* Para qual instante o transporte público deste lote foi medido.
+                Sem isto o número do histórico não distingue a malha da
+                operação da malha da noite de domingo em que alguém rodou o
+                cálculo. Lotes anteriores à âncora dizem o que era verdade
+                neles — não omitem nem inventam. */}
+            {loteTemTransit && (
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                {ancoraDoLote
+                  ? `Transporte público ancorado na chegada ${rotularChegadaAncora(ancoraDoLote)}`
+                  : "Transporte público calculado para o horário do cálculo, sem âncora de chegada"}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -1021,6 +1047,19 @@ function LinhaTabelaRota({
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <IconeModo modo={modo} className="size-3.5" />
             {nomeAmigavelModo(modo)}
+            {/* Só TRANSIT é ancorado — a Routes API não aceita `arrivalTime`
+                em carro, moto e a pé. Marcar rota por rota é o que distingue
+                as linhas ancoradas das outras. A data completa fica no
+                cabeçalho do lote, igual para todas as linhas. */}
+            {modo === "TRANSIT" && rota.metricas.ancoraIso && (
+              <span
+                className="inline-flex items-center gap-1 tabular-nums"
+                title={`Tempo medido para chegada ${rotularChegadaAncora(rota.metricas.ancoraIso)}`}
+              >
+                <Clock className="size-3" />
+                chegada {horaDaAncora(rota.metricas.ancoraIso)}
+              </span>
+            )}
             {simulando && (
               <span className="rounded bg-warn-tint px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-warn">
                 simulação
@@ -1090,6 +1129,7 @@ function LinhaTabelaRota({
             estados={estadosDosModos}
             onSelecionar={onSimularModo}
             calculadoEm={rota.criadoEm}
+            ancoraIso={rota.metricas.ancoraIso ?? null}
           />
         </div>
       )}

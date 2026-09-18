@@ -143,3 +143,60 @@ export function rotularAncora(ancora: Date): string {
   const get = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? ""
   return `${get("weekday")}, ${get("day")}/${get("month")} às 08:00`
 }
+
+/**
+ * Rótulo da âncora já gravada, para o histórico: "às 08:00 de sexta, 18/09".
+ *
+ * Diferente de `rotularAncora`, que descreve a âncora que AINDA vai ser usada
+ * e por isso fixa "08:00" no texto. Aqui a hora sai do próprio instante
+ * gravado: um lote antigo permanece legível mesmo se a hora da operação mudar,
+ * e um `arrivalTime` customizado é exibido como o que foi de fato pedido.
+ *
+ * Aceita a string ISO direto porque é assim que a âncora vive no snapshot
+ * (`metricas.ancoraIso`). Devolve "" para entrada inválida — o chamador trata
+ * a ausência de âncora como caso próprio, não como texto vazio.
+ */
+export function rotularChegadaAncora(ancora: Date | string): string {
+  const instante = typeof ancora === "string" ? new Date(ancora) : ancora
+  if (Number.isNaN(instante.getTime())) return ""
+
+  const partes = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(instante)
+
+  const get = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? ""
+
+  // "sexta-feira" → "sexta": o rótulo aparece dentro de frase corrida e em
+  // coluna apertada, onde o sufixo só ocupa espaço.
+  const diaSemana = get("weekday").replace(/-feira$/, "")
+  const hora = get("hour") === "24" ? "00" : get("hour")
+
+  return `às ${hora}:${get("minute")} de ${diaSemana}, ${get("day")}/${get("month")}`
+}
+
+/**
+ * Só a hora da âncora: "08:00". Para o indicador na linha da rota, onde a
+ * coluna já está cheia e a data completa é a mesma em todas as linhas do lote
+ * — ela fica no cabeçalho, não repetida linha a linha.
+ */
+export function horaDaAncora(ancora: Date | string): string {
+  const instante = typeof ancora === "string" ? new Date(ancora) : ancora
+  if (Number.isNaN(instante.getTime())) return ""
+
+  const partes = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(instante)
+
+  const get = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? ""
+  const hora = get("hour") === "24" ? "00" : get("hour")
+  return `${hora}:${get("minute")}`
+}

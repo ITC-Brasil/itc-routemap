@@ -19,6 +19,7 @@
 // ============================================================
 
 import { MODOS_SELECIONAVEIS, IconeModo } from "@/lib/modos-transporte"
+import { rotularChegadaAncora } from "@/lib/dias-uteis"
 import type { ModoTransporte, MetricaModo } from "@/lib/rotas-utils"
 import {
   nomeAmigavelModo,
@@ -33,8 +34,17 @@ import {
 export type EstadoModo =
   /** Número gravado na confirmação do lote — é o tempo real daquele dia. */
   | { tipo: "snapshot"; duracaoSeg: number; distanciaMetros: number | null }
-  /** Número buscado na API nesta sessão — é o tempo de hoje. */
-  | { tipo: "consultado"; duracaoSeg: number; distanciaMetros: number | null }
+  /**
+   * Número buscado na API nesta sessão. É o tempo de hoje — exceto quando
+   * `ancoraIso` bate com a âncora do snapshot: aí a consulta mediu a MESMA
+   * janela do cálculo e o número é comparável. Fora de TRANSIT é `null`.
+   */
+  | {
+      tipo: "consultado"
+      duracaoSeg: number
+      distanciaMetros: number | null
+      ancoraIso: string | null
+    }
   /** Consulta em andamento. */
   | { tipo: "carregando" }
   /** API respondeu que não há rota possível neste modo. */
@@ -49,7 +59,12 @@ export type EstadoModo =
  */
 type EntradaCache =
   | { estado: "carregando" }
-  | { estado: "ok"; duracaoSegundos: number; distanciaMetros: number }
+  | {
+      estado: "ok"
+      duracaoSegundos: number
+      distanciaMetros: number
+      ancoraIso?: string | null
+    }
   | { estado: "erro"; mensagem: string }
 
 /**
@@ -95,6 +110,7 @@ export function montarEstadosDosModos(
         tipo: "consultado",
         duracaoSeg: cache.duracaoSegundos,
         distanciaMetros: cache.distanciaMetros,
+        ancoraIso: cache.ancoraIso ?? null,
       }
       continue
     }
@@ -137,6 +153,11 @@ type Props = {
   onSelecionar: (modo: ModoTransporte) => void
   /** Quando o lote foi calculado — usado no rótulo de procedência. */
   calculadoEm: Date | null
+  /**
+   * Âncora de chegada gravada no snapshot desta rota. `null` em lotes
+   * anteriores à âncora e em rotas sem transporte público.
+   */
+  ancoraIso: string | null
 }
 
 export function SeletorModoRota({
@@ -145,6 +166,7 @@ export function SeletorModoRota({
   estados,
   onSelecionar,
   calculadoEm,
+  ancoraIso,
 }: Props) {
   const simulando = modoExibido !== modoOficial
   const estadoAtual = estados[modoExibido]
@@ -239,7 +261,9 @@ export function SeletorModoRota({
         estado={estadoAtual}
         simulando={simulando}
         modoOficial={modoOficial}
+        modoExibido={modoExibido}
         calculadoEm={calculadoEm}
+        ancoraIso={ancoraIso}
       />
 
       {simulando && (
@@ -311,12 +335,16 @@ function RotuloProcedencia({
   estado,
   simulando,
   modoOficial,
+  modoExibido,
   calculadoEm,
+  ancoraIso,
 }: {
   estado: EstadoModo | undefined
   simulando: boolean
   modoOficial: ModoTransporte
+  modoExibido: ModoTransporte
   calculadoEm: Date | null
+  ancoraIso: string | null
 }) {
   if (!estado) return null
 
@@ -328,6 +356,27 @@ function RotuloProcedencia({
         minute: "2-digit",
       })
     : null
+
+  // A âncora só descreve transporte público — carro, moto e a pé não são
+  // ancorados, então citá-la no rótulo deles afirmaria algo falso.
+  const ancoraDoModo = modoExibido === "TRANSIT" ? ancoraIso : null
+
+  // Consulta que reusou a âncora do snapshot mediu a mesma janela do cálculo
+  // (a Routes API aceita TRANSIT até 7 dias no passado). O número é
+  // comparável ao do lote, e chamá-lo de "trânsito atual" seria enganoso.
+  if (
+    estado.tipo === "consultado" &&
+    ancoraDoModo &&
+    estado.ancoraIso === ancoraDoModo
+  ) {
+    return (
+      <p className="text-[12px] leading-relaxed text-muted-foreground">
+        {`Consultado agora, para chegada ${rotularChegadaAncora(ancoraDoModo)} — a mesma janela do cálculo, então é comparável ao número do lote.`}
+        {simulando &&
+          ` Simulação — o lote confirmado usa ${nomeAmigavelModo(modoOficial)}.`}
+      </p>
+    )
+  }
 
   if (estado.tipo === "consultado" || estado.tipo === "carregando") {
     return (
@@ -347,11 +396,15 @@ function RotuloProcedencia({
     )
   }
 
+  const base = ancoraDoModo
+    ? `Tempo registrado no cálculo, para chegada ${rotularChegadaAncora(ancoraDoModo)}.`
+    : "Tempo registrado no cálculo do lote."
+
   return (
     <p className="text-[12px] leading-relaxed text-muted-foreground">
       {simulando
-        ? `Tempo registrado no cálculo do lote. Simulação — o lote confirmado usa ${nomeAmigavelModo(modoOficial)}.`
-        : "Tempo registrado no cálculo do lote."}
+        ? `${base} Simulação — o lote confirmado usa ${nomeAmigavelModo(modoOficial)}.`
+        : base}
     </p>
   )
 }
