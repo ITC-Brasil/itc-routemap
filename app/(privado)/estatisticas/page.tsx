@@ -230,7 +230,7 @@ export default function EstatisticasPage() {
                         <TableCell className="text-right text-sm tabular-nums">
                           {formatarDuracao(t.tempoTotalSeg)}
                         </TableCell>
-                        <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
+                        <TableCell className="text-right text-sm tabular-nums">
                           {formatarDuracao(t.tempoMedioSeg)}
                         </TableCell>
                         <TableCell>
@@ -269,13 +269,13 @@ export default function EstatisticasPage() {
                         <TableCell className="pl-5 font-mono text-sm font-semibold">
                           {u.umNome}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        <TableCell className="text-sm">
                           {u.raNome || "—"}
                         </TableCell>
                         <TableCell className="text-right font-heading text-lg tabular-nums">
                           {u.visitas}
                         </TableCell>
-                        <TableCell className="text-sm tabular-nums text-muted-foreground">
+                        <TableCell className="text-sm tabular-nums">
                           {u.ultimaVisita
                             ? u.ultimaVisita.toLocaleDateString("pt-BR", {
                                 day: "2-digit",

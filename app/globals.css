@@ -56,10 +56,13 @@
   --color-brand-fg: var(--brand-fg);
   --color-bordo: var(--bordo);
   --color-surface: var(--bg-surface);
-  --color-base: var(--bg-base);
+  /* NÃO declare uma cor chamada `base` aqui. Ela geraria a utilidade
+     `text-base`, que é o TAMANHO de fonte padrão do Tailwind, e a cor ganha:
+     todo `text-base` do sistema virava texto na cor do fundo da página. O
+     fundo já é alcançável por `bg-background`. */
   --color-muted-bg: var(--bg-muted);
-  --color-text-base: var(--text-base);
-  --color-text-muted: var(--text-muted);
+  --color-text-base: var(--fg-base);
+  --color-text-muted: var(--fg-muted);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-err: var(--err);
@@ -134,8 +137,11 @@
   --bg-surface: #fbf8f1;
   --bg-muted: #ebe4d8;
   --border: #ddd6c9;
-  --text-base: #1a2020;
-  --text-muted: #697272;
+  /* `fg`, não `text`: `--text-*` é o namespace de TAMANHO de fonte do Tailwind
+     v4 (--text-sm, --text-base, --text-lg). Declarar `--text-base` como cor
+     aqui sobrescrevia o `1rem` do tema e quebrava a utilidade `text-base`. */
+  --fg-base: #1a2020;
+  --fg-muted: #697272;
 
   /* --- marca (o `--accent` do protótipo) --- */
   --brand: #008f95;
@@ -176,17 +182,17 @@
 
   /* ===== mapeamento shadcn ===== */
   --background: var(--bg-base);
-  --foreground: var(--text-base);
+  --foreground: var(--fg-base);
   --card: var(--bg-surface);
-  --card-foreground: var(--text-base);
+  --card-foreground: var(--fg-base);
   --popover: var(--bg-surface);
-  --popover-foreground: var(--text-base);
+  --popover-foreground: var(--fg-base);
   --primary: var(--brand);
   --primary-foreground: var(--brand-fg);
   --secondary: var(--bg-muted);
-  --secondary-foreground: var(--text-base);
+  --secondary-foreground: var(--fg-base);
   --muted: var(--bg-muted);
-  --muted-foreground: var(--text-muted);
+  --muted-foreground: var(--fg-muted);
   --accent: var(--brand-light);
   --accent-foreground: var(--brand-pressed);
   --destructive: var(--err);
@@ -226,8 +232,8 @@
   --bg-surface: #1e2422;
   --bg-muted: #2a302e;
   --border: #333b39;
-  --text-base: #f4f6f6;
-  --text-muted: #8e9a98;
+  --fg-base: #f4f6f6;
+  --fg-muted: #8e9a98;
 
   --brand: #30a5ab;
   --brand-hover: #46b5ba;

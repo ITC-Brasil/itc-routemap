@@ -237,7 +237,7 @@ function LinhaPonto({
         {ponto.endereco}
       </TableCell>
       {mostrarPlusCode && (
-        <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+        <TableCell className="font-mono text-xs tabular-nums">
           {ponto.plusCode || "—"}
         </TableCell>
       )}
