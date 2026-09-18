@@ -65,11 +65,34 @@ export async function gerarJustificativaAlocacao(
         // Temperatura um pouco acima do default deixa o texto mais natural,
         // sem virar criativo demais. 1.1 é um sweet spot pra análise narrativa.
         temperature: 1.1,
-        // Limite suficiente pra ~6 frases de análise rica.
-        // (1 frase português ≈ 30-50 tokens; 500 cobre 10+ frases com folga)
-        maxOutputTokens: 500,
+        // O TETO INCLUI OS TOKENS DE PENSAMENTO. Nos modelos 2.5 o thinking
+        // vem ligado por padrão e consome este mesmo orçamento antes de
+        // sobrar qualquer coisa para a resposta. Medido nesta rodada de
+        // prompt: 477 tokens de pensamento contra 19 de texto com teto de
+        // 500 — a análise chegava à tela cortada no meio da frase, com
+        // `finishReason: MAX_TOKENS`. Com 2000 o mesmo prompt fecha em ~1200
+        // de pensamento e ~220 de texto, e termina em `STOP`.
+        //
+        // Desligar o pensamento (`thinkingConfig.thinkingBudget: 0`) caberia
+        // nos 500, mas a amostra saiu com palavra corrompida ("al2.ocação")
+        // nesta temperatura. É texto que o usuário lê como explicação do
+        // sistema, e um parágrafo por lote não paga essa economia.
+        maxOutputTokens: 2000,
       },
     })
+
+    // Resposta truncada é pior que resposta nenhuma: o texto parece completo
+    // e afirma coisas pela metade. O template não é degradação silenciosa —
+    // ele diz as mesmas métricas, inteiras. Sem esta checagem o corte era
+    // gravado no lote como se fosse a análise final, porque `text` vem
+    // preenchido e o fallback só reagia a texto vazio.
+    const motivoFim = response.candidates?.[0]?.finishReason
+    if (motivoFim && motivoFim !== "STOP") {
+      console.warn(
+        `Gemini terminou em ${motivoFim} (esperado STOP); usando fallback template.`,
+      )
+      return gerarJustificativaTemplate(resultado, contexto)
+    }
 
     const texto = (response.text ?? "").trim()
     return texto || gerarJustificativaTemplate(resultado, contexto)

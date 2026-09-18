@@ -1,17 +1,27 @@
 import { test, expect } from "@playwright/test"
 
 /**
- * BLOQUEIO CONHECIDO (2026-07-24) — Gemini sem acesso neste ambiente.
+ * SKIP COM MOTIVO VENCIDO (reavaliado em 2026-09-18) — leia antes de mexer.
  *
- * A Gemini API responde 403 PERMISSION_DENIED ("Your project has been denied
- * access"), então `/api/routes/alocar` retorna 200 mas com o *fallback
- * template* em vez da análise da IA — o banner "Análise da alocação" nunca
- * renderiza. Os testes que dependem desse banner ficam BLOQUEADOS de
- * propósito: NÃO devem ser reescritos para aceitar o fallback, senão a
- * ausência do Gemini passa a ser invisível.
+ * O texto original dizia que a Gemini API respondia 403 PERMISSION_DENIED e
+ * que, por isso, o banner "Análise da alocação" nunca renderizava. As duas
+ * metades caducaram:
  *
- * Para desbloquear: liberar acesso/billing da Gemini API no Google Cloud e
- * remover a constante abaixo.
+ *  1. O 403 não acontece mais. A chave de `.env.local` respondeu 200 em seis
+ *     chamadas a `gemini-2.5-flash` nesta data.
+ *  2. O banner nunca dependeu do Gemini. `JustificativaBanner` renderiza
+ *     sempre que a alocação não foi ajustada à mão, com o texto que vier —
+ *     inclusive o do template. Era assim já em `d1b0576`, o commit que criou
+ *     esta constante, então estes testes passariam pelo banner mesmo sob 403.
+ *
+ * O que impede de confirmar a remoção é só o ambiente: a suíte precisa de
+ * Postgres, sessão autenticada e uma rodada real da Google Routes, e o banco
+ * de desenvolvimento segue indisponível. Quem tiver o ambiente de pé: troque
+ * para `false`, rode `npm run test:e2e -- tests/e2e/tests/02-calcular-rotas.spec.ts`
+ * e, passando, apague a constante e os cinco `test.skip` que a usam.
+ *
+ * Segue valendo a regra antiga: NÃO reescrever os testes para aceitar o
+ * fallback do template, senão a ausência do Gemini vira invisível.
  */
 const GEMINI_BLOQUEADO_403 = true
 
@@ -74,7 +84,7 @@ test.describe("UI — Calcular Rotas", () => {
   test("UI-09: resultado mostra banner de análise da IA", async ({ page }) => {
     test.skip(
       GEMINI_BLOQUEADO_403,
-      "BLOQUEADO: Gemini 403 PERMISSION_DENIED — banner de analise da IA nao renderiza (usa fallback template)"
+      "Pendente de ambiente: motivo original vencido, ver nota no topo do arquivo"
     )
     const btnCalcular = page.getByRole("button", { name: /Calcular Alocação/i })
     if (!(await btnCalcular.isEnabled())) test.skip()
@@ -90,7 +100,7 @@ test.describe("UI — Calcular Rotas", () => {
   test("UI-10: métricas da rodada são exibidas", async ({ page }) => {
     test.skip(
       GEMINI_BLOQUEADO_403,
-      "BLOQUEADO: Gemini 403 PERMISSION_DENIED — banner de analise da IA nao renderiza (usa fallback template)"
+      "Pendente de ambiente: motivo original vencido, ver nota no topo do arquivo"
     )
     const btnCalcular = page.getByRole("button", { name: /Calcular Alocação/i })
     if (!(await btnCalcular.isEnabled())) test.skip()
@@ -105,7 +115,7 @@ test.describe("UI — Calcular Rotas", () => {
   test("UI-14/15: dropdowns de swap mostram após expandir linha", async ({ page }) => {
     test.skip(
       GEMINI_BLOQUEADO_403,
-      "BLOQUEADO: Gemini 403 PERMISSION_DENIED — banner de analise da IA nao renderiza (usa fallback template)"
+      "Pendente de ambiente: motivo original vencido, ver nota no topo do arquivo"
     )
     const btnCalcular = page.getByRole("button", { name: /Calcular Alocação/i })
     if (!(await btnCalcular.isEnabled())) test.skip()
@@ -125,7 +135,7 @@ test.describe("UI — Calcular Rotas", () => {
   test("RG-09/10: swap + Voltar pra ótima restaura banner Gemini", async ({ page }) => {
     test.skip(
       GEMINI_BLOQUEADO_403,
-      "BLOQUEADO: Gemini 403 PERMISSION_DENIED — banner de analise da IA nao renderiza (usa fallback template)"
+      "Pendente de ambiente: motivo original vencido, ver nota no topo do arquivo"
     )
     const btnCalcular = page.getByRole("button", { name: /Calcular Alocação/i })
     if (!(await btnCalcular.isEnabled())) test.skip()
@@ -164,7 +174,7 @@ test.describe("UI — Calcular Rotas", () => {
   test("UI-20: Voltar para seleção reseta o estado", async ({ page }) => {
     test.skip(
       GEMINI_BLOQUEADO_403,
-      "BLOQUEADO: Gemini 403 PERMISSION_DENIED — banner de analise da IA nao renderiza (usa fallback template)"
+      "Pendente de ambiente: motivo original vencido, ver nota no topo do arquivo"
     )
     const btnCalcular = page.getByRole("button", { name: /Calcular Alocação/i })
     if (!(await btnCalcular.isEnabled())) test.skip()
