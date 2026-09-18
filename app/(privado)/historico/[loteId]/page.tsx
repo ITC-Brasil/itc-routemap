@@ -39,6 +39,7 @@ import { MapaLote } from "@/app/(privado)/calcular-rotas/_components/mapa-lote"
 import {
 } from "../../calcular-rotas/_components/mapa-alocacao"
 import {
+  DetalhesTransit,
   type TransitStep,
 } from "../../calcular-rotas/_components/alocacao-helpers"
 import { listarRotasPorLote } from "@/lib/actions/rotas"
@@ -886,6 +887,7 @@ export default function DetalheLotePage() {
                   : null
               }
               onSimularModo={(m) => handleSimularModo(rota, m)}
+              cacheDoModo={rotaCache.get(`${rota.id}|${modoExibido(rota)}`)}
               corTecnico={coresPorTecnico.get(rota.tecnicoId)}
               projetoSigla={projetosSiglas.get(rota.projetoId) ?? rota.projetoId}
               corProjeto={coresPorProjeto.get(rota.projetoId)}
@@ -932,6 +934,7 @@ function LinhaTabelaRota({
   simulando,
   estadosDosModos,
   onSimularModo,
+  cacheDoModo,
   corTecnico,
   projetoSigla,
   corProjeto,
@@ -950,6 +953,12 @@ function LinhaTabelaRota({
   /** Estados dos modos para o seletor. null enquanto a linha está fechada. */
   estadosDosModos: Record<string, EstadoModo> | null
   onSimularModo: (modo: ModoTransporte) => void
+  /**
+   * Resposta da API para o modo em exibição, quando houve consulta. O
+   * itinerário de transporte público só existe aqui — o snapshot guarda
+   * duração e distância, nunca os passos.
+   */
+  cacheDoModo: RotaCacheEntry | undefined
   corTecnico: string | undefined
   projetoSigla: string
   corProjeto: string | undefined
@@ -1145,6 +1154,28 @@ function LinhaTabelaRota({
           />
         </div>
       )}
+
+      {/* ITINERÁRIO DE TRANSPORTE PÚBLICO — o mesmo componente da tela de
+          cálculo, alimentado pelos passos da resposta da API.
+          Os passos NÃO estão no snapshot: existem apenas na resposta que "Ver
+          trajeto" já busca (a polyline vem na mesma chamada). Por isso a
+          condição é a entrada de cache existir — sem consulta não há o que
+          mostrar, e um esqueleto aqui nunca resolveria. Erro fica de fora: o
+          seletor acima já explica que não há rota neste modo. */}
+      {destacada && !cancelada && modo === "TRANSIT" && cacheDoModo && (
+        <div className="pb-4 pl-[72px] pr-5">
+          {cacheDoModo.estado === "carregando" && (
+            <div className="h-24 animate-pulse rounded-md bg-skeleton" />
+          )}
+          {cacheDoModo.estado === "ok" && (
+            <DetalhesTransit
+              steps={cacheDoModo.transitSteps}
+              partidaIso={cacheDoModo.partidaIso}
+              chegadaIso={cacheDoModo.chegadaIso}
+            />
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1331,6 +1362,6 @@ function SkeletonLoading() {
   )
 }
 
-// iconeDoVeiculoTransit, formatarHoraISO, DetalhesTransit
-// importados de ../../calcular-rotas/_components/alocacao-helpers
+// iconeDoVeiculoTransit e formatarHoraISO vivem em
+// ../../calcular-rotas/_components/alocacao-helpers, junto de DetalhesTransit
 // IconeModo, gerarExplicacaoAlgoritmica importados de @/lib/modos-transporte
