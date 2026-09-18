@@ -1,6 +1,7 @@
 "use client"
 
 import { AuthGuard } from "@/components/auth/auth-guard"
+import { MenuMobile } from "@/components/layout/menu-mobile"
 import { Rail } from "@/components/layout/rail"
 import { PageTransition } from "@/components/page-transition"
 import packageJson from "@/package.json"
@@ -22,6 +23,9 @@ export default function PrivadoLayout({
       <div className="flex min-h-screen">
         <Rail />
         <div className="flex min-w-0 flex-1 flex-col">
+          {/* Abaixo de md o rail some e a navegação vira gaveta, acionada
+              daqui. Acima, este cabeçalho não existe. */}
+          <MenuMobile />
           <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 pb-14 pt-6 sm:px-6 sm:pt-10 lg:px-11">
             <PageTransition>{children}</PageTransition>
           </main>

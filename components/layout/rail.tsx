@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { BarChart3, History, Home, LogOut, Route, Settings } from "lucide-react"
+import { LogOut } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { signOut } from "@/lib/auth-client"
 import {
@@ -15,6 +15,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { SimboloRouteMap } from "@/components/layout/logo-routemap"
+import {
+  IconeAdmin,
+  NAV,
+  NAV_ADMIN,
+  rotaAtiva,
+} from "@/components/layout/nav-itens"
 
 /**
  * Rail de navegação — 92px à esquerda, do protótipo v2 (design/handoff).
@@ -23,35 +29,11 @@ import { SimboloRouteMap } from "@/components/layout/logo-routemap"
  * da operação, e a navegação vira ícone + rótulo curto numa coluna fixa. Mesmas
  * rotas de antes; o submenu Administração continua, agora em popover à direita.
  *
- * Desktop-first por decisão registrada: não há breakpoint para o rail. Ele fica
- * sempre visível, então a navegação nunca desaparece — abaixo de ~1040px sobra
- * pouca largura para o conteúdo, e isso está anotado como dívida no handoff.
+ * A partir de `md` ele é a navegação inteira. Abaixo disso sai da tela: 92px
+ * fixos em 375px comem um quarto da largura e ainda empurram a primeira coluna
+ * das tabelas para fora. Lá quem navega é a gaveta do <MenuMobile />, que lê
+ * os mesmos destinos de nav-itens.ts.
  */
-
-const NAV = [
-  { href: "/", label: "Início", short: "Início", Icone: Home },
-  { href: "/historico", label: "Histórico", short: "Histórico", Icone: History },
-  {
-    href: "/estatisticas",
-    label: "Estatísticas",
-    short: "Estatísticas",
-    Icone: BarChart3,
-  },
-  {
-    href: "/calcular-rotas",
-    label: "Calcular Rotas",
-    short: "Calcular",
-    Icone: Route,
-  },
-] as const
-
-const NAV_ADMIN = [
-  { href: "/admin/projetos", label: "Projetos" },
-  { href: "/admin/ums", label: "UMs" },
-  { href: "/admin/localidades", label: "Localidades" },
-  { href: "/admin/tecnicos", label: "Técnicos" },
-  { href: "/admin/dias-nao-uteis", label: "Dias não úteis" },
-] as const
 
 export function Rail() {
   const { user } = useAuth()
@@ -71,8 +53,7 @@ export function Rail() {
       .join("")
       .toUpperCase() ?? "U"
 
-  const ativo = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href)
+  const ativo = (href: string) => rotaAtiva(pathname, href)
 
   const adminAtivo = NAV_ADMIN.some((m) => pathname.startsWith(m.href))
 
@@ -87,7 +68,7 @@ export function Rail() {
     ].join(" ")
 
   return (
-    <aside className="sticky top-0 flex h-screen w-rail shrink-0 flex-col items-center gap-[22px] border-r border-rail-border bg-rail pb-4 pt-[18px]">
+    <aside className="sticky top-0 hidden h-screen w-rail shrink-0 flex-col items-center gap-[22px] border-r border-rail-border bg-rail pb-4 pt-[18px] md:flex">
       <Link
         href="/"
         title="ITC RouteMap"
@@ -119,7 +100,7 @@ export function Rail() {
             title="Administração"
             className={classesItem(adminAtivo)}
           >
-            <Settings className="size-5" aria-hidden="true" />
+            <IconeAdmin className="size-5" aria-hidden="true" />
             <span>Admin</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start" className="w-48">
