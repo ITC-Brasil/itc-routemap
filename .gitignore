@@ -60,3 +60,4 @@ nginx/certs/
 
 # Config local do preview do Claude Code
 .claude/launch.json
+.claude/
