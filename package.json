@@ -16,7 +16,8 @@
     "test:e2e:regressao": "playwright test tests/e2e/tests/08-regressao.spec.ts",
     "db:seed": "tsx prisma/seed.ts",
     "test:unit": "playwright test --config=playwright.unit.config.ts",
-    "db:seed:dias-nao-uteis": "tsx scripts/seed-dias-nao-uteis.ts"
+    "db:seed:dias-nao-uteis": "tsx scripts/seed-dias-nao-uteis.ts",
+    "verificar:cobertura": "tsx --conditions=react-server scripts/verificar-cobertura.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
