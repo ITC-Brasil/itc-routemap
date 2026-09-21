@@ -17,7 +17,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "test:unit": "playwright test --config=playwright.unit.config.ts",
     "db:seed:dias-nao-uteis": "tsx scripts/seed-dias-nao-uteis.ts",
-    "verificar:cobertura": "tsx --conditions=react-server scripts/verificar-cobertura.ts"
+    "verificar:cobertura": "tsx --conditions=react-server scripts/verificar-cobertura.ts",
+    "checar:migracao-cobertura": "tsx --conditions=react-server scripts/checar-migracao-cobertura.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
