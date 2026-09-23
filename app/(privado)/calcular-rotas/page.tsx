@@ -693,7 +693,7 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
     return (
       <ConfirmadoCard
         totalRotas={rotasConfirmadasIds.length}
-        onIrAgora={() => router.push("/admin/localidades")}
+        onIrAgora={() => router.push("/historico")}
         onCancelarRedirect={() => setEtapa("selecao")}
       />
     )
@@ -1072,7 +1072,7 @@ function ConfirmadoCard({
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button onClick={onIrAgora} size="lg" className="gap-2">
-            Ir para localidades agora
+            Ir para o histórico agora
           </Button>
           <Button
             variant="outline"
