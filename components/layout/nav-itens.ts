@@ -13,24 +13,24 @@ export const NAV = [
   { href: "/", label: "Início", short: "Início", Icone: Home },
   { href: "/historico", label: "Histórico", short: "Histórico", Icone: History },
   {
-    href: "/estatisticas",
-    label: "Estatísticas",
-    short: "Estatísticas",
-    Icone: BarChart3,
-  },
-  {
     href: "/calcular-rotas",
     label: "Calcular Rotas",
     short: "Calcular",
     Icone: Route,
+  },
+  {
+    href: "/estatisticas",
+    label: "Estatísticas",
+    short: "Estatísticas",
+    Icone: BarChart3,
   },
 ] as const
 
 export const NAV_ADMIN = [
   { href: "/admin/projetos", label: "Projetos" },
   { href: "/admin/ums", label: "UMs" },
-  { href: "/admin/localidades", label: "Localidades" },
   { href: "/admin/tecnicos", label: "Técnicos" },
+  { href: "/admin/localidades", label: "Localidades" },
   { href: "/admin/dias-nao-uteis", label: "Dias não úteis" },
 ] as const
 
