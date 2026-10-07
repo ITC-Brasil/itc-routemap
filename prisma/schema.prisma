@@ -51,7 +51,9 @@ model Um {
   nome           String
   cor            String   @default("#008F95")
   projetoId      String
-  tecnicoAtualId String?
+  // 1:1 com técnico (Etapa 15.0). NULL = UM sem dono, permitido pelo índice
+  // único — Postgres aceita vários NULL em coluna UNIQUE.
+  tecnicoAtualId String?  @unique
   raAtualId      String?
   criadoEm       DateTime @default(now())
   atualizadoEm   DateTime @updatedAt
@@ -69,7 +71,7 @@ model Tecnico {
   plusCode        String?
   latitude        Float?
   longitude       Float?
-  modoPrincipal   String?
+  modoPrincipal   String
   ativo           Boolean  @default(true)
   criadoEm        DateTime @default(now())
   atualizadoEm    DateTime @updatedAt
@@ -96,6 +98,11 @@ model Ponto {
   longitude            Float?
   status               String   @default("Pendente")
   hashMd5              String   @default("")
+  // Id da linha na tabela Localidades do NocoDB — a identidade do ponto na
+  // origem. Nulo só para ponto que ainda não passou por uma sync do NocoDB.
+  nocodbId             Int?     @unique
+  // true quando a escrita de volta no NocoDB falhou e precisa ser reenviada.
+  nocodbPendente       Boolean  @default(false)
   tecnicoId            String?
   rotaId               String?
   criadoEm             DateTime @default(now())

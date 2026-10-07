@@ -131,6 +131,10 @@ export function TecnicoFormDialog({
       )
       return
     }
+    if (!modoPrincipal) {
+      toast.error("Selecione o modo de transporte principal.")
+      return
+    }
 
     setSalvando(true)
 
@@ -143,7 +147,7 @@ export function TecnicoFormDialog({
         plusCode,
         latitude,
         longitude,
-        modoPrincipal: modoPrincipal || undefined,
+        modoPrincipal,
       }
 
       if (modoEdicao && tecnico) {
@@ -293,7 +297,7 @@ export function TecnicoFormDialog({
               placeholder="Selecione o modo..."
             />
             <p className="text-xs text-muted-foreground">
-              Opcional. Usado como sugestão padrão no cálculo de rotas.
+              Usado como sugestão padrão no cálculo de rotas.
             </p>
           </div>
 

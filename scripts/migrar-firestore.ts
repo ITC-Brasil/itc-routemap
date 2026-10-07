@@ -273,7 +273,8 @@ function mapTecnico(d: Record<string, unknown> & { id: string }) {
     plusCode: texto(d.plusCode),
     latitude: numeroOuNulo(d.latitude),
     longitude: numeroOuNulo(d.longitude),
-    modoPrincipal: typeof d.modoPrincipal === "string" ? d.modoPrincipal : null,
+    // NOT NULL desde a 15.0. Mesmo fallback do modoPrincipal das rotas.
+    modoPrincipal: texto(d.modoPrincipal, "DRIVE"),
     ativo: booleano(d.ativo, true),
     criadoEm: paraData(d.criadoEm) ?? new Date(),
   }

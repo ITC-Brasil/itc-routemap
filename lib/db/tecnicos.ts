@@ -26,7 +26,7 @@ export type Tecnico = {
   plusCode: string
   latitude: number | null
   longitude: number | null
-  modoPrincipal?: string
+  modoPrincipal: string
   ativo: boolean
   criadoEm: Date | null
 }
@@ -39,7 +39,8 @@ export type CriarTecnicoInput = {
   plusCode: string
   latitude: number | null
   longitude: number | null
-  modoPrincipal?: string
+  /** Obrigatório desde a 15.0 (coluna NOT NULL). */
+  modoPrincipal: string
 }
 
 export type AtualizarTecnicoInput = CriarTecnicoInput
@@ -70,7 +71,7 @@ function mapTecnico(row: TecnicoRow): Tecnico {
     plusCode: row.plusCode ?? "",
     latitude: row.latitude,
     longitude: row.longitude,
-    modoPrincipal: row.modoPrincipal ?? undefined,
+    modoPrincipal: row.modoPrincipal,
     ativo: row.ativo,
     criadoEm: row.criadoEm,
   }
@@ -120,7 +121,7 @@ export async function criarTecnico(
       plusCode: input.plusCode.trim().toUpperCase(),
       latitude: input.latitude,
       longitude: input.longitude,
-      modoPrincipal: input.modoPrincipal ?? null,
+      modoPrincipal: input.modoPrincipal,
     },
   })
 
@@ -144,7 +145,7 @@ export async function atualizarTecnico(
       plusCode: input.plusCode.trim().toUpperCase(),
       latitude: input.latitude,
       longitude: input.longitude,
-      modoPrincipal: input.modoPrincipal ?? null,
+      modoPrincipal: input.modoPrincipal,
     },
   })
 }

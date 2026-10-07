@@ -191,6 +191,8 @@ test.describe("CRUD — Técnicos", () => {
     await page.locator("#plusCode").fill("85QW+RFW SOBRADINHO, BRASÍLIA - DF")
     await page.getByRole("button", { name: /Obter Coordenadas/i }).click()
     await esperarToast(page, /coordenadas obtidas|sucesso/i)
+    // Modo de transporte é obrigatório desde a 15.0 (NOT NULL).
+    await escolherNoCombobox(page, "modoPrincipal", /Carro/i)
 
     await page.getByRole("dialog").getByRole("button", { name: /^Cadastrar$/ }).click()
     await esperarToast(page, /cadastrado|sucesso/i)

@@ -190,7 +190,8 @@ const TECNICOS = [
     plusCode: null,
     latitude: -15.8156,
     longitude: -48.1109,
-    modoPrincipal: null,
+    // NOT NULL desde a 15.0, inclusive para técnico inativo.
+    modoPrincipal: "DRIVE",
     ativo: false,
   },
 ]
