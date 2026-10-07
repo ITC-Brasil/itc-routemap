@@ -33,6 +33,7 @@ import { listarDiasNaoUteis } from "@/lib/actions/dias-nao-uteis"
 import { proximaAncoraDeChegada, rotularAncora } from "@/lib/dias-uteis"
 import type { Rota } from "@/lib/db/rotas"
 import { corTextoIdeal } from "@/lib/cores"
+import { avisarResultadoNocodb } from "@/components/nocodb/aviso-nocodb-pendente"
 import { useRouter } from "next/navigation"
 import {
   ResultadoAlocacao,
@@ -590,12 +591,13 @@ function FluxoAlocacao({
         }
       })
 
-      const { rotasIds } = await aplicarReotimizacao({
+      const { rotasIds, nocodb } = await aplicarReotimizacao({
         loteId: resultado.loteId,
         loteJustificativa: resultado.justificativaGemini,
         origemDecisao: "auto",
         alocacoes: alocacoesInput,
       })
+      avisarResultadoNocodb(nocodb, "Re-otimização salva")
       setRotasConfirmadasIds(rotasIds)
       setEtapa("confirmado")
     } catch (err) {
@@ -612,7 +614,8 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
     setErroConfirmar(null)
     limparCalculoStorage()
     try {
-      const { rotasIds } = await confirmarAlocacao(payload)
+      const { rotasIds, nocodb } = await confirmarAlocacao(payload)
+      avisarResultadoNocodb(nocodb, "Alocação confirmada")
       setRotasConfirmadasIds(rotasIds)
       setEtapa("confirmado")
     } catch (err) {

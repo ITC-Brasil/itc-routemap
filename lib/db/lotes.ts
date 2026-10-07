@@ -75,6 +75,8 @@ export type LoteSumario = {
 export type ResultadoCancelamento = {
   rotasCanceladas: number
   pontosLiberados: number
+  /** Ids dos pontos que voltaram a Pendente — a escrita no NocoDB usa. */
+  pontosLiberadosIds: string[]
 }
 
 // ============================================================
@@ -151,9 +153,16 @@ export async function cancelarLote(
       data: { status: "Cancelada" },
     })
 
-    // 4. Libera apenas os pontos que estão Agendados (idempotência)
-    const { count: pontosLiberados } = await tx.ponto.updateMany({
+    // 4. Libera apenas os pontos que estão Agendados (idempotência). Os ids
+    // são lidos antes porque updateMany só devolve a contagem.
+    const agendados = await tx.ponto.findMany({
       where: { id: { in: pontoIds }, status: "Agendado" },
+      select: { id: true },
+    })
+    const pontosLiberadosIds = agendados.map((p) => p.id)
+
+    const { count: pontosLiberados } = await tx.ponto.updateMany({
+      where: { id: { in: pontosLiberadosIds }, status: "Agendado" },
       data: {
         status: "Pendente",
         tecnicoId: null,
@@ -164,6 +173,7 @@ export async function cancelarLote(
     return {
       rotasCanceladas: rotasAtivas.length,
       pontosLiberados,
+      pontosLiberadosIds,
     }
   })
 }

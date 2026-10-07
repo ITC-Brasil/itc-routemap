@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { cancelarLote } from "@/lib/actions/lotes"
+import { avisarResultadoNocodb } from "@/components/nocodb/aviso-nocodb-pendente"
 import type { LoteSumario } from "@/lib/db/lotes"
 
 type Props = {
@@ -40,6 +41,7 @@ export function CancelarLoteDialog({ lote, onClose, onCancelado }: Props) {
       toast.success("Lote cancelado", {
         description: `${resultado.rotasCanceladas} rota${resultado.rotasCanceladas === 1 ? "" : "s"} cancelada${resultado.rotasCanceladas === 1 ? "" : "s"} · ${resultado.pontosLiberados} ponto${resultado.pontosLiberados === 1 ? "" : "s"} liberado${resultado.pontosLiberados === 1 ? "" : "s"}`,
       })
+      avisarResultadoNocodb(resultado.nocodb, "Lote cancelado")
       await onCancelado()
       onClose()
     } catch (err) {

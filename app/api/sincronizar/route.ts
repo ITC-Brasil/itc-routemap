@@ -280,8 +280,17 @@ export async function POST(request: Request) {
       }
 
       // Escrita de volta pendente: o NocoDB está atrás do Postgres. Aplicar a
-      // linha agora desfaria a alocação confirmada. Espera o reenvio.
+      // linha agora desfaria a alocação confirmada. Espera o reenvio — mas o
+      // vínculo pelo id é gravado, senão um ponto pendente por falta de
+      // nocodbId nunca conseguiria ser reenviado.
       if (existente?.nocodbPendente) {
+        if (vincularNocodbId) {
+          await atualizarPontoAdmin(existente.id, {
+            nocodbId: linha.Id,
+            linhaOrigem: linha.Id,
+          })
+          vinculadosPorChave++
+        }
         aguardandoReenvio++
         continue
       }

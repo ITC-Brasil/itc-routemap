@@ -2,6 +2,7 @@
 
 import { requireSession } from "@/lib/session-server"
 import * as db from "@/lib/db/rotas"
+import { escreverPontosNoNocodb } from "@/lib/db/escrita-nocodb"
 import type {
   RotaInput,
   ConfirmarAlocacaoInput,
@@ -59,12 +60,33 @@ export async function deletarLote(loteId: string) {
   return db.deletarLote(loteId)
 }
 
+/**
+ * Confirma no Postgres e DEPOIS espelha no NocoDB (ponto novo vira "Atual"
+ * com o técnico; o "Atual" anterior da UM vira "Histórico"). Falha no NocoDB
+ * não desfaz a confirmação: volta em `nocodb` para a tela avisar.
+ */
 export async function confirmarAlocacao(input: ConfirmarAlocacaoInput) {
   await requireSession()
-  return db.confirmarAlocacao(input)
+  const resultado = await db.confirmarAlocacao(input)
+  const nocodb = await escreverPontosNoNocodb(resultado.pontosAtualizados, {
+    restaurarAnterior: false,
+  })
+  return { ...resultado, nocodb }
 }
 
+/**
+ * Mesma regra da confirmação para os pontos novos; o ponto liberado de cada
+ * re-otimização volta a "Pendente" sem técnico no NocoDB.
+ */
 export async function aplicarReotimizacao(input: ReotimizacaoInput) {
   await requireSession()
-  return db.aplicarReotimizacao(input)
+  const resultado = await db.aplicarReotimizacao(input)
+  const liberados = input.alocacoes
+    .map((a) => a.pontoAntigoId)
+    .filter((id): id is string => !!id)
+  const nocodb = await escreverPontosNoNocodb(
+    [...resultado.pontosAtualizados, ...liberados],
+    { restaurarAnterior: false }
+  )
+  return { ...resultado, nocodb }
 }

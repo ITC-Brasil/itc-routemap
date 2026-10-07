@@ -188,11 +188,15 @@ export async function listarLocalidades(
 }
 
 /**
- * Linhas "Atual" de uma UM. Usado na escrita de volta para achar o Atual
- * anterior pelo que o NocoDB diz — não pelo que o Postgres acha que está lá.
+ * Todas as linhas das UMs informadas. Usado na escrita de volta para achar o
+ * "Atual" anterior de cada UM pelo que o NocoDB diz — não pelo que o Postgres
+ * acha que está lá.
  */
-export async function listarAtuaisDaUm(umNome: string): Promise<LinhaLocalidade[]> {
-  return listarPorFiltro(`(UM,eq,${valorFiltro(umNome)})~and(Status,eq,Atual)`)
+export async function listarLocalidadesDasUms(
+  ums: string[]
+): Promise<LinhaLocalidade[]> {
+  if (ums.length === 0) return []
+  return listarPorFiltro(`(UM,in,${ums.map(valorFiltro).join(",")})`)
 }
 
 // ============================================================

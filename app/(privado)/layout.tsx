@@ -2,6 +2,7 @@
 
 import { AuthGuard } from "@/components/auth/auth-guard"
 import { MenuMobile } from "@/components/layout/menu-mobile"
+import { AvisoNocodbPendente } from "@/components/nocodb/aviso-nocodb-pendente"
 import { Rail } from "@/components/layout/rail"
 import { PageTransition } from "@/components/page-transition"
 import packageJson from "@/package.json"
@@ -27,6 +28,9 @@ export default function PrivadoLayout({
               daqui. Acima, este cabeçalho não existe. */}
           <MenuMobile />
           <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 pb-14 pt-6 sm:px-6 sm:pt-10 lg:px-11">
+            {/* Fora do PageTransition: a falha de escrita no NocoDB vale para
+                o app todo, não para a página em que aconteceu. */}
+            <AvisoNocodbPendente />
             <PageTransition>{children}</PageTransition>
           </main>
           <footer className="border-t">
