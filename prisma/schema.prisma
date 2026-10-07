@@ -27,6 +27,9 @@ model Projeto {
   sigla               String    @unique
   cor                 String    @default("#008F95")
   ativo               Boolean   @default(true)
+  // OBSOLETOS: a fonte dos pontos é a tabela Localidades do NocoDB, filtrada
+  // por `sigla`. Ficam no schema até a remoção ser decidida; a sync não os
+  // lê mais (o formulário de projeto ainda os edita).
   sheetId             String    @default("")
   sheetUrl            String    @default("")
   sheetAbas           String[]  @default([])

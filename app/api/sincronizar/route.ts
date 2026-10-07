@@ -1,71 +1,70 @@
 import { NextResponse } from "next/server"
 import { exigirSessaoApi } from "@/lib/session-server"
 import {
-  lerLinhasDeAbas,
-  consolidarLinhas,
-  type LinhaComAba,
-  type ResultadoLeituraAba,
-} from "@/lib/google-sheets"
+  listarLocalidades,
+  nomesTecnicos,
+  parsearCoordenadas,
+  ErroNocodb,
+  type LinhaLocalidade,
+} from "@/lib/nocodb"
 import {
   buscarProjetoAdmin,
   listarPontosPorProjetoAdmin,
   criarPontoAdmin,
   atualizarPontoAdmin,
+  definirTecnicoDoPonto,
   deletarPontosEmBatchPreservandoEmUsoAdmin,
   marcarSincronizacaoAdmin,
   calcularHashPonto,
 } from "@/lib/db/pontos"
+import { listarTecnicos } from "@/lib/db/tecnicos"
 import type { Ponto, PontoInput } from "@/lib/db/pontos"
 
 // ============================================================
 // TIPOS DE RESPOSTA
 // ============================================================
 
-/**
- * Resumo por aba sincronizada.
- * Útil pra UI mostrar status de cada UM (1 aba = 1 UM no nosso modelo).
- */
-type ResumoAba = {
-  nomeAba: string
+/** Quantas linhas cada UM trouxe — substitui o antigo resumo por aba. */
+type ResumoUm = {
+  um: string
   totalLinhas: number
-  erro: string | null
 }
 
-/** Linha cujo Status não foi reconhecido — entrou como "Pendente". */
-type AvisoStatus = {
-  aba: string
-  linha: number
-  statusCru: string
-}
-
-/** Linha sem Plus Code — não pôde ser identificada e foi pulada. */
-type AvisoSemPlusCode = {
-  aba: string
-  linha: number
-  cidade: string
+/** Linha que não entrou na sync, com o motivo. */
+type AvisoLinha = {
+  nocodbId: number
+  um: string
+  nome: string
+  motivo: string
 }
 
 type RelatorioSync = {
   sucesso: true
-  totalLinhasPlanilha: number
+  totalLinhas: number
   novos: number
   atualizados: number
   /**
    * Pontos cuja única mudança foi a coordenada. Contados à parte de
-   * `atualizados` porque latitude/longitude não entram no hash — não são
-   * "conteúdo alterado", são correção de coordenada vinda da planilha.
+   * `atualizados` porque latitude/longitude não entram no hash.
    */
   coordenadasCorrigidas: number
+  /** Pontos antigos (sem nocodbId) casados pela chave natural nesta sync. */
+  vinculadosPorChave: number
   deletados: number
-  /** Pontos que sumiram da planilha mas estavam em uso: viraram "Histórico". */
+  /** Pontos que sumiram do NocoDB mas estavam em uso: viraram "Histórico". */
   preservados: number
   ignorados: number
-  abas: ResumoAba[]
-  /** Status desconhecidos encontrados (não bloqueiam a sincronização). */
-  avisosStatus: AvisoStatus[]
-  /** Linhas puladas por não terem Plus Code (sem ele não há identidade). */
-  avisosSemPlusCode: AvisoSemPlusCode[]
-  duracao: number  // milissegundos
+  ums: ResumoUm[]
+  /** Linhas com Status vazio ou desconhecido — NÃO importadas. */
+  avisosStatus: AvisoLinha[]
+  /** Linhas sem UM — não há onde encaixar o ponto. */
+  avisosSemUm: AvisoLinha[]
+  /**
+   * Pontos com escrita de volta pendente: o NocoDB ainda não reflete o que o
+   * Postgres tem, então a sync não os sobrescreve até o reenvio.
+   */
+  aguardandoReenvio: number
+  duracao: number // milissegundos
 }
 
 type RespostaErro = {
@@ -82,19 +81,19 @@ type RespostaErro = {
  * POST /api/sincronizar
  * Body: { projetoId: string }
  *
- * Sincroniza pontos do Firestore com TODAS as abas configuradas
- * no projeto. Cada aba representa tipicamente uma UM.
+ * Sincroniza os pontos de um projeto com a tabela Localidades do NocoDB,
+ * lendo só as linhas cujo Projeto é a sigla do projeto.
  *
- * Algoritmo (PRD seção 8):
- *   1. Lê o projeto (URL da planilha + lista de abas)
- *   2. Lê todas as abas em paralelo
- *   3. Para cada linha: cria/atualiza/ignora baseado em hash MD5
- *   4. Detecta pontos deletados (no Firestore mas não na planilha)
+ * Algoritmo:
+ *   1. Lê o projeto e as linhas do NocoDB com Projeto = sigla
+ *   2. Valida tudo ANTES de escrever (técnico das linhas "Atual")
+ *   3. Para cada linha: cria/atualiza/ignora pelo nocodbId e hash MD5
+ *   4. Detecta pontos que sumiram do NocoDB (com guarda de deleção)
  *   5. Retorna relatório consolidado
  */
 export async function POST(request: Request) {
   // Blindagem: sessao obrigatoria ANTES de qualquer escrita no banco ou
-  // chamada paga a API externa.
+  // chamada a API externa.
   const { erro: erroSessao } = await exigirSessaoApi()
   if (erroSessao) return erroSessao
 
@@ -115,133 +114,229 @@ export async function POST(request: Request) {
       return respostaErro("Projeto não encontrado.", 404)
     }
 
-    if (!projeto.sheetId) {
-      return respostaErro(
-        "Este projeto não tem planilha configurada. Edite e informe a URL.",
-        400
-      )
-    }
-
-    if (!projeto.sheetAbas || projeto.sheetAbas.length === 0) {
-      return respostaErro(
-        "Este projeto não tem abas configuradas. Edite e adicione pelo menos uma.",
-        400
-      )
-    }
-
-    // 3. LER TODAS AS ABAS EM PARALELO
-    let resultados: ResultadoLeituraAba[]
+    // 3. LER O NOCODB — só as linhas deste projeto
+    let linhas: LinhaLocalidade[]
     try {
-      resultados = await lerLinhasDeAbas(projeto.sheetId, projeto.sheetAbas)
+      linhas = await listarLocalidades([projeto.sigla])
     } catch (err) {
       const mensagem = err instanceof Error ? err.message : String(err)
-      return respostaErro("Erro ao ler a planilha.", 400, mensagem)
+      const status = err instanceof ErroNocodb ? 502 : 500
+      return respostaErro("Erro ao ler o NocoDB.", status, mensagem)
     }
 
-    // Se TODAS as abas falharam, retorna erro
-    const todasComErro = resultados.every((r) => r.erro !== null)
-    if (todasComErro) {
-      const primeiroErro = resultados.find((r) => r.erro)?.erro
+    const pontosExistentes = await listarPontosPorProjetoAdmin(projetoId)
+
+    // Guarda contra sigla divergente: zero linhas para um projeto que tem
+    // pontos faria a etapa 7 apagar o projeto inteiro. Quase sempre é a sigla
+    // do RouteMap diferente da opção Projeto no NocoDB ("BSB.IA" x "BSBIA").
+    if (linhas.length === 0 && pontosExistentes.length > 0) {
       return respostaErro(
-        "Nenhuma aba pôde ser lida.",
-        400,
-        primeiroErro ?? "Erro desconhecido."
+        `O NocoDB não tem nenhuma linha com Projeto "${projeto.sigla}".`,
+        409,
+        `O projeto tem ${pontosExistentes.length} ponto(s) no RouteMap e nada foi alterado. ` +
+          "Confira se a sigla do projeto é idêntica à opção Projeto do NocoDB."
       )
     }
 
-    // Consolida linhas de todas as abas bem-sucedidas
-    const todasLinhas = consolidarLinhas(resultados)
+    // 4. VALIDAR ANTES DE ESCREVER
+    // O técnico das linhas "Atual" precisa existir com nome IDÊNTICO em
+    // tecnicos.nome. Sem casamento aproximado: "Lucas" não vira "Lucas
+    // Andrade". Qualquer falha aborta a sync inteira, antes da primeira
+    // escrita — sync pela metade deixaria o projeto num estado que nenhuma
+    // das duas fontes descreve.
+    const tecnicos = await listarTecnicos()
+    const tecnicoPorNome = new Map<string, string[]>()
+    for (const t of tecnicos) {
+      const ids = tecnicoPorNome.get(t.nome) ?? []
+      ids.push(t.id)
+      tecnicoPorNome.set(t.nome, ids)
+    }
 
-    // 4. BUSCAR PONTOS EXISTENTES NO FIRESTORE
-    const pontosExistentes = await listarPontosPorProjetoAdmin(projetoId)
+    const errosTecnico: string[] = []
+    const tecnicoIdPorLinha = new Map<number, string>()
 
-    // 5. INDEXAR PELA CHAVE NATURAL DO PONTO
-    const mapaExistentes = new Map<string, Ponto>()
+    for (const linha of linhas) {
+      if (normalizarStatus(linha.Status) !== "Agendado") continue
+
+      const nomes = nomesTecnicos(linha.Tecnico)
+      const ref = `${linha.UM ?? "?"} ${linha.Nome ?? ""} (NocoDB #${linha.Id})`
+
+      if (nomes.length !== 1) {
+        errosTecnico.push(
+          nomes.length === 0
+            ? `${ref}: linha "Atual" sem técnico.`
+            : `${ref}: linha "Atual" com ${nomes.length} técnicos (${nomes.join(", ")}); deve ter exatamente um.`
+        )
+        continue
+      }
+
+      const ids = tecnicoPorNome.get(nomes[0]) ?? []
+      if (ids.length === 0) {
+        errosTecnico.push(
+          `${ref}: o técnico "${nomes[0]}" não existe no RouteMap com esse nome exato.`
+        )
+      } else if (ids.length > 1) {
+        errosTecnico.push(
+          `${ref}: há ${ids.length} técnicos chamados "${nomes[0]}" no RouteMap.`
+        )
+      } else {
+        tecnicoIdPorLinha.set(linha.Id, ids[0])
+      }
+    }
+
+    if (errosTecnico.length > 0) {
+      return respostaErro(
+        "Técnico das linhas \"Atual\" não casa com o cadastro. Nada foi alterado.",
+        422,
+        errosTecnico.join(" | ")
+      )
+    }
+
+    // 5. INDEXAR PONTOS EXISTENTES
+    // Identidade é o nocodbId. A chave natural só serve para a primeira sync:
+    // casa o ponto antigo (sem nocodbId) com a sua linha no NocoDB, e a partir
+    // daí o vínculo é pelo id.
+    const porNocodbId = new Map<number, Ponto>()
+    const semNocodbIdPorChave = new Map<string, Ponto[]>()
     for (const p of pontosExistentes) {
-      mapaExistentes.set(criarChaveComposta(p), p)
+      if (p.nocodbId !== null) {
+        porNocodbId.set(p.nocodbId, p)
+      } else {
+        const chave = criarChaveComposta(p)
+        const lista = semNocodbIdPorChave.get(chave) ?? []
+        lista.push(p)
+        semNocodbIdPorChave.set(chave, lista)
+      }
     }
 
     // 6. PROCESSAR LINHAS
     let novos = 0
     let atualizados = 0
     let coordenadasCorrigidas = 0
+    let vinculadosPorChave = 0
     let ignorados = 0
-    const avisosStatus: AvisoStatus[] = []
-    const avisosSemPlusCode: AvisoSemPlusCode[] = []
-    const chavesPresentes = new Set<string>()
+    let aguardandoReenvio = 0
+    const avisosStatus: AvisoLinha[] = []
+    const avisosSemUm: AvisoLinha[] = []
+    const idsPresentes = new Set<string>()
+    const linhasPorUm = new Map<string, number>()
 
-    for (const linha of todasLinhas) {
-      // Sem Plus Code não existe identidade: a linha seria indistinguível de
-      // outra da mesma UM no mesmo ciclo/etapa. Pular e avisar é melhor que
-      // deixar a chave degradar em silêncio e fundir dois pontos em um.
-      if (!linha.plusCode.trim()) {
-        avisosSemPlusCode.push({
-          aba: linha.abaOrigem,
-          linha: linha.numeroLinha,
-          cidade: linha.cidade,
-        })
+    for (const linha of linhas) {
+      const um = (linha.UM ?? "").trim()
+      const aviso = (motivo: string): AvisoLinha => ({
+        nocodbId: linha.Id,
+        um,
+        nome: linha.Nome ?? "",
+        motivo,
+      })
+
+      if (um) linhasPorUm.set(um, (linhasPorUm.get(um) ?? 0) + 1)
+
+      // Localiza o ponto ANTES de decidir se a linha importa: uma linha que
+      // não pode ser importada agora (Status vazio) não é uma linha que
+      // sumiu, e o ponto dela não pode ir para a deleção.
+      let existente = porNocodbId.get(linha.Id) ?? null
+      let vincularNocodbId = false
+      if (!existente && um) {
+        const candidatos =
+          semNocodbIdPorChave.get(
+            criarChaveComposta({
+              projetoId,
+              umNome: um,
+              ciclo: inteiro(linha.Ciclo),
+              etapa: inteiro(linha.Etapa),
+              plusCode: linha.PlusCode ?? "",
+            })
+          ) ?? []
+        // Só casa quando há exatamente um candidato ainda livre; ambíguo vira
+        // ponto novo em vez de herdar o vínculo errado.
+        const livres = candidatos.filter((c) => !idsPresentes.has(c.id))
+        if (livres.length === 1) {
+          existente = livres[0]
+          vincularNocodbId = true
+        }
+      }
+      if (existente) idsPresentes.add(existente.id)
+
+      if (!um) {
+        avisosSemUm.push(aviso("Linha sem UM."))
         ignorados++
         continue
       }
 
-      const inputCompleto = converterLinhaParaPontoInput(linha, projetoId, avisosStatus)
-      if (!inputCompleto) {
+      const status = normalizarStatus(linha.Status)
+      if (!status) {
+        // Vazio NUNCA vira "Pendente": tornaria roteirizável um ponto que
+        // ninguém classificou. Fica de fora até alguém preencher o Status.
+        avisosStatus.push(
+          aviso(
+            linha.Status?.trim()
+              ? `Status "${linha.Status}" desconhecido.`
+              : "Status vazio."
+          )
+        )
         ignorados++
         continue
       }
 
-      const chave = criarChaveComposta(inputCompleto)
-      chavesPresentes.add(chave)
+      // Escrita de volta pendente: o NocoDB está atrás do Postgres. Aplicar a
+      // linha agora desfaria a alocação confirmada. Espera o reenvio.
+      if (existente?.nocodbPendente) {
+        aguardandoReenvio++
+        continue
+      }
 
-      const existente = mapaExistentes.get(chave)
-
-      // A planilha só é autoridade sobre a coordenada quando TEM coordenada:
-      // célula vazia significa "não sei", não "apague". Sem esta distinção a
-      // sincronização zeraria as coordenadas obtidas por geocoding — que é a
-      // única fonte para a maioria dos pontos.
-      const coordenadasDaPlanilha =
-        inputCompleto.latitude !== null && inputCompleto.longitude !== null
-          ? { latitude: inputCompleto.latitude, longitude: inputCompleto.longitude }
+      const input = converterLinhaParaPontoInput(linha, projetoId, um, status)
+      const coordenadasDaOrigem =
+        input.latitude !== null && input.longitude !== null
+          ? { latitude: input.latitude, longitude: input.longitude }
           : null
 
       if (!existente) {
         // NOVO: nunca esteve no banco
-        await criarPontoAdmin(inputCompleto)
+        const id = await criarPontoAdmin(input)
+        const tecnicoId = tecnicoIdPorLinha.get(linha.Id)
+        if (tecnicoId) await definirTecnicoDoPonto(id, tecnicoId)
         novos++
-      } else if (existente.hashMd5 !== inputCompleto.hashMd5) {
-        // ALTERADO: hash mudou
+        continue
+      }
+
+      if (vincularNocodbId) vinculadosPorChave++
+
+      if (existente.hashMd5 !== input.hashMd5 || vincularNocodbId) {
+        // ALTERADO (ou primeiro vínculo pelo nocodbId)
         await atualizarPontoAdmin(
           existente.id,
-          coordenadasDaPlanilha
-            ? inputCompleto
-            : semCoordenadas(inputCompleto) // preserva o que o geocoding gravou
+          // O NocoDB só é autoridade sobre a coordenada quando TEM
+          // coordenada: vazio significa "não sei", não "apague" — preserva o
+          // que o geocoding gravou.
+          coordenadasDaOrigem ? input : semCoordenadas(input)
         )
-        atualizados++
+        if (existente.hashMd5 !== input.hashMd5) atualizados++
       } else if (
-        coordenadasDaPlanilha &&
-        divergem(existente.latitude, coordenadasDaPlanilha.latitude,
-                 existente.longitude, coordenadasDaPlanilha.longitude)
+        coordenadasDaOrigem &&
+        divergem(existente.latitude, coordenadasDaOrigem.latitude,
+                 existente.longitude, coordenadasDaOrigem.longitude)
       ) {
-        // Hash igual, coordenada diferente. Acontece porque latitude/longitude
-        // NÃO participam do hash: sem este ramo, um ponto gravado com coordenada
-        // errada ficaria errado para sempre. É o caminho de auto-cura das linhas
-        // que o parse antigo truncou para o grau inteiro (ver
-        // coordenadaDaPlanilha) e que a migração traz assim do Firestore.
-        await atualizarPontoAdmin(existente.id, coordenadasDaPlanilha)
+        // Hash igual, coordenada diferente: latitude/longitude não entram no
+        // hash, então sem este ramo uma coordenada errada nunca seria corrigida.
+        await atualizarPontoAdmin(existente.id, coordenadasDaOrigem)
         coordenadasCorrigidas++
       }
-      // Hash igual e coordenada igual: já sincronizado, nada a fazer
+
+      const tecnicoId = tecnicoIdPorLinha.get(linha.Id)
+      if (tecnicoId && existente.tecnicoId !== tecnicoId) {
+        await definirTecnicoDoPonto(existente.id, tecnicoId)
+      }
     }
 
     // 7. DETECTAR DELETADOS
-    // Pontos que estão no banco mas NÃO estão mais na planilha. Os que estiverem
-    // em uso (com rota ou "Agendado") são preservados como "Histórico".
-    const idsParaDeletar: string[] = []
-    for (const p of pontosExistentes) {
-      if (!chavesPresentes.has(criarChaveComposta(p))) {
-        idsParaDeletar.push(p.id)
-      }
-    }
+    // Pontos que estão no banco mas cuja linha não está mais no NocoDB. Os
+    // que estiverem em uso (com rota ou "Agendado") são preservados como
+    // "Histórico".
+    const idsParaDeletar = pontosExistentes
+      .filter((p) => !idsPresentes.has(p.id))
+      .map((p) => p.id)
 
     const { deletados, preservados } =
       await deletarPontosEmBatchPreservandoEmUsoAdmin(idsParaDeletar)
@@ -250,38 +345,35 @@ export async function POST(request: Request) {
     await marcarSincronizacaoAdmin(projetoId)
 
     // 9. MONTAR RELATÓRIO
-    const abasResumo: ResumoAba[] = resultados.map((r) => ({
-      nomeAba: r.nomeAba,
-      totalLinhas: r.linhas.length,
-      erro: r.erro,
-    }))
-
     const relatorio: RelatorioSync = {
       sucesso: true,
-      totalLinhasPlanilha: todasLinhas.length,
+      totalLinhas: linhas.length,
       novos,
       atualizados,
       coordenadasCorrigidas,
+      vinculadosPorChave,
       deletados,
       preservados: preservados.length,
       ignorados,
-      abas: abasResumo,
+      ums: Array.from(linhasPorUm, ([um, totalLinhas]) => ({ um, totalLinhas }))
+        .sort((a, b) => a.um.localeCompare(b.um)),
       avisosStatus,
-      avisosSemPlusCode,
+      avisosSemUm,
+      aguardandoReenvio,
       duracao: Date.now() - inicio,
     }
 
     if (avisosStatus.length > 0) {
       console.warn(
-        `Sincronizacao: ${avisosStatus.length} linha(s) com Status desconhecido (entraram como "Pendente"):`,
-        avisosStatus.map((a) => `${a.aba}!L${a.linha}="${a.statusCru}"`).join(", ")
+        `Sincronizacao ${projeto.sigla}: ${avisosStatus.length} linha(s) NAO importada(s) por Status:`,
+        avisosStatus.map((a) => `#${a.nocodbId} ${a.um} ${a.nome}: ${a.motivo}`).join(", ")
       )
     }
 
-    if (avisosSemPlusCode.length > 0) {
+    if (avisosSemUm.length > 0) {
       console.warn(
-        `Sincronizacao: ${avisosSemPlusCode.length} linha(s) PULADA(S) por falta de Plus Code:`,
-        avisosSemPlusCode.map((a) => `${a.aba}!${a.linha} (${a.cidade})`).join(", ")
+        `Sincronizacao ${projeto.sigla}: ${avisosSemUm.length} linha(s) sem UM:`,
+        avisosSemUm.map((a) => `#${a.nocodbId}`).join(", ")
       )
     }
 
@@ -290,7 +382,8 @@ export async function POST(request: Request) {
     console.info(
       `Sincronizacao ${projeto.sigla}: ${deletados} ponto(s) deletado(s), ` +
         `${preservados.length} preservado(s) como "Historico"` +
-        (preservados.length > 0 ? ` [${preservados.join(", ")}]` : "")
+        (preservados.length > 0 ? ` [${preservados.join(", ")}]` : "") +
+        `, ${vinculadosPorChave} vinculado(s) por chave natural`
     )
 
     return NextResponse.json(relatorio)
@@ -306,53 +399,45 @@ export async function POST(request: Request) {
 // ============================================================
 
 /**
- * Chave natural do ponto: projetoId + umNome + ciclo + etapa + plusCode.
+ * Chave natural do ponto: projetoId + umNome + ciclo + etapa + Plus Code.
  *
- * Era `umNome + linhaOrigem` — a POSIÇÃO da linha na aba. Isso quebrava na
- * operação normal: inserir uma etapa no meio da aba desloca todas as linhas
- * seguintes, e cada ponto deslocado era lido como "a linha antiga sumiu" +
- * "apareceu uma linha nova". A sincronização deletava e recriava a aba inteira,
- * perdendo os vínculos de rota.
+ * Desde a troca para o NocoDB ela só serve para a PRIMEIRA sync de cada
+ * ponto: casa o ponto antigo (sem nocodbId) com a sua linha, e depois o
+ * vínculo é pelo nocodbId. Ver o histórico em d15ee58 para o porquê de cada
+ * campo.
  *
- * `plusCode` entra na chave porque sem ele há 5 pares de visitas legítimas
- * indistinguíveis nos dados de produção (duas visitas à mesma cidade na mesma
- * etapa, em locais diferentes). Com ele a chave é única nos 131 pontos, dos dois
- * lados. O custo é que corrigir um Plus Code recria o ponto — evento raro, e que
- * já altera o hash hoje.
- *
- * Ex: "abc123|BSBIA01|2|7|3WWH+977"
+ * O Plus Code entra só pelo CÓDIGO ("3X38+48"), sem a localidade que o NocoDB
+ * acrescenta ("3X38+48 Riacho Fundo II, Brasília - DF"). Comparado literal, um
+ * ponto gravado com o formato curto não casaria com a linha do NocoDB e seria
+ * recriado — perdendo rota e técnico vinculados. O código sozinho já é único
+ * dentro de UM + ciclo + etapa.
  */
 function criarChaveComposta(p: {
   projetoId: string
   umNome: string
   ciclo: number
   etapa: number
-  plusCode: string
+  plusCode: string | null
 }): string {
-  return [p.projetoId, p.umNome, p.ciclo, p.etapa, p.plusCode.trim()].join("|")
+  return [p.projetoId, p.umNome, p.ciclo, p.etapa, codigoPlusCode(p.plusCode)].join("|")
+}
+
+function codigoPlusCode(plusCode: string | null): string {
+  return (plusCode ?? "").trim().split(/\s+/)[0].toUpperCase()
 }
 
 /**
- * Converte uma linha bruta consolidada (com aba origem) em PontoInput.
- * Retorna null se a linha estiver com dados essenciais faltando.
- */
-/**
- * Vocabulário de status: planilha → app. Mapeamento 1:1, três estados de cada
- * lado (confirmado com o cliente em 2026-07-28):
+ * Vocabulário de status: NocoDB → app. Mapeamento 1:1:
  *
  *   Pendente   → Pendente    aguardando nova alocação
  *   Atual      → Agendado    em andamento, técnico atribuído
- *   Histórico  → Histórico    ciclo encerrado
+ *   Histórico  → Histórico   ciclo encerrado
  *
- * O ciclo operacional é: confirma a rota no app → o app grava "Agendado" → a
- * planilha é marcada como "Atual" e a linha anterior vira "Histórico".
- *
- * Antes desta normalização o valor da planilha era gravado CRU, então "Atual"
- * entrava literalmente em `Ponto.status` — um estado que nenhuma query do app
- * reconhece (`obterDestinoDaUM` e `listarPontosPendentesSemCoordenadas` filtram
- * "Pendente"; `cancelarLote` filtra "Agendado"). Eram pontos invisíveis.
+ * Vazio ou desconhecido devolve null, e a linha NÃO é importada (vai para o
+ * relatório). Antes, na planilha, caía em "Pendente" — o que tornava
+ * roteirizável um ponto que ninguém tinha classificado.
  */
-const STATUS_POR_VALOR_DA_PLANILHA: Record<string, string> = {
+const STATUS_POR_VALOR_DO_NOCODB: Record<string, string> = {
   pendente: "Pendente",
   atual: "Agendado",
   historico: "Histórico",
@@ -367,43 +452,19 @@ function chaveStatus(valor: string): string {
     .toLowerCase()
 }
 
-/**
- * Traduz o Status da planilha para o vocabulário do app.
- *
- * Valor desconhecido cai em "Pendente" (o mesmo default de célula vazia) e gera
- * aviso no relatório: "Pendente" é o estado seguro — o ponto continua visível
- * para roteirização e alguém percebe. Mandar para "Histórico" faria o ponto
- * desaparecer em silêncio, e abortar a sincronização seria severo demais para
- * um erro de digitação numa célula.
- */
-function normalizarStatus(
-  cru: string,
-  aba: string,
-  numeroLinha: number,
-  avisos: AvisoStatus[]
-): string {
-  if (!cru.trim()) return "Pendente"
-  const conhecido = STATUS_POR_VALOR_DA_PLANILHA[chaveStatus(cru)]
-  if (conhecido) return conhecido
-  avisos.push({ aba, linha: numeroLinha, statusCru: cru })
-  return "Pendente"
+function normalizarStatus(cru: string | null): string | null {
+  if (!cru || !cru.trim()) return null
+  return STATUS_POR_VALOR_DO_NOCODB[chaveStatus(cru)] ?? null
+}
+
+/** Ciclo/Etapa vêm como Number; null (célula vazia) vira 0, como antes. */
+function inteiro(valor: number | null): number {
+  return typeof valor === "number" && Number.isFinite(valor) ? Math.trunc(valor) : 0
 }
 
 /**
- * Converte coordenada da planilha para número, aceitando vírgula decimal.
- *
- * A planilha está em pt-BR e grava "-15,9040875". `parseFloat` para no primeiro
- * caractere inválido e devolve `-15` — um ponto a ~100 km do lugar certo, gravado
- * sem erro nenhum. Foi o que aconteceu com as 34 linhas de coordenada das abas
- * SPV: todas estão como `-15` no Firestore de produção. Passava despercebido
- * porque a longitude nunca era lida (ficava nula), então o ponto contava como
- * "sem coordenadas" e o batch de geocoding sobrescrevia os dois campos.
- *
- * Retorna null para vazio ou não-numérico — o geocoding preenche depois.
- */
-/**
  * Copia do input sem latitude/longitude, para o Prisma não tocar nessas colunas
- * (campo `undefined` é ignorado no update). Usado quando a planilha não tem
+ * (campo `undefined` é ignorado no update). Usado quando o NocoDB não tem
  * coordenada e o que está gravado veio do geocoding.
  */
 function semCoordenadas(input: PontoInput): Partial<PontoInput> {
@@ -414,12 +475,8 @@ function semCoordenadas(input: PontoInput): Partial<PontoInput> {
 }
 
 /**
- * Compara par de coordenadas com tolerância.
- *
- * A tolerância evita reescrever o ponto a cada sincronização por diferença na
- * última casa do double. 1e-7 grau ≈ 1 cm — abaixo da precisão de qualquer fonte
- * que usamos, e muito abaixo do erro que interessa detectar (o truncamento para
- * grau inteiro errava ~100 km).
+ * Compara par de coordenadas com tolerância de 1e-7 grau (~1 cm), para não
+ * reescrever o ponto a cada sync por diferença na última casa do double.
  */
 function divergem(
   latAtual: number | null,
@@ -435,63 +492,42 @@ function divergem(
   )
 }
 
-function coordenadaDaPlanilha(valor: string): number | null {
-  const limpo = valor.trim().replace(",", ".")
-  if (!limpo) return null
-  const n = Number(limpo)
-  return Number.isFinite(n) ? n : null
-}
-
 function converterLinhaParaPontoInput(
-  linha: LinhaComAba,
+  linha: LinhaLocalidade,
   projetoId: string,
-  avisosStatus: AvisoStatus[]
-): PontoInput | null {
-  // Validação mínima: precisa ter cidade ou plus code ou endereço
-  if (!linha.cidade && !linha.plusCode && !linha.endereco) {
-    return null
-  }
+  um: string,
+  status: string
+): PontoInput {
+  const coordenadas = parsearCoordenadas(linha.Coordenadas)
 
-  const ciclo = parseInt(linha.ciclo) || 0
-  const etapa = parseInt(linha.etapa) || 0
-  const latitude = coordenadaDaPlanilha(linha.latitude)
-  // Coluna N. Antes era `longitude: null` fixo (esquecimento, não decisão — ver
-  // lib/google-sheets.ts): a latitude vinha da planilha e a longitude não, então
-  // todo ponto sincronizado ficava "sem coordenadas" para o batch de geocoding.
-  const longitude = coordenadaDaPlanilha(linha.longitude)
-
-  // umNome vem da ABA ORIGEM (ex: "BSBIA01"), não do campo F da planilha.
-  // Isso é importante: a aba é a fonte de verdade pra identificação da UM.
   const inputSemHash = {
     projetoId,
-    // Informativo (aparece na UI e ajuda a achar a linha na planilha). Não entra
-    // na chave de identidade nem no hash — ver criarChaveComposta.
-    linhaOrigem: linha.numeroLinha,
-    ciclo,
-    etapa,
-    tecnicoNomeHistorico: linha.tecnico,
-    umNome: linha.abaOrigem,
-    raNome: linha.cidade,
-    uf: linha.uf,
-    plusCode: linha.plusCode,
-    endereco: linha.endereco,
-    referencia: linha.referencia,
-    linkMaps: linha.link,
-    // Já validados em coordenadaDaPlanilha (null quando vazio ou não-numérico).
-    latitude,
-    longitude,
-    // Normalizado ANTES do calcularHashPonto (logo abaixo): o status é o 13º
-    // campo do hash, então normalizar depois faria a sync ver divergência a cada
-    // execução e reescrever o ponto indefinidamente.
-    status: normalizarStatus(linha.status, linha.abaOrigem, linha.numeroLinha, avisosStatus),
+    // Informativo: o "número da linha" agora é o Id do NocoDB.
+    linhaOrigem: linha.Id,
+    nocodbId: linha.Id,
+    ciclo: inteiro(linha.Ciclo),
+    etapa: inteiro(linha.Etapa),
+    // MultiSelect: "Allan,Paulo" em linhas antigas com mais de um técnico.
+    // Texto histórico; o vínculo de verdade (tecnicoId) só vem das linhas
+    // "Atual", validadas antes.
+    tecnicoNomeHistorico: nomesTecnicos(linha.Tecnico).join(", "),
+    // A UM vem do campo UM. Na planilha vinha do nome da aba; as abas
+    // viraram views da mesma tabela.
+    umNome: um,
+    raNome: (linha.Cidade ?? "").trim(),
+    uf: (linha.UF ?? "").trim(),
+    plusCode: (linha.PlusCode ?? "").trim(),
+    endereco: (linha.Endereco ?? "").trim(),
+    referencia: (linha.Referencia ?? "").trim(),
+    linkMaps: (linha.Link ?? "").trim(),
+    latitude: coordenadas?.latitude ?? null,
+    longitude: coordenadas?.longitude ?? null,
+    // Já normalizado: o status entra no hash, e normalizar depois faria a
+    // sync ver divergência a cada execução.
+    status,
   }
 
-  const hashMd5 = calcularHashPonto(inputSemHash)
-
-  return {
-    ...inputSemHash,
-    hashMd5,
-  }
+  return { ...inputSemHash, hashMd5: calcularHashPonto(inputSemHash) }
 }
 
 function respostaErro(

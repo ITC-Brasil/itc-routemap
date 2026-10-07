@@ -25,7 +25,7 @@ import type { Ponto as PontoRow } from "@prisma/client"
 // ============================================================
 
 /**
- * Ponto de operação — uma linha da planilha Google Sheets de um projeto.
+ * Ponto de operação — uma linha da tabela Localidades do NocoDB.
  *
  * Representa: "no ciclo X, etapa Y, a UM Z esteve atendendo a localidade W
  * com o técnico T". Pode ser histórico (já passou) ou pendente (a definir).
@@ -35,7 +35,10 @@ export type Ponto = {
 
   // Identificação na origem
   projetoId: string
+  /** Informativo: igual a `nocodbId` para pontos vindos do NocoDB. */
   linhaOrigem: number
+  /** Id da linha na tabela Localidades — a identidade do ponto na origem. */
+  nocodbId: number | null
 
   // Dados da operação
   ciclo: number
@@ -56,6 +59,10 @@ export type Ponto = {
   // Controle
   status: string                // "Histórico", "Pendente", etc
   hashMd5: string
+  /** Técnico vinculado (Agendado). Gravado pela alocação e pela sync. */
+  tecnicoId: string | null
+  /** Escrita de volta no NocoDB falhou e aguarda "Reenviar ao NocoDB". */
+  nocodbPendente: boolean
 
   criadoEm: Date | null
   atualizadoEm: Date | null
@@ -63,9 +70,14 @@ export type Ponto = {
 
 /**
  * Payload para criar/atualizar ponto.
- * Não inclui `id`, `criadoEm`, `atualizadoEm` (gerados pelo banco).
+ * Não inclui `id`, `criadoEm`, `atualizadoEm` (gerados pelo banco), nem
+ * `tecnicoId`/`nocodbPendente`, que têm escritores próprios (alocação, sync e
+ * escrita de volta) e não podem ser sobrescritos por uma edição genérica.
  */
-export type PontoInput = Omit<Ponto, "id" | "criadoEm" | "atualizadoEm">
+export type PontoInput = Omit<
+  Ponto,
+  "id" | "criadoEm" | "atualizadoEm" | "tecnicoId" | "nocodbPendente"
+>
 
 // ============================================================
 // HASH MD5 — DETECÇÃO DE MUDANÇAS
@@ -121,14 +133,15 @@ export function calcularHashPonto(
  * Converte uma linha do Prisma para o tipo de domínio `Ponto`,
  * normalizando os campos nullable do banco (String? → "") para manter
  * a mesma forma que os consumidores esperavam da versão Firestore.
- * Campos relacionais do schema (raId, tecnicoId, rotaId) não fazem
- * parte do domínio atual e são ignorados aqui.
+ * Campos relacionais do schema (raId, rotaId) não fazem parte do domínio
+ * atual e são ignorados aqui.
  */
 function mapPonto(row: PontoRow): Ponto {
   return {
     id: row.id,
     projetoId: row.projetoId,
     linhaOrigem: row.linhaOrigem,
+    nocodbId: row.nocodbId,
     ciclo: row.ciclo,
     etapa: row.etapa,
     tecnicoNomeHistorico: row.tecnicoNomeHistorico,
@@ -143,6 +156,8 @@ function mapPonto(row: PontoRow): Ponto {
     longitude: row.longitude,
     status: row.status,
     hashMd5: row.hashMd5,
+    tecnicoId: row.tecnicoId,
+    nocodbPendente: row.nocodbPendente,
     criadoEm: row.criadoEm,
     atualizadoEm: row.atualizadoEm,
   }
@@ -205,6 +220,7 @@ export async function criarPonto(input: PontoInput): Promise<string> {
     data: {
       projetoId: input.projetoId,
       linhaOrigem: input.linhaOrigem,
+      nocodbId: input.nocodbId,
       ciclo: input.ciclo,
       etapa: input.etapa,
       tecnicoNomeHistorico: input.tecnicoNomeHistorico,
@@ -238,6 +254,7 @@ export async function atualizarPonto(
     data: {
       projetoId: input.projetoId,
       linhaOrigem: input.linhaOrigem,
+      nocodbId: input.nocodbId,
       ciclo: input.ciclo,
       etapa: input.etapa,
       tecnicoNomeHistorico: input.tecnicoNomeHistorico,
@@ -257,6 +274,17 @@ export async function atualizarPonto(
 }
 
 /**
+ * Vincula (ou desvincula, com null) o técnico de um ponto. Usado pela sync
+ * para as linhas "Atual" do NocoDB, que trazem o técnico em vigor da UM.
+ */
+export async function definirTecnicoDoPonto(
+  id: string,
+  tecnicoId: string | null
+): Promise<void> {
+  await prisma.ponto.update({ where: { id }, data: { tecnicoId } })
+}
+
+/**
  * Deleta um ponto.
  */
 export async function deletarPonto(id: string): Promise<void> {
@@ -266,7 +294,7 @@ export async function deletarPonto(id: string): Promise<void> {
 /**
  * Deleta MÚLTIPLOS pontos de uma vez.
  *
- * Usado durante a sincronização: linhas removidas da planilha
+ * Usado durante a sincronização: linhas removidas do NocoDB
  * são deletadas em lote.
  *
  * O chunking de 500 era um limite rígido do Firestore; no Postgres é
@@ -288,14 +316,14 @@ export async function deletarPontosEmBatch(ids: string[]): Promise<void> {
 /**
  * Deleta pontos em lote PRESERVANDO os que estão em uso.
  *
- * Usado pela sincronização no lugar de `deletarPontosEmBatch`: a linha sumiu da
- * planilha, mas deletar um ponto que já tem rota atribuída perderia o vínculo
+ * Usado pela sincronização no lugar de `deletarPontosEmBatch`: a linha sumiu do
+ * NocoDB, mas deletar um ponto que já tem rota atribuída perderia o vínculo
  * (`Rota.pontoId`) e a atribuição corrente do técnico — dano irreversível e
  * invisível. Um ponto é preservado se tiver `rotaId` ou status "Agendado", e
  * nesse caso passa a "Histórico": some da roteirização sem sumir do banco.
  *
  * O `hashMd5` do preservado fica desatualizado em relação ao novo status. É
- * inofensivo: o hash só é comparado contra uma linha da planilha, e essa linha
+ * inofensivo: o hash só é comparado contra uma linha do NocoDB, e essa linha
  * não existe mais.
  *
  * @returns quantos foram deletados e quais foram preservados

@@ -20,20 +20,24 @@ import { EditarPontoDialog } from "./_components/editar-ponto-dialog"
 // TODO P2: mover pra lib/firestore/types.ts junto com Ponto/Projeto
 // ============================================================
 
-type ResumoAbaSync = {
-  nomeAba: string
-  totalLinhas: number
-  erro: string | null
+/** Linha do NocoDB que não entrou na sync (ver app/api/sincronizar). */
+type AvisoLinhaSync = {
+  nocodbId: number
+  um: string
+  nome: string
+  motivo: string
 }
 
 type RelatorioSync = {
   sucesso: true
-  totalLinhasPlanilha: number
+  totalLinhas: number
   novos: number
   atualizados: number
   deletados: number
   ignorados: number
-  abas: ResumoAbaSync[]
+  avisosStatus: AvisoLinhaSync[]
+  avisosSemUm: AvisoLinhaSync[]
+  aguardandoReenvio: number
   duracao: number
 }
 
@@ -102,29 +106,25 @@ export default function LocalidadesPage() {
   }
 
   const handleAtualizarPontos = async () => {
-    // 1. Filtra só projetos prontos pra sincronizar
-    const projetosComPlanilha = projetos.filter(
-      (p) => p.sheetId && p.sheetAbas && p.sheetAbas.length > 0
-    )
-
-    if (projetosComPlanilha.length === 0) {
-      toast.error("Nenhum projeto com planilha configurada.", {
-        description:
-          "Edite seus projetos e informe a URL da planilha + abas.",
+    // 1. Todo projeto cadastrado sincroniza: o NocoDB é lido filtrando pela
+    // sigla, e linha de projeto que não está aqui não entra.
+    if (projetos.length === 0) {
+      toast.error("Nenhum projeto cadastrado.", {
+        description: "Cadastre o projeto com a mesma sigla usada no NocoDB.",
       })
       return
     }
 
     setSincronizando(true)
     const toastId = toast.loading(
-      `Sincronizando ${projetosComPlanilha.length} ${
-        projetosComPlanilha.length === 1 ? "projeto" : "projetos"
+      `Sincronizando ${projetos.length} ${
+        projetos.length === 1 ? "projeto" : "projetos"
       }...`
     )
 
     // 2. Dispara em paralelo, tolerando falhas individuais via allSettled
     const resultados = await Promise.allSettled(
-      projetosComPlanilha.map(async (projeto) => {
+      projetos.map(async (projeto) => {
         const res = await fetch("/api/sincronizar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -162,14 +162,18 @@ export default function LocalidadesPage() {
       0
     )
 
-    // 5. Coleta erros granulares por aba (mesmo dentro de projetos OK)
-    const abasComErro: string[] = []
+    // 5. Coleta as linhas que NÃO entraram (mesmo dentro de projetos OK).
+    // Status vazio não vira "Pendente": a linha fica de fora até alguém
+    // preencher no NocoDB, e o aviso é o único jeito de alguém perceber.
+    const linhasNaoImportadas: string[] = []
+    let aguardandoReenvio = 0
     for (const { projeto, relatorio } of sucessos) {
-      for (const aba of relatorio.abas) {
-        if (aba.erro) {
-          abasComErro.push(`${projeto.sigla}/${aba.nomeAba}: ${aba.erro}`)
-        }
+      for (const aviso of [...relatorio.avisosStatus, ...relatorio.avisosSemUm]) {
+        linhasNaoImportadas.push(
+          `${projeto.sigla} ${aviso.um || "?"} ${aviso.nome} (#${aviso.nocodbId}): ${aviso.motivo}`
+        )
       }
+      aguardandoReenvio += relatorio.aguardandoReenvio
     }
 // ====== 5.5. POÓS sync: geocodifica pontos sem coords ======
     let geocodingInfo = ""
@@ -208,7 +212,7 @@ export default function LocalidadesPage() {
       totalAtualizados === 1 ? "" : "s"
     } · ${totalDeletados} removido${totalDeletados === 1 ? "" : "s"}${geocodingInfo}`
 
-    if (falhas.length === 0 && abasComErro.length === 0) {
+    if (falhas.length === 0 && linhasNaoImportadas.length === 0 && aguardandoReenvio === 0) {
       toast.success("Sincronização concluída", { description: resumoCounts })
     } else if (sucessos.length === 0) {
       toast.error("Falha na sincronização", {
@@ -221,11 +225,24 @@ export default function LocalidadesPage() {
           `${falhas.length} projeto${falhas.length === 1 ? "" : "s"} falhou.`
         )
       }
-      if (abasComErro.length > 0) {
+      if (linhasNaoImportadas.length > 0) {
         detalhes.push(
-          `${abasComErro.length} aba${
-            abasComErro.length === 1 ? "" : "s"
-          } com erro.`
+          `${linhasNaoImportadas.length} linha${
+            linhasNaoImportadas.length === 1 ? "" : "s"
+          } do NocoDB não importada${
+            linhasNaoImportadas.length === 1 ? "" : "s"
+          } (Status vazio ou sem UM): ${linhasNaoImportadas.slice(0, 3).join("; ")}${
+            linhasNaoImportadas.length > 3 ? "; ..." : ""
+          }`
+        )
+      }
+      if (aguardandoReenvio > 0) {
+        detalhes.push(
+          `${aguardandoReenvio} ponto${
+            aguardandoReenvio === 1 ? "" : "s"
+          } aguardando reenvio ao NocoDB não ${
+            aguardandoReenvio === 1 ? "foi atualizado" : "foram atualizados"
+          }.`
         )
       }
       toast.warning("Sincronização parcial", {
@@ -235,7 +252,9 @@ export default function LocalidadesPage() {
 
     // Loga detalhes granulares no console pra debug
     if (falhas.length > 0) console.error("Projetos com falha:", falhas)
-    if (abasComErro.length > 0) console.error("Abas com erro:", abasComErro)
+    if (linhasNaoImportadas.length > 0) {
+      console.warn("Linhas do NocoDB não importadas:", linhasNaoImportadas)
+    }
 
     // 7. Atualiza a UI com os dados frescos
     await recarregarDados()
@@ -257,8 +276,8 @@ export default function LocalidadesPage() {
             Localidades
           </h1>
           <p className="mt-2.5 text-pretty text-muted-foreground">
-            Pontos de operação importados das planilhas Google Sheets de cada
-            projeto. Use o botão Atualizar Pontos para sincronizar.
+            Pontos de operação importados da tabela Localidades do NocoDB.
+            Use o botão Atualizar Pontos para sincronizar.
           </p>
         </div>
         <Button
@@ -323,7 +342,6 @@ function SkeletonLoading() {
 
 function EstadoVazio({ projetos }: { projetos: Projeto[] }) {
   const semProjetos = projetos.length === 0
-  const semPlanilhas = projetos.every((p) => !p.sheetId)
 
   return (
     <Card>
@@ -336,17 +354,12 @@ function EstadoVazio({ projetos }: { projetos: Projeto[] }) {
           {semProjetos ? (
             <p className="max-w-md text-sm text-muted-foreground">
               Antes de sincronizar pontos, cadastre pelo menos um projeto com
-              sua planilha Google Sheets vinculada.
-            </p>
-          ) : semPlanilhas ? (
-            <p className="max-w-md text-sm text-muted-foreground">
-              Seus projetos ainda não têm planilhas configuradas. Edite cada
-              projeto e informe a URL da planilha Google Sheets.
+              a mesma sigla usada no NocoDB.
             </p>
           ) : (
             <p className="max-w-md text-sm text-muted-foreground">
               Clique em <strong>Atualizar Pontos</strong> para importar os
-              pontos das planilhas vinculadas aos seus projetos.
+              pontos do NocoDB dos seus projetos.
             </p>
           )}
         </div>

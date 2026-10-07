@@ -57,6 +57,8 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       HERMES_PAINEL_TOKEN: ${HERMES_PAINEL_TOKEN:-}
       HERMES_PAINEL_IPS: ${HERMES_PAINEL_IPS:-}
+      NOCODB_URL: ${NOCODB_URL:-}
+      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN:-}
     ports:
       - "127.0.0.1:3015:3000"   # so loopback; o tunnel le daqui
 

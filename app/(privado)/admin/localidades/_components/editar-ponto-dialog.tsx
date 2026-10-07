@@ -167,7 +167,7 @@ function ConteudoFormulario({
           )}
         </DialogTitle>
         <DialogDescription>
-          Linha {ponto.linhaOrigem} da aba{" "}
+          {ponto.nocodbId !== null ? `NocoDB #${ponto.nocodbId} · ` : ""}UM{" "}
           <span className="font-mono">{ponto.umNome}</span> · Ciclo {ponto.ciclo}{" "}
           / Etapa {ponto.etapa}
           {ponto.tecnicoNomeHistorico && (
@@ -295,7 +295,7 @@ function ConteudoFormulario({
         {/* Aviso sobre sobrescrita na sync */}
         <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
           ⚠ Edições manuais são sobrescritas na próxima sincronização se a
-          mesma linha for alterada na planilha de origem.
+          mesma linha for alterada no NocoDB.
         </div>
       </div>
 
