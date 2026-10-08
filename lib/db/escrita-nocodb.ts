@@ -5,6 +5,7 @@ import { calcularHashPonto } from "@/lib/db/pontos"
 import {
   atualizarLocalidades,
   listarLocalidadesDasUms,
+  nomesTecnicos,
   type AtualizacaoLocalidade,
   type LinhaLocalidade,
 } from "@/lib/nocodb"
@@ -24,8 +25,8 @@ import { STATUS_PONTO_AGENDADO } from "@/lib/rotas-utils"
  *   - UM que ganhou um "Atual": qualquer outro "Atual" dela vira "Histórico".
  *   - UM que perdeu o "Atual" (cancelamento): o anterior volta a "Atual".
  *
- * Por gravar ESTADO e não delta, a mesma função serve para o reenvio: rodar de
- * novo sobre os mesmos pontos chega ao mesmo NocoDB.
+ * O reenvio (`reenviarPontosNocodbPendentes`) é mais simples de propósito:
+ * espelha o Postgres como está, sem reaplicar a regra da ação de origem.
  *
  * Falha não reverte o Postgres — a alocação confirmada é real, o que atrasou
  * foi o espelho. Os pontos afetados ficam com `nocodbPendente = true`, a tela
@@ -219,20 +220,118 @@ export async function contarPontosNocodbPendentes(): Promise<number> {
 }
 
 /**
- * Reprocessa todos os pontos pendentes. Restaura o anterior de UM sem "Atual"
- * porque o pendente pode ter vindo de um cancelamento; quando veio de uma
- * re-otimização, a UM liberada em geral ganhou outro ponto no mesmo lote e
- * a restauração não se aplica.
+ * Reenvio: espelha no NocoDB o estado que o Postgres tem HOJE, sem tentar
+ * adivinhar qual ação (confirmação, re-otimização, cancelamento) gerou o
+ * pendente.
+ *
+ * Para cada ponto com `nocodbPendente`, grava o status e o técnico do
+ * Postgres. Para os demais pontos Agendado/Histórico da mesma UM, grava só os
+ * que divergirem do NocoDB. Idempotente: a segunda execução encontra o NocoDB
+ * igual ao Postgres e não tem o que mudar.
+ *
+ *   Agendado  → Status "Atual",     Tecnico = nome do técnico vinculado
+ *   Pendente  → Status "Pendente",  Tecnico vazio
+ *   Histórico → Status "Histórico", Tecnico intocado (o Postgres não guarda o
+ *               técnico de um ponto encerrado; o texto histórico veio do
+ *               próprio NocoDB)
+ *
+ * `nocodbPendente` só é zerado depois que o PATCH deu certo. Em falha, os
+ * pendentes continuam pendentes e nenhum outro ponto é marcado.
  */
 export async function reenviarPontosNocodbPendentes(): Promise<ResultadoEscritaNocodb> {
-  const pendentes = await prisma.ponto.findMany({
-    where: { nocodbPendente: true },
-    select: { id: true },
-  })
-  return escreverPontosNoNocodb(
-    pendentes.map((p) => p.id),
-    { restaurarAnterior: true }
-  )
+  const pendentes = await prisma.ponto.findMany({ where: { nocodbPendente: true } })
+  if (pendentes.length === 0) return { ok: true, linhasGravadas: 0 }
+
+  try {
+    const semVinculo = pendentes.filter((p) => p.nocodbId === null)
+    if (semVinculo.length > 0) {
+      throw new Error(
+        `${semVinculo.length} ponto(s) sem vínculo com o NocoDB ` +
+          `(${semVinculo.map((p) => `${p.umNome} C${p.ciclo}E${p.etapa}`).join(", ")}). ` +
+          "Rode Atualizar Pontos e depois reenvie."
+      )
+    }
+
+    // Demais pontos Agendado/Histórico das mesmas UMs (projeto + UM).
+    const chaveUm = (p: { projetoId: string; umNome: string }) =>
+      `${p.projetoId}|${p.umNome}`
+    const umsAfetadas = new Set(pendentes.map(chaveUm))
+    const idsPendentes = new Set(pendentes.map((p) => p.id))
+    const vizinhos = (
+      await prisma.ponto.findMany({
+        where: {
+          umNome: { in: Array.from(new Set(pendentes.map((p) => p.umNome))) },
+          status: { in: [STATUS_PONTO_AGENDADO, "Histórico"] },
+          nocodbId: { not: null },
+        },
+      })
+    ).filter((p) => umsAfetadas.has(chaveUm(p)) && !idsPendentes.has(p.id))
+
+    const todos = [...pendentes, ...vizinhos]
+    const tecnicos = await prisma.tecnico.findMany({
+      where: {
+        id: { in: todos.map((p) => p.tecnicoId).filter((t): t is string => !!t) },
+      },
+      select: { id: true, nome: true },
+    })
+    const nomeTecnico = new Map(tecnicos.map((t) => [t.id, t.nome]))
+
+    const linhasNocodb = new Map(
+      (await listarLocalidadesDasUms(Array.from(new Set(todos.map((p) => p.umNome)))))
+        .map((l) => [l.Id, l])
+    )
+
+    const atualizacoes: AtualizacaoLocalidade[] = []
+    for (const p of todos) {
+      const desejado = estadoNoNocodb(p, nomeTecnico)
+      if (idsPendentes.has(p.id)) {
+        atualizacoes.push(desejado)
+        continue
+      }
+      const linha = linhasNocodb.get(p.nocodbId!)
+      // Linha que sumiu do NocoDB: não é este reenvio que a recria.
+      if (linha && diverge(linha, desejado)) atualizacoes.push(desejado)
+    }
+
+    await atualizarLocalidades(atualizacoes)
+
+    await prisma.ponto.updateMany({
+      where: { id: { in: Array.from(idsPendentes) } },
+      data: { nocodbPendente: false },
+    })
+    return { ok: true, linhasGravadas: atualizacoes.length }
+  } catch (err) {
+    const erro = err instanceof Error ? err.message : String(err)
+    console.error("Reenvio ao NocoDB falhou; pontos seguem pendentes:", erro)
+    return { ok: false, erro, pontosPendentes: pendentes.length }
+  }
+}
+
+/** Status e técnico que o Postgres diz que a linha deve ter no NocoDB. */
+function estadoNoNocodb(
+  p: { nocodbId: number | null; status: string; tecnicoId: string | null; umNome: string; ciclo: number; etapa: number },
+  nomeTecnico: Map<string, string>
+): AtualizacaoLocalidade {
+  const Id = p.nocodbId!
+  if (p.status === STATUS_PONTO_AGENDADO) {
+    const nome = nomeTecnico.get(p.tecnicoId ?? "")
+    if (!nome) {
+      throw new Error(
+        `Ponto ${p.umNome} C${p.ciclo}E${p.etapa} está Agendado sem técnico vinculado.`
+      )
+    }
+    return { Id, Status: "Atual", Tecnico: nome }
+  }
+  if (p.status === "Pendente") return { Id, Status: "Pendente", Tecnico: null }
+  if (p.status === "Histórico") return { Id, Status: "Histórico" }
+  throw new Error(`Ponto ${p.umNome} C${p.ciclo}E${p.etapa} com status "${p.status}" desconhecido.`)
+}
+
+/** A linha do NocoDB difere do estado desejado em algum campo que ele define. */
+function diverge(linha: LinhaLocalidade, desejado: AtualizacaoLocalidade): boolean {
+  if (linha.Status !== desejado.Status) return true
+  if (desejado.Tecnico === undefined) return false
+  return nomesTecnicos(linha.Tecnico).join(",") !== (desejado.Tecnico ?? "")
 }
 
 function ordem(ciclo: number, etapa: number): number {

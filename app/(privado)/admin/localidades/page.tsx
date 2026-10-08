@@ -37,6 +37,8 @@ type RelatorioSync = {
   ignorados: number
   avisosStatus: AvisoLinhaSync[]
   avisosSemUm: AvisoLinhaSync[]
+  /** "UM X: NocoDB diz A, sistema diz B" — nada foi alterado. */
+  avisosTecnico: string[]
   aguardandoReenvio: number
   duracao: number
 }
@@ -167,7 +169,9 @@ export default function LocalidadesPage() {
     // preencher no NocoDB, e o aviso é o único jeito de alguém perceber.
     const linhasNaoImportadas: string[] = []
     let aguardandoReenvio = 0
+    const tecnicosDivergentes: string[] = []
     for (const { projeto, relatorio } of sucessos) {
+      tecnicosDivergentes.push(...relatorio.avisosTecnico)
       for (const aviso of [...relatorio.avisosStatus, ...relatorio.avisosSemUm]) {
         linhasNaoImportadas.push(
           `${projeto.sigla} ${aviso.um || "?"} ${aviso.nome} (#${aviso.nocodbId}): ${aviso.motivo}`
@@ -212,7 +216,12 @@ export default function LocalidadesPage() {
       totalAtualizados === 1 ? "" : "s"
     } · ${totalDeletados} removido${totalDeletados === 1 ? "" : "s"}${geocodingInfo}`
 
-    if (falhas.length === 0 && linhasNaoImportadas.length === 0 && aguardandoReenvio === 0) {
+    if (
+      falhas.length === 0 &&
+      linhasNaoImportadas.length === 0 &&
+      aguardandoReenvio === 0 &&
+      tecnicosDivergentes.length === 0
+    ) {
       toast.success("Sincronização concluída", { description: resumoCounts })
     } else if (sucessos.length === 0) {
       toast.error("Falha na sincronização", {
@@ -236,6 +245,14 @@ export default function LocalidadesPage() {
           }`
         )
       }
+      if (tecnicosDivergentes.length > 0) {
+        // O RouteMap é a autoridade sobre o técnico: a sync só avisa.
+        detalhes.push(
+          `Técnico divergente (nada alterado): ${tecnicosDivergentes.slice(0, 3).join("; ")}${
+            tecnicosDivergentes.length > 3 ? "; ..." : ""
+          }.`
+        )
+      }
       if (aguardandoReenvio > 0) {
         detalhes.push(
           `${aguardandoReenvio} ponto${
@@ -254,6 +271,9 @@ export default function LocalidadesPage() {
     if (falhas.length > 0) console.error("Projetos com falha:", falhas)
     if (linhasNaoImportadas.length > 0) {
       console.warn("Linhas do NocoDB não importadas:", linhasNaoImportadas)
+    }
+    if (tecnicosDivergentes.length > 0) {
+      console.warn("Técnico divergente entre NocoDB e RouteMap:", tecnicosDivergentes)
     }
 
     // 7. Atualiza a UI com os dados frescos

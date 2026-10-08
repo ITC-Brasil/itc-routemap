@@ -59,7 +59,7 @@ export type Ponto = {
   // Controle
   status: string                // "Histórico", "Pendente", etc
   hashMd5: string
-  /** Técnico vinculado (Agendado). Gravado pela alocação e pela sync. */
+  /** Técnico vinculado (Agendado). Só a alocação grava; a sync não toca. */
   tecnicoId: string | null
   /** Escrita de volta no NocoDB falhou e aguarda "Reenviar ao NocoDB". */
   nocodbPendente: boolean
@@ -271,17 +271,6 @@ export async function atualizarPonto(
       hashMd5: input.hashMd5,
     },
   })
-}
-
-/**
- * Vincula (ou desvincula, com null) o técnico de um ponto. Usado pela sync
- * para as linhas "Atual" do NocoDB, que trazem o técnico em vigor da UM.
- */
-export async function definirTecnicoDoPonto(
-  id: string,
-  tecnicoId: string | null
-): Promise<void> {
-  await prisma.ponto.update({ where: { id }, data: { tecnicoId } })
 }
 
 /**

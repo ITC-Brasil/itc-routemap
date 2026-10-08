@@ -12,7 +12,6 @@ import {
   listarPontosPorProjetoAdmin,
   criarPontoAdmin,
   atualizarPontoAdmin,
-  definirTecnicoDoPonto,
   deletarPontosEmBatchPreservandoEmUsoAdmin,
   marcarSincronizacaoAdmin,
   calcularHashPonto,
@@ -59,6 +58,11 @@ type RelatorioSync = {
   avisosStatus: AvisoLinha[]
   /** Linhas sem UM — não há onde encaixar o ponto. */
   avisosSemUm: AvisoLinha[]
+  /**
+   * Linhas "Atual" cujo técnico diverge do que o RouteMap tem para o ponto.
+   * Só aviso: o RouteMap é a autoridade sobre o técnico e a sync não o altera.
+   */
+  avisosTecnico: string[]
   /**
    * Pontos com escrita de volta pendente: o NocoDB ainda não reflete o que o
    * Postgres tem, então a sync não os sobrescreve até o reenvio.
@@ -144,6 +148,10 @@ export async function POST(request: Request) {
     // Andrade". Qualquer falha aborta a sync inteira, antes da primeira
     // escrita — sync pela metade deixaria o projeto num estado que nenhuma
     // das duas fontes descreve.
+    //
+    // A validação NÃO vincula nada: o RouteMap é a autoridade sobre o
+    // técnico (pontos.tecnicoId, ums.tecnicoAtualId). O nome do NocoDB só
+    // serve para comparar e avisar (etapa 6).
     const tecnicos = await listarTecnicos()
     const tecnicoPorNome = new Map<string, string[]>()
     for (const t of tecnicos) {
@@ -151,9 +159,10 @@ export async function POST(request: Request) {
       ids.push(t.id)
       tecnicoPorNome.set(t.nome, ids)
     }
+    const nomeTecnicoPorId = new Map(tecnicos.map((t) => [t.id, t.nome]))
 
     const errosTecnico: string[] = []
-    const tecnicoIdPorLinha = new Map<number, string>()
+    const tecnicoNocodbPorLinha = new Map<number, string>()
 
     for (const linha of linhas) {
       if (normalizarStatus(linha.Status) !== "Agendado") continue
@@ -180,7 +189,7 @@ export async function POST(request: Request) {
           `${ref}: há ${ids.length} técnicos chamados "${nomes[0]}" no RouteMap.`
         )
       } else {
-        tecnicoIdPorLinha.set(linha.Id, ids[0])
+        tecnicoNocodbPorLinha.set(linha.Id, nomes[0])
       }
     }
 
@@ -218,6 +227,7 @@ export async function POST(request: Request) {
     let aguardandoReenvio = 0
     const avisosStatus: AvisoLinha[] = []
     const avisosSemUm: AvisoLinha[] = []
+    const avisosTecnico: string[] = []
     const idsPresentes = new Set<string>()
     const linhasPorUm = new Map<string, number>()
 
@@ -295,6 +305,20 @@ export async function POST(request: Request) {
         continue
       }
 
+      // Técnico: só compara. Divergência vira aviso e nada é alterado — nem
+      // pontos.tecnicoId, nem ums.tecnicoAtualId.
+      const tecnicoNocodb = tecnicoNocodbPorLinha.get(linha.Id)
+      if (tecnicoNocodb) {
+        const tecnicoSistema = existente?.tecnicoId
+          ? (nomeTecnicoPorId.get(existente.tecnicoId) ?? existente.tecnicoId)
+          : null
+        if (tecnicoSistema !== tecnicoNocodb) {
+          avisosTecnico.push(
+            `UM ${um}: NocoDB diz ${tecnicoNocodb}, sistema diz ${tecnicoSistema ?? "nenhum"}`
+          )
+        }
+      }
+
       const input = converterLinhaParaPontoInput(linha, projetoId, um, status)
       const coordenadasDaOrigem =
         input.latitude !== null && input.longitude !== null
@@ -303,9 +327,7 @@ export async function POST(request: Request) {
 
       if (!existente) {
         // NOVO: nunca esteve no banco
-        const id = await criarPontoAdmin(input)
-        const tecnicoId = tecnicoIdPorLinha.get(linha.Id)
-        if (tecnicoId) await definirTecnicoDoPonto(id, tecnicoId)
+        await criarPontoAdmin(input)
         novos++
         continue
       }
@@ -331,11 +353,6 @@ export async function POST(request: Request) {
         // hash, então sem este ramo uma coordenada errada nunca seria corrigida.
         await atualizarPontoAdmin(existente.id, coordenadasDaOrigem)
         coordenadasCorrigidas++
-      }
-
-      const tecnicoId = tecnicoIdPorLinha.get(linha.Id)
-      if (tecnicoId && existente.tecnicoId !== tecnicoId) {
-        await definirTecnicoDoPonto(existente.id, tecnicoId)
       }
     }
 
@@ -368,6 +385,7 @@ export async function POST(request: Request) {
         .sort((a, b) => a.um.localeCompare(b.um)),
       avisosStatus,
       avisosSemUm,
+      avisosTecnico,
       aguardandoReenvio,
       duracao: Date.now() - inicio,
     }
@@ -376,6 +394,13 @@ export async function POST(request: Request) {
       console.warn(
         `Sincronizacao ${projeto.sigla}: ${avisosStatus.length} linha(s) NAO importada(s) por Status:`,
         avisosStatus.map((a) => `#${a.nocodbId} ${a.um} ${a.nome}: ${a.motivo}`).join(", ")
+      )
+    }
+
+    if (avisosTecnico.length > 0) {
+      console.warn(
+        `Sincronizacao ${projeto.sigla}: tecnico divergente (nada alterado):`,
+        avisosTecnico.join("; ")
       )
     }
 
@@ -517,8 +542,8 @@ function converterLinhaParaPontoInput(
     ciclo: inteiro(linha.Ciclo),
     etapa: inteiro(linha.Etapa),
     // MultiSelect: "Allan,Paulo" em linhas antigas com mais de um técnico.
-    // Texto histórico; o vínculo de verdade (tecnicoId) só vem das linhas
-    // "Atual", validadas antes.
+    // Texto histórico, e entra no hash; o vínculo de verdade (tecnicoId) é
+    // do RouteMap e a sync não o toca.
     tecnicoNomeHistorico: nomesTecnicos(linha.Tecnico).join(", "),
     // A UM vem do campo UM. Na planilha vinha do nome da aba; as abas
     // viraram views da mesma tabela.
