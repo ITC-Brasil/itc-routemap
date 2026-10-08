@@ -23,6 +23,9 @@ import { listarTodosPontos } from "@/lib/actions/pontos"
 import type { Ponto } from "@/lib/db/pontos"
 import { listarTecnicos } from "@/lib/actions/tecnicos"
 import type { Tecnico } from "@/lib/db/tecnicos"
+import { listarUMs } from "@/lib/actions/ums"
+import type { UM } from "@/lib/db/ums"
+import { separarCandidatos } from "@/lib/tecnico-atual"
 import {
   aplicarReotimizacao,
   confirmarAlocacao,
@@ -96,6 +99,7 @@ export default function CalcularRotasPage() {
   const [projetos, setProjetos] = useState<Projeto[]>([])
   const [pontos, setPontos] = useState<Ponto[]>([])
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([])
+  const [ums, setUms] = useState<UM[]>([])
   const [rotasConfirmadas, setRotasConfirmadas] = useState<Rota[]>([])
   const [diasNaoUteis, setDiasNaoUteis] = useState<Set<string>>(new Set())
   const [carregando, setCarregando] = useState(true)
@@ -110,12 +114,14 @@ export default function CalcularRotasPage() {
           listaProjetos,
           listaPontos,
           listaTecnicos,
+          listaUms,
           listaRotasConfirmadas,
           listaDiasNaoUteis,
         ] = await Promise.all([
             listarProjetos(),
             listarTodosPontos(),
             listarTecnicos(),
+            listarUMs(),
             listarRotasPorStatus("Confirmada"),
             listarDiasNaoUteis(),
           ])
@@ -123,6 +129,7 @@ export default function CalcularRotasPage() {
         setProjetos(listaProjetos)
         setPontos(listaPontos)
         setTecnicos(listaTecnicos)
+        setUms(listaUms)
         setRotasConfirmadas(listaRotasConfirmadas)
         setDiasNaoUteis(new Set(listaDiasNaoUteis.map((d) => d.data)))
       } catch (err) {
@@ -154,6 +161,7 @@ export default function CalcularRotasPage() {
           projetos={projetos}
           pontos={pontos}
           tecnicos={tecnicos}
+          ums={ums}
           rotasConfirmadas={rotasConfirmadas}
           diasNaoUteis={diasNaoUteis}
         />
@@ -170,12 +178,14 @@ function ConteudoCondicional({
   projetos,
   pontos,
   tecnicos,
+  ums,
   rotasConfirmadas,
   diasNaoUteis,
 }: {
   projetos: Projeto[]
   pontos: Ponto[]
   tecnicos: Tecnico[]
+  ums: UM[]
   rotasConfirmadas: Rota[]
   diasNaoUteis: Set<string>
 }) {
@@ -248,6 +258,7 @@ function ConteudoCondicional({
   return (
     <FluxoAlocacao
       tecnicos={tecnicosComLocalizacao}
+      ums={ums}
       umsAptasPorProjeto={totalUmsAptas > 0 ? umsAptasPorProjeto : []}
       rotasConfirmadas={rotasConfirmadas}
       diasNaoUteis={diasNaoUteis}
@@ -293,11 +304,13 @@ type OportunidadeReotimizacao = {
 
 function FluxoAlocacao({
   tecnicos,
+  ums,
   umsAptasPorProjeto,
   rotasConfirmadas,
   diasNaoUteis,
 }: {
   tecnicos: Tecnico[]
+  ums: UM[]
   umsAptasPorProjeto: Array<{ projeto: Projeto; destinos: Map<string, Ponto> }>
   rotasConfirmadas: Rota[]
   diasNaoUteis: Set<string>
@@ -328,6 +341,24 @@ function FluxoAlocacao({
   )
   const [selectedUmKeys, setSelectedUmKeys] = useState<Set<string>>(
     () => new Set(itensUM.map((i) => i.key))
+  )
+
+  // Candidatos: técnicos sem UM e donos das UMs marcadas. O técnico atual de
+  // uma UM fora do lote fica de fora — alocá-lo em outra UM o poria em duas,
+  // e a confirmação recusaria. Recalcula a cada UM marcada/desmarcada; a
+  // seleção de técnicos é preservada, só deixa de valer para quem saiu.
+  const { candidatos, foraDoLote } = useMemo(
+    () =>
+      separarCandidatos(
+        tecnicos,
+        ums,
+        new Set(itensUM.filter((i) => selectedUmKeys.has(i.key)).map((i) => i.umNome))
+      ),
+    [tecnicos, ums, itensUM, selectedUmKeys]
+  )
+  const tecnicosSelecionados = useMemo(
+    () => candidatos.filter((t) => selectedTecnicoIds.has(t.id)),
+    [candidatos, selectedTecnicoIds]
   )
 
   // Estado da máquina de fluxo
@@ -366,12 +397,13 @@ function FluxoAlocacao({
 
   // 13.12: rotas ativas dos técnicos atualmente selecionados
   const tecnicosAtivosSelected = useMemo<Rota[]>(() => {
+    const ids = new Set(tecnicosSelecionados.map((t) => t.id))
     return Array.from(rotaAtivaPorTecnico.values()).filter((r) =>
-      selectedTecnicoIds.has(r.tecnicoId)
+      ids.has(r.tecnicoId)
     )
-  }, [rotaAtivaPorTecnico, selectedTecnicoIds])
+  }, [rotaAtivaPorTecnico, tecnicosSelecionados])
 
-  const totalSelTecnicos = selectedTecnicoIds.size
+  const totalSelTecnicos = tecnicosSelecionados.length
   const totalSelUms = selectedUmKeys.size
 
   // === TOGGLES ===
@@ -393,6 +425,8 @@ function FluxoAlocacao({
     })
   }
 
+  // Marca também os que estão fora do lote, como na pré-seleção: assim quem
+  // volta a ser candidato (ao marcar a UM dele) já aparece marcado.
   const selecionarTodosTecnicos = () =>
     setSelectedTecnicoIds(new Set(tecnicos.map((t) => t.id)))
   const limparTecnicos = () => setSelectedTecnicoIds(new Set())
@@ -411,8 +445,7 @@ function FluxoAlocacao({
     setOportunidades([])
 
     try {
-      const tecsSemCoord = tecnicos
-        .filter((t) => selectedTecnicoIds.has(t.id))
+      const tecsSemCoord = tecnicosSelecionados
         .filter((t) => t.latitude === null || t.longitude === null)
       if (tecsSemCoord.length > 0) {
         throw new Error(
@@ -429,8 +462,7 @@ function FluxoAlocacao({
         )
       }
 
-      const tecnicosPayload = tecnicos
-        .filter((t) => selectedTecnicoIds.has(t.id))
+      const tecnicosPayload = tecnicosSelecionados
         .map((t) => ({
           id: t.id,
           nome: t.nome,
@@ -721,9 +753,9 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
           contagem, e o card em volta só tirava peso dela. */}
       <div className="flex gap-8">
         <ContagemProntidao
-          valor={tecnicos.length}
+          valor={candidatos.length}
           legenda={
-            tecnicos.length === 1 ? "técnico disponível" : "técnicos disponíveis"
+            candidatos.length === 1 ? "técnico disponível" : "técnicos disponíveis"
           }
         />
         <div className="w-px bg-border" />
@@ -745,12 +777,13 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
               <CabecalhoColuna
                 titulo="Técnicos"
                 selecionados={totalSelTecnicos}
-                total={tecnicos.length}
+                total={candidatos.length}
                 onSelecionarTodos={selecionarTodosTecnicos}
                 onLimpar={limparTecnicos}
               />
+              <TecnicosForaDoLote fora={foraDoLote} />
               <ul className="flex flex-col gap-1.5 p-3">
-                {tecnicos.map((t) => {
+                {candidatos.map((t) => {
                   const id = `tec-${t.id}`
                   const checked = selectedTecnicoIds.has(t.id)
                   return (
@@ -1282,6 +1315,36 @@ function ContagemProntidao({
  * Painel de seleção — superfície com a régua teal de 2px no topo, a assinatura
  * dos painéis do protótipo v2.
  */
+/**
+ * Técnicos que não entram no cálculo por serem o técnico atual de uma UM fora
+ * do lote. Mostrado para a ausência não parecer sumiço: marcar a UM dele traz
+ * o técnico de volta.
+ */
+function TecnicosForaDoLote({
+  fora,
+}: {
+  fora: Array<{ tecnico: Tecnico; umNome: string }>
+}) {
+  if (fora.length === 0) return null
+  return (
+    <div className="mx-3 mt-3 rounded-[9px] border border-dashed p-3 text-[13px]">
+      <p className="font-medium">
+        {fora.length} técnico{fora.length === 1 ? "" : "s"} fora do cálculo
+      </p>
+      <ul className="mt-1 space-y-0.5 text-muted-foreground">
+        {fora.map(({ tecnico, umNome }) => (
+          <li key={tecnico.id}>
+            {tecnico.nome}: atual de {umNome}, fora do lote
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        Marque a UM para incluí-lo.
+      </p>
+    </div>
+  )
+}
+
 function PainelSelecao({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col rounded-xl border border-t-2 border-t-primary bg-card shadow-[var(--shadow-1)]">

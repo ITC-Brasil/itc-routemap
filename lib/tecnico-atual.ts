@@ -109,3 +109,49 @@ export function planejarTecnicoAtual(
 
   return [...zerar, ...gravar]
 }
+
+// ============================================================
+// CANDIDATOS DO CÁLCULO
+// ============================================================
+
+/** Técnico que ficou fora do cálculo, com o motivo. */
+export type TecnicoForaDoLote<T> = {
+  tecnico: T
+  /** UM da qual ele é o técnico atual (e que não está no lote). */
+  umNome: string
+}
+
+/**
+ * Separa os técnicos que podem entrar no cálculo de rotas.
+ *
+ * Candidatos: técnicos que não são `tecnicoAtualId` de nenhuma UM, e os donos
+ * das UMs que estão no lote. Fica de fora quem é o técnico atual de uma UM que
+ * o lote não inclui: alocá-lo em outra UM o poria em duas ao mesmo tempo, e a
+ * confirmação recusaria (`planejarTecnicoAtual`). Filtrar aqui evita oferecer
+ * um resultado que não pode ser confirmado; a recusa na confirmação continua
+ * como trava.
+ *
+ * @param umNomesNoLote Nomes das UMs selecionadas para o cálculo.
+ */
+export function separarCandidatos<T extends { id: string }>(
+  tecnicos: T[],
+  ums: { nome: string; tecnicoAtualId: string | null }[],
+  umNomesNoLote: ReadonlySet<string>
+): { candidatos: T[]; foraDoLote: TecnicoForaDoLote<T>[] } {
+  const umDoTecnico = new Map<string, string>()
+  for (const um of ums) {
+    if (um.tecnicoAtualId) umDoTecnico.set(um.tecnicoAtualId, um.nome)
+  }
+
+  const candidatos: T[] = []
+  const foraDoLote: TecnicoForaDoLote<T>[] = []
+  for (const tecnico of tecnicos) {
+    const umNome = umDoTecnico.get(tecnico.id)
+    if (umNome === undefined || umNomesNoLote.has(umNome)) {
+      candidatos.push(tecnico)
+    } else {
+      foraDoLote.push({ tecnico, umNome })
+    }
+  }
+  return { candidatos, foraDoLote }
+}

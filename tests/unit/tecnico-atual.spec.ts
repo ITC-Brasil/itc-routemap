@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test"
 import {
   ErroTecnicoAtual,
   planejarTecnicoAtual,
+  separarCandidatos,
   type OperacaoTecnicoAtual,
   type UmTecnicoAtual,
 } from "../../lib/tecnico-atual"
@@ -105,5 +106,41 @@ test.describe("planejarTecnicoAtual", () => {
         { umId: "um-b", tecnicoId: "w" },
       ])
     ).toThrow(ErroTecnicoAtual)
+  })
+})
+
+test.describe("separarCandidatos", () => {
+  const paulo = { id: "paulo", nome: "Paulo" }
+  const allan = { id: "allan", nome: "Allan" }
+  const novo = { id: "novo", nome: "Técnico sem UM" }
+  const ums = [
+    { nome: "SPV01", tecnicoAtualId: "paulo" },
+    { nome: "BSBIA01", tecnicoAtualId: "allan" },
+    { nome: "QDFM01", tecnicoAtualId: null },
+  ]
+
+  test("técnico sem UM é sempre candidato", () => {
+    const { candidatos } = separarCandidatos([novo], ums, new Set())
+    expect(candidatos).toEqual([novo])
+  })
+
+  test("dono de UM do lote é candidato; dono de UM fora do lote fica de fora", () => {
+    const { candidatos, foraDoLote } = separarCandidatos(
+      [paulo, allan, novo],
+      ums,
+      new Set(["BSBIA01", "QDFM01"])
+    )
+    expect(candidatos.map((t) => t.id)).toEqual(["allan", "novo"])
+    expect(foraDoLote).toEqual([{ tecnico: paulo, umNome: "SPV01" }])
+  })
+
+  test("com as duas UMs no lote, a troca entre os donos é possível", () => {
+    const { candidatos, foraDoLote } = separarCandidatos(
+      [paulo, allan],
+      ums,
+      new Set(["SPV01", "BSBIA01"])
+    )
+    expect(candidatos).toHaveLength(2)
+    expect(foraDoLote).toHaveLength(0)
   })
 })
