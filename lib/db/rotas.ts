@@ -9,6 +9,10 @@ import {
   type OrigemDecisao,
   type StatusRota,
 } from "@/lib/rotas-utils"
+import {
+  rebaixarAnterioresDaUm,
+  sincronizarTecnicoAtualDasUms,
+} from "@/lib/db/transicoes-ponto"
 
 // Tipos, constante e helpers puros são client-safe e vivem em
 // lib/rotas-utils.ts. Re-exportados aqui por paridade de API com
@@ -378,6 +382,8 @@ export type ConfirmarAlocacaoResultado = {
  * Confirma uma alocação inteira atomicamente:
  *   - Cria N linhas em `rotas` com status="Confirmada"
  *   - Atualiza N linhas em `pontos`: status="Agendado", tecnicoId, rotaId
+ *   - O ponto Agendado anterior de cada UM vira "Histórico"
+ *   - ums.tecnicoAtualId passa a refletir o novo ponto Agendado
  *
  * Tudo numa única transação. Se qualquer operação falhar, NADA é
  * persistido — mantém consistência: ou a alocação está inteira no banco,
@@ -452,6 +458,13 @@ export async function confirmarAlocacao(
         pontosAtualizados.push(aloc.pontoId)
       }
 
+      // 3. Efeito na UM (lib/db/transicoes-ponto.ts)
+      await rebaixarAnterioresDaUm(tx, pontosAtualizados)
+      await sincronizarTecnicoAtualDasUms(
+        tx,
+        input.alocacoes.map((a) => a.umNome)
+      )
+
       return { rotasIds, pontosAtualizados }
     },
     { timeout: TX_TIMEOUT_MS }
@@ -510,11 +523,17 @@ export type ReotimizacaoResultado = {
 /**
  * Aplica re-otimização inteligente atomicamente (13.12).
  *
- * Numa única transação, na mesma ordem da versão Firestore:
- *   - Cancela rotas ativas que serão substituídas (status → "Cancelada")
- *   - Libera pontos das rotas canceladas (status → "Pendente", remove tecnicoId/rotaId)
- *   - Cria novas rotas (status → "Confirmada", realocadaDe aponta pra rota antiga)
- *   - Agenda novos pontos (status → "Agendado", vincula tecnicoId/rotaId)
+ * Numa única transação, em duas fases:
+ *   1. Para TODAS as alocações: cancela as rotas substituídas e libera os
+ *      pontos antigos (status → "Pendente", remove tecnicoId/rotaId)
+ *   2. Para TODAS as alocações: cria as novas rotas (realocadaDe aponta pra
+ *      rota antiga) e agenda os novos pontos
+ *   Depois: o Agendado anterior de cada UM que ganhou ponto vira "Histórico"
+ *   e ums.tecnicoAtualId é recalculado nas UMs tocadas.
+ *
+ * As fases eram intercaladas por alocação. Numa troca de destinos (X ia para
+ * P2 e Y deixava P2), a liberação de P2 vinha DEPOIS de X tê-lo agendado e o
+ * ponto terminava Pendente. Liberar tudo antes de agendar elimina isso.
  *
  * Tudo atômico: ou tudo persiste, ou nada.
  */
@@ -538,7 +557,8 @@ export async function aplicarReotimizacao(
       let rotasCanceladas = 0
       let pontosLiberados = 0
 
-      for (const [indice, aloc] of input.alocacoes.entries()) {
+      // Fase 1: cancela e libera
+      for (const aloc of input.alocacoes) {
         // 1. Cancela rota antiga (se re-otimização)
         if (aloc.rotaAntigaId) {
           await tx.rota.update({
@@ -560,7 +580,10 @@ export async function aplicarReotimizacao(
           })
           pontosLiberados++
         }
+      }
 
+      // Fase 2: cria e agenda
+      for (const [indice, aloc] of input.alocacoes.entries()) {
         // 3. Cria nova rota
         const rota = await tx.rota.create({
           data: {
@@ -599,6 +622,21 @@ export async function aplicarReotimizacao(
         })
         pontosAtualizados.push(aloc.pontoId)
       }
+
+      // 5. Efeito na UM: só as UMs que ganharam ponto rebaixam o anterior; a
+      // UM do ponto liberado não restaura nada (não é cancelamento).
+      await rebaixarAnterioresDaUm(tx, pontosAtualizados)
+      const pontosAntigosIds = input.alocacoes
+        .map((a) => a.pontoAntigoId)
+        .filter((id): id is string => !!id)
+      const umsDosAntigos = await tx.ponto.findMany({
+        where: { id: { in: pontosAntigosIds } },
+        select: { umNome: true },
+      })
+      await sincronizarTecnicoAtualDasUms(tx, [
+        ...input.alocacoes.map((a) => a.umNome),
+        ...umsDosAntigos.map((p) => p.umNome),
+      ])
 
       return { rotasIds, pontosAtualizados, rotasCanceladas, pontosLiberados }
     },

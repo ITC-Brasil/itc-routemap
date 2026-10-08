@@ -2,6 +2,10 @@ import "server-only"
 
 import { prisma } from "@/lib/prisma"
 import {
+  restaurarAnterioresDaUm,
+  sincronizarTecnicoAtualDasUms,
+} from "@/lib/db/transicoes-ponto"
+import {
   listarRotas,
   listarRotasPorLote,
   type Rota,
@@ -123,7 +127,9 @@ export { listarRotasPorLote as obterRotasDoLote }
 
 /**
  * Cancela todas as rotas Confirmadas de um lote e libera os pontos
- * (Agendado → Pendente) em uma única transação atômica.
+ * (Agendado → Pendente) em uma única transação atômica. Na mesma transação,
+ * o ponto anterior de cada UM que ficou sem Agendado volta a Agendado e
+ * ums.tecnicoAtualId é recalculado.
  *
  * Idempotente: rotas já Canceladas e pontos que não estão Agendados
  * são ignorados silenciosamente.
@@ -170,12 +176,23 @@ export async function cancelarLote(
       },
     })
 
+    // 5. Efeito na UM (lib/db/transicoes-ponto.ts)
+    await restaurarAnterioresDaUm(tx, pontosLiberadosIds)
+    const umsLiberadas = await tx.ponto.findMany({
+      where: { id: { in: pontosLiberadosIds } },
+      select: { umNome: true },
+    })
+    await sincronizarTecnicoAtualDasUms(
+      tx,
+      umsLiberadas.map((p) => p.umNome)
+    )
+
     return {
       rotasCanceladas: rotasAtivas.length,
       pontosLiberados,
       pontosLiberadosIds,
     }
-  })
+  }, { timeout: 15000 })
 }
 
 // ============================================================

@@ -143,15 +143,16 @@ export async function POST(request: Request) {
     }
 
     // 4. VALIDAR ANTES DE ESCREVER
-    // O técnico das linhas "Atual" precisa existir com nome IDÊNTICO em
+    // O técnico das linhas "Atual" é comparado por nome IDÊNTICO com
     // tecnicos.nome. Sem casamento aproximado: "Lucas" não vira "Lucas
-    // Andrade". Qualquer falha aborta a sync inteira, antes da primeira
-    // escrita — sync pela metade deixaria o projeto num estado que nenhuma
-    // das duas fontes descreve.
+    // Andrade".
     //
     // A validação NÃO vincula nada: o RouteMap é a autoridade sobre o
     // técnico (pontos.tecnicoId, ums.tecnicoAtualId). O nome do NocoDB só
-    // serve para comparar e avisar (etapa 6).
+    // serve para comparar e avisar (etapa 6). Por isso nome que não existe no
+    // RouteMap vira aviso; o que ainda aborta, antes da primeira escrita, é a
+    // linha "Atual" sem técnico ou com mais de um, e nome que casa com dois
+    // cadastros — dado que não dá nem para comparar.
     const tecnicos = await listarTecnicos()
     const tecnicoPorNome = new Map<string, string[]>()
     for (const t of tecnicos) {
@@ -163,6 +164,7 @@ export async function POST(request: Request) {
 
     const errosTecnico: string[] = []
     const tecnicoNocodbPorLinha = new Map<number, string>()
+    const tecnicoInexistentePorLinha = new Map<number, string>()
 
     for (const linha of linhas) {
       if (normalizarStatus(linha.Status) !== "Agendado") continue
@@ -181,9 +183,7 @@ export async function POST(request: Request) {
 
       const ids = tecnicoPorNome.get(nomes[0]) ?? []
       if (ids.length === 0) {
-        errosTecnico.push(
-          `${ref}: o técnico "${nomes[0]}" não existe no RouteMap com esse nome exato.`
-        )
+        tecnicoInexistentePorLinha.set(linha.Id, nomes[0])
       } else if (ids.length > 1) {
         errosTecnico.push(
           `${ref}: há ${ids.length} técnicos chamados "${nomes[0]}" no RouteMap.`
@@ -195,7 +195,7 @@ export async function POST(request: Request) {
 
     if (errosTecnico.length > 0) {
       return respostaErro(
-        "Técnico das linhas \"Atual\" não casa com o cadastro. Nada foi alterado.",
+        "Técnico das linhas \"Atual\" não pode ser comparado com o cadastro. Nada foi alterado.",
         422,
         errosTecnico.join(" | ")
       )
@@ -307,6 +307,12 @@ export async function POST(request: Request) {
 
       // Técnico: só compara. Divergência vira aviso e nada é alterado — nem
       // pontos.tecnicoId, nem ums.tecnicoAtualId.
+      const inexistente = tecnicoInexistentePorLinha.get(linha.Id)
+      if (inexistente) {
+        avisosTecnico.push(
+          `UM ${um}: NocoDB diz ${inexistente}, que não existe no RouteMap com esse nome exato`
+        )
+      }
       const tecnicoNocodb = tecnicoNocodbPorLinha.get(linha.Id)
       if (tecnicoNocodb) {
         const tecnicoSistema = existente?.tecnicoId

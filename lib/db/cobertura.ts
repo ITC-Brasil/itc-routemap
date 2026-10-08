@@ -26,9 +26,9 @@ import {
  *  - EMPARELHAMENTO VIGENTE: `pontos` com `status = "Agendado"` e `tecnicoId`
  *    preenchido. É o par que as transações de alocação mantêm: confirmar liga
  *    (`confirmarAlocacao`), cancelar desliga e devolve o ponto para
- *    "Pendente" (`cancelarLote`). NÃO se usa `ums.tecnicoAtualId`: a coluna
- *    existe desde a migração e está inerte, `criarUM` grava `null` e nenhum
- *    fluxo escreve nela. NÃO se lê `rotas` direto: uma rota Confirmada cujo
+ *    "Pendente" (`cancelarLote`). NÃO se usa `ums.tecnicoAtualId`: desde a
+ *    15.0 ela é recalculada a partir do ponto Agendado nas mesmas transações,
+ *    e ler o reflexo em vez da fonte esconderia uma divergência. NÃO se lê `rotas` direto: uma rota Confirmada cujo
  *    ponto já foi liberado não é vínculo em vigor, e o ponto é o lado que as
  *    duas transações sempre atualizam.
  *

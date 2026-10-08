@@ -12,11 +12,11 @@
  * Etapa 15 precisa das duas coisas separadas, porque o motor de rotação também
  * vai avaliar hipóteses que ainda não estão no banco.
  *
- * ONDE MORA O EMPARELHAMENTO HOJE: em `pontos`, não em `ums`. A coluna
- * `ums.tecnicoAtualId` existe desde a migração do Firestore e está inerte —
- * `criarUM` grava `null`, nenhum fluxo do app escreve nela. Quem mantém o
- * vínculo são as transações de confirmar e cancelar alocação, que ligam e
- * desligam `ponto.status = "Agendado"` com `ponto.tecnicoId`.
+ * ONDE MORA O EMPARELHAMENTO: em `pontos`, que é o que esta régua lê. Quem
+ * mantém o vínculo são as transações de confirmar e cancelar alocação, que
+ * ligam e desligam `ponto.status = "Agendado"` com `ponto.tecnicoId`. Desde a
+ * 15.0 as mesmas transações também recalculam `ums.tecnicoAtualId` a partir
+ * desse ponto (lib/db/transicoes-ponto.ts), então a coluna é um reflexo dele.
  *
  * A LIGAÇÃO É POR NOME. `pontos.umNome` é texto, não referência a `ums.id` —
  * é assim em todo o sistema (ver `obterDestinosPorUM`). Por isso existe
