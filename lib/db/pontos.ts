@@ -423,9 +423,6 @@ export async function buscarProjetoAdmin(projetoId: string): Promise<{
   nome: string
   sigla: string
   cor: string
-  sheetId: string
-  sheetUrl: string
-  sheetAbas: string[]
 } | null> {
   const projeto = await buscarProjeto(projetoId)
   if (!projeto) return null
@@ -435,8 +432,5 @@ export async function buscarProjetoAdmin(projetoId: string): Promise<{
     nome: projeto.nome,
     sigla: projeto.sigla,
     cor: projeto.cor,
-    sheetId: projeto.sheetId,
-    sheetUrl: projeto.sheetUrl,
-    sheetAbas: projeto.sheetAbas,
   }
 }

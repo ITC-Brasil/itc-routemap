@@ -2,9 +2,12 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { ExternalLink, FileSpreadsheet, Info } from "lucide-react"
-import { criarProjeto, atualizarProjeto } from "@/lib/actions/projetos"
-import { isUrlSheetsValida, ABA_PADRAO_SUGERIDA } from "@/lib/sheets-utils"
+import { AlertTriangle, Database } from "lucide-react"
+import {
+  criarProjeto,
+  atualizarProjeto,
+  contarPontosDoProjeto,
+} from "@/lib/actions/projetos"
 import type { Projeto } from "@/lib/db/projetos"
 import { corTextoIdeal } from "@/lib/cores"
 import { Button } from "@/components/ui/button"
@@ -18,7 +21,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ColorPicker } from "@/components/color-picker"
 
 const COR_INICIAL = "#008F95"
@@ -87,11 +89,13 @@ function FormularioConteudo({
   const [nome, setNome] = useState(projeto?.nome ?? "")
   const [sigla, setSigla] = useState(projeto?.sigla ?? "")
   const [cor, setCor] = useState(projeto?.cor ?? COR_INICIAL)
-  const [sheetUrl, setSheetUrl] = useState(projeto?.sheetUrl ?? "")
-  const [abasTexto, setAbasTexto] = useState(
-    formatarAbasParaTexto(projeto?.sheetAbas)
-  )
   const [salvando, setSalvando] = useState(false)
+  // Troca de sigla num projeto com pontos: quantos pontos, enquanto aguarda a
+  // confirmação. Null = nada a confirmar.
+  const [pontosAfetados, setPontosAfetados] = useState<number | null>(null)
+
+  const siglaNormalizada = sigla.trim().toUpperCase()
+  const siglaMudou = modoEdicao && siglaNormalizada !== projeto?.sigla
 
   const handleSalvar = async () => {
     if (!nome.trim()) {
@@ -106,27 +110,21 @@ function FormularioConteudo({
       toast.error("Sigla deve ter no máximo 10 caracteres.")
       return
     }
-    if (!sheetUrl.trim()) {
-      toast.error("Informe a URL da planilha Google Sheets.")
-      return
-    }
-    if (!isUrlSheetsValida(sheetUrl)) {
-      toast.error(
-        "URL inválida. Use o formato: docs.google.com/spreadsheets/d/..."
-      )
-      return
-    }
-
-    const sheetAbas = parsearAbasDoTexto(abasTexto)
-    if (sheetAbas.length === 0) {
-      toast.error("Informe ao menos uma aba para sincronizar.")
-      return
-    }
 
     setSalvando(true)
 
     try {
-      const input = { nome, sigla, cor, sheetUrl, sheetAbas }
+      // A sigla é o vínculo com o NocoDB. Trocá-la num projeto que já tem
+      // pontos muda o que a próxima sync busca — pede confirmação uma vez.
+      if (siglaMudou && projeto && pontosAfetados === null) {
+        const qtd = await contarPontosDoProjeto(projeto.id)
+        if (qtd > 0) {
+          setPontosAfetados(qtd)
+          return
+        }
+      }
+
+      const input = { nome, sigla, cor }
 
       if (modoEdicao && projeto) {
         await atualizarProjeto(projeto.id, input)
@@ -147,10 +145,7 @@ function FormularioConteudo({
     }
   }
 
-  const urlValida = sheetUrl ? isUrlSheetsValida(sheetUrl) : true
-  const serviceAccountEmail =
-    process.env.NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL ?? "(verificar no .env)"
-  const abasPreview = parsearAbasDoTexto(abasTexto)
+  const aguardandoConfirmacao = pontosAfetados !== null && siglaMudou
 
   return (
     <>
@@ -161,7 +156,7 @@ function FormularioConteudo({
         <DialogDescription>
           {modoEdicao
             ? "Atualize as informações do projeto."
-            : "Cadastre um novo projeto com sua planilha de pontos vinculada."}
+            : "Cadastre um novo projeto. Os pontos vêm do NocoDB pela sigla."}
         </DialogDescription>
       </DialogHeader>
 
@@ -185,16 +180,38 @@ function FormularioConteudo({
           <Input
             id="sigla"
             value={sigla}
-            onChange={(e) => setSigla(e.target.value.toUpperCase())}
+            onChange={(e) => {
+              setSigla(e.target.value.toUpperCase())
+              setPontosAfetados(null)
+            }}
             placeholder="Ex: ITC"
             maxLength={10}
             disabled={salvando}
             className="font-mono uppercase"
           />
           <p className="text-xs text-muted-foreground">
-            Até 10 caracteres. Será exibida em badge colorida.
+            Até 10 caracteres. Precisa ser idêntica à opção Projeto no NocoDB.
           </p>
         </div>
+
+        {aguardandoConfirmacao && (
+          <div className="flex items-start gap-3 rounded-lg border border-warn bg-warn-tint p-3">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />
+            <div className="space-y-1 text-[13px] text-warn">
+              <p className="font-medium">
+                Trocar a sigla de {projeto?.sigla} para {siglaNormalizada}?
+              </p>
+              <p className="text-warn/80">
+                O projeto tem {pontosAfetados} ponto
+                {pontosAfetados === 1 ? "" : "s"}. A partir da próxima
+                sincronização, os pontos são buscados no NocoDB pela opção
+                Projeto <span className="font-mono">{siglaNormalizada}</span>,
+                que precisa existir lá exatamente igual. Se não existir, a
+                sincronização deste projeto falha sem alterar nada.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Color Picker */}
         <ColorPicker
@@ -204,85 +221,20 @@ function FormularioConteudo({
           disabled={salvando}
         />
 
-        {/* Separador visual */}
-        <div className="relative pt-2">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
+        {/* Integração NocoDB — informativo, sem campos */}
+        <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
+          <Database className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="space-y-1 text-[13px]">
+            <p className="font-medium">Integração NocoDB</p>
+            <p className="text-muted-foreground">
+              Os pontos vêm da tabela <strong>Localidades</strong>, filtrando
+              as linhas cuja opção <strong>Projeto</strong> é igual à sigla
+              acima. A sigla precisa ser idêntica à do NocoDB (ex.:{" "}
+              <span className="font-mono">BSBIA</span>, não{" "}
+              <span className="font-mono">BSB.IA</span>).
+            </p>
           </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-background px-2 font-mono uppercase tracking-widest text-muted-foreground">
-              Integração Google Sheets
-            </span>
-          </div>
         </div>
-
-        {/* URL */}
-        <div className="space-y-2">
-          <Label htmlFor="sheetUrl" className="flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4" />
-            URL da planilha
-          </Label>
-          <Input
-            id="sheetUrl"
-            value={sheetUrl}
-            onChange={(e) => setSheetUrl(e.target.value)}
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            disabled={salvando}
-            className="font-mono text-xs"
-          />
-          {!urlValida && (
-            <p className="text-xs text-destructive">
-              URL inválida. Use o link completo da planilha do Google Sheets.
-            </p>
-          )}
-        </div>
-
-        {/* Abas */}
-        <div className="space-y-2">
-          <Label htmlFor="sheetAbas">Abas a sincronizar</Label>
-          <textarea
-            id="sheetAbas"
-            value={abasTexto}
-            onChange={(e) => setAbasTexto(e.target.value)}
-            disabled={salvando}
-            rows={4}
-            placeholder={"BSBIA01\nBSBIA02\nBSBIA03"}
-            className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          />
-          <p className="text-xs text-muted-foreground">
-            Uma aba por linha. Pode ser uma por UM do projeto (ex: BSBIA01,
-            BSBIA02). Sensível a maiúsculas/minúsculas.
-          </p>
-          {abasPreview.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {abasPreview.map((aba) => (
-                <span
-                  key={aba}
-                  className="inline-flex items-center rounded-md border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground"
-                >
-                  {aba}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Service Account */}
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription className="space-y-2">
-            <p>
-              <strong>Importante:</strong> compartilhe a planilha com o
-              Service Account abaixo (como Leitor):
-            </p>
-            <code className="block break-all rounded bg-muted px-2 py-1 font-mono text-xs">
-              {serviceAccountEmail}
-            </code>
-            <p className="text-xs text-muted-foreground">
-              Sem isso, o sistema não conseguirá ler os pontos.
-            </p>
-          </AlertDescription>
-        </Alert>
 
         {/* Preview */}
         <div className="space-y-2">
@@ -300,7 +252,6 @@ function FormularioConteudo({
             <p className="mt-2 text-sm text-foreground">
               {nome || "Nome do projeto"}
             </p>
-            {sheetUrl && urlValida && <LinkAbrirPlanilha url={sheetUrl} />}
           </div>
         </div>
       </div>
@@ -312,38 +263,13 @@ function FormularioConteudo({
         <Button onClick={handleSalvar} disabled={salvando}>
           {salvando
             ? "Salvando..."
-            : modoEdicao
-              ? "Salvar alterações"
-              : "Cadastrar"}
+            : aguardandoConfirmacao
+              ? "Confirmar mudança de sigla"
+              : modoEdicao
+                ? "Salvar alterações"
+                : "Cadastrar"}
         </Button>
       </DialogFooter>
     </>
   )
-}
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-function LinkAbrirPlanilha({ url }: { url: string }) {
-  return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">
-      <ExternalLink className="h-3 w-3" />
-      Abrir planilha
-    </a>
-  )
-}
-
-function formatarAbasParaTexto(abas: string[] | undefined): string {
-  if (!abas || abas.length === 0) return ABA_PADRAO_SUGERIDA
-  return abas.join("\n")
-}
-
-function parsearAbasDoTexto(texto: string): string[] {
-  const linhas = texto
-    .split("\n")
-    .map((linha) => linha.trim())
-    .filter((linha) => linha.length > 0)
-
-  return Array.from(new Set(linhas))
 }

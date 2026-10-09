@@ -83,11 +83,8 @@ test.describe("CRUD — Projetos", () => {
 
     await page.locator("#nome").fill(nome)
     await page.locator("#sigla").fill("ZZC")
-    // Obrigatórios: o form valida URL da planilha e ao menos uma aba.
-    await page
-      .locator("#sheetUrl")
-      .fill("https://docs.google.com/spreadsheets/d/1ZZtesteCrudPlanilha/edit")
-    await page.locator("#sheetAbas").fill("ABA01")
+    // Sem campos de planilha: os pontos vêm do NocoDB pela sigla.
+    await expect(page.getByText("Integração NocoDB")).toBeVisible()
     await page.getByRole("dialog").getByRole("button", { name: /^Cadastrar$/ }).click()
     await esperarToast(page, /cadastrado|sucesso/i)
 

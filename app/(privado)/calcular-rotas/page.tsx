@@ -853,9 +853,11 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
                         onCheckedChange={() => toggleUm(item.key)}
                         className="mt-1"
                       />
+                      {/* min-w-0: sem ele o item flex não encolhe abaixo do
+                          conteúdo, e o endereço vazava pela borda do card. */}
                       <Label
                         htmlFor={id}
-                        className="flex flex-1 cursor-pointer flex-col items-start gap-1"
+                        className="flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-1"
                       >
                         <div className="flex items-center gap-2">
                           <Badge
@@ -870,10 +872,9 @@ const handleConfirmar = async (payload: PayloadConfirmacao) => {
                           <span className="font-medium">{item.umNome}</span>
                         </div>
                         <p className="text-sm">{item.destino.raNome}</p>
-                        <p
-                          className="truncate text-xs text-muted-foreground"
-                          title={item.destino.endereco}
-                        >
+                        {/* Quebra em vez de truncar: o endereço inteiro é útil
+                            na hora de escolher a UM. */}
+                        <p className="w-full text-xs text-muted-foreground [overflow-wrap:anywhere]">
                           {item.destino.endereco} · Ciclo {item.destino.ciclo}{" "}
                           / Etapa {item.destino.etapa}
                         </p>

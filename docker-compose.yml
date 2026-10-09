@@ -32,7 +32,6 @@ services:
       args:
         # NEXT_PUBLIC_*: embutidas no bundle em BUILD-time -> build arg.
         NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
-        NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL: ${NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL}
     image: routemap-app:local
     container_name: routemap-app
     restart: always
@@ -49,7 +48,6 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_MAPS_SERVER_API_KEY: ${GOOGLE_MAPS_SERVER_API_KEY}
-      GOOGLE_SERVICE_ACCOUNT_BASE64: ${GOOGLE_SERVICE_ACCOUNT_BASE64}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_ENABLED: ${GEMINI_ENABLED:-true}
       ADMIN_EMAIL: ${ADMIN_EMAIL}

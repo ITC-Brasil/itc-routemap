@@ -11,8 +11,8 @@ import type {
  * Server actions de Projetos — ponte entre client components e a camada
  * Prisma (lib/db/projetos), com checagem de sessão Better Auth.
  *
- * Tipos (Projeto, *Input) e utilitários de Sheets são client-safe e devem
- * ser importados de "@/lib/db/projetos" (type-only) e "@/lib/sheets-utils".
+ * Tipos (Projeto, *Input) são client-safe e devem ser importados de
+ * "@/lib/db/projetos" (type-only).
  */
 
 export async function listarProjetos() {
@@ -41,6 +41,11 @@ export async function atualizarProjeto(
 export async function marcarSincronizacao(id: string) {
   await requireSession()
   return db.marcarSincronizacao(id)
+}
+
+export async function contarPontosDoProjeto(id: string) {
+  await requireSession()
+  return db.contarPontosDoProjeto(id)
 }
 
 export async function deletarProjeto(id: string) {

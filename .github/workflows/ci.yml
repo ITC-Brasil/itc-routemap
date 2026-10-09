@@ -52,7 +52,6 @@ jobs:
       GOOGLE_MAPS_SERVER_API_KEY: ci-placeholder
       GOOGLE_SERVICE_ACCOUNT_BASE64: ci-placeholder
       NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ci-placeholder
-      NEXT_PUBLIC_SERVICE_ACCOUNT_EMAIL: ci@ci.iam.gserviceaccount.com
       GEMINI_API_KEY: ci-placeholder
       # Gemini desligado no CI: sem chave real, cada chamada seria um 403.
       GEMINI_ENABLED: "false"
